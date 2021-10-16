@@ -1,0 +1,323 @@
+import pygame
+import sys
+import random
+import inspect
+import operator as op
+import PIL.Image
+import PIL.ImageEnhance
+import PIL.ImageDraw
+import PIL.ImageFilter
+from datetime import date
+from pyengine.pgbasics import *
+center_window()
+from pyengine.imports import *
+from pyengine.basics import *
+from pyengine.pilbasics import *
+
+
+# N O N - G R A P H I C A L  C L A S S E S ------------------------------------------------------------- #
+class BlockNotFoundError(Exception):
+    pass
+    
+    
+# W I N D O W ,  S U R F A C E S  A N D  S P R I T E  G R O U P S -------------------------------------- #
+class Window:
+    width = 810
+    height = 600
+    size = (width, height)
+    center = tuple([s / 2 for s in size])
+    pygame.display.set_caption("Blockingdom")
+    window = pygame.display.set_mode((width, height))
+    display = pygame.display.get_surface()
+    
+    
+# V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
+# visual things
+inventory_img = imgload("Bg_Images", "inventory.png")
+tool_holders_img = imgload("Bg_Images", "tool_holders.png")
+selected_item_img = imgload("Bg_Images", "selected_item.png")
+player_hit_chart = imgload("Bg_Images", "player_hit_chart.png")
+lock = imgload("Player_Skins", "lock.png")
+# crafting
+workbench_img = imgload("Surfaces", "workbench.png")
+_wbi = get_icon("arrow")
+workbench_icon = pygame.transform.scale(_wbi, [s // 2 for s in _wbi.get_size()])
+anvil_img = imgload("Surfaces", "anvil.png")
+furnace_img = imgload("Surfaces", "furnace.png")
+_crafting_rel_center = (workbench_img.get_width() / 2, (workbench_img.get_height() + 30) / 2)
+# bg images
+frame_img = imgload("Bg_Images", "frame.png")
+right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
+death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
+pygame.display.set_icon(imgload("Visual_Images", "icon.png"))
+
+# F O N T S -------------------------------------------------------------------------------------------- #
+# a maximum of two (normal + italic) of them is used; the other ones are experimental
+exo2_fonts = [pygame.font.Font(path("Fonts", "Exo2", "Exo2-Light.ttf"), i) for i in range(1, 101)]
+iexo2_fonts = [pygame.font.Font(path("Fonts", "Exo2", "Exo2-LightItalic.ttf"), i) for i in range(1, 101)]
+elec_fonts = [pygame.font.Font(path("Fonts", "Electrolize", "Electrolize-Regular.ttf"), i) for i in range(1, 101)]
+awave_fonts = [pygame.font.Font(path("Fonts", "Audiowide", "Audiowide-Regular.ttf"), i) for i in range(1, 101)]
+pixel_font = Font("pixel_font")
+neuro_fonts = [pygame.font.Font(path("Fonts", "NeuropolX", "neuropol x rg.ttf"), i) for i in range(1, 101)]
+orbit_fonts = [pygame.font.Font(path("Fonts", "Orbitron", "Orbitron-VariableFont_wght.ttf"), i) for i in range(1, 101)]
+
+# groups and lists of sprites
+# Group() refers to my custom group, while pygame.sprite.Group() refers to the built-in pygame group
+all_blocks =                    SmartList()
+all_drops =                     pygame.sprite.Group()
+all_particles =                 SmartGroup()
+all_projectiles =               SmartGroup()
+all_foreground_sprites =        pygame.sprite.Group()
+all_home_sprites =              pygame.sprite.Group()
+all_home_world_world_buttons =  pygame.sprite.Group()
+all_home_world_static_buttons = pygame.sprite.Group()
+all_home_settings_buttons =     pygame.sprite.Group()
+all_messageboxes =              pygame.sprite.Group()
+all_mobs =                      SmartGroup()
+
+# C O N S T A N T S ------------------------------------------------------------------------------------ #
+vowels = {"a", "e", "i", "o", "u"}
+consonants = {"b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "q", "r", "s", "t", "v", "w", "x", "y", "z"}
+skin_to_rgb = {
+               "g": (0, 150, 0), "u": (42, 157, 244), "y": (255, 255, 0),
+               "r": (255, 0, 0), "b": BLACK, "w": (255, 255, 255), "p": PINK
+              }
+builtin_skins = {}
+DPX = 810 // 2
+DPY = 600 // 2
+DPP = (DPX, DPY)
+
+bar_outline_width = 80
+bar_outline_height = 9
+bar_width = bar_outline_width - 4
+
+def_regen_time = millis(5)
+
+fog_img = pygame.display.get_surface()
+fog_img.fill(BLACK)
+    
+
+class Game:
+    def __init__(self):
+        """ The game class has all types of global attributes related to the game, as well as the player and the 'w' object that represents a world & its data """
+        # 'global' variables
+        self.keys = {"p up": pygame.K_w, "p left": pygame.K_a, "p down": pygame.K_s, "p right": pygame.K_d,
+                     "switch inventory": pygame.K_SPACE, "add craft": pygame.K_SPACE}
+        # initialization
+        self.clock = pygame.time.Clock()
+        self.fps_cap = 120
+        self.dt = None
+        self.events_locked = False
+        # constants
+        self.fppp = 3
+        self.player_size = (27, 27)
+        self.skin_scale_mult = 5
+        self.skin_fppp = 15
+        self.player_model = pygame.Surface([s * self.skin_scale_mult for s in self.player_size]); self.player_model.fill(GRAY)
+        self.player_model_pos = (338, 233)
+        self.tool_range = 30
+        # in-game attributes
+        self.stage = "home"
+        self.home_stage = None
+        self.menu = False
+        self.skin_menu = False
+        self.first_affection = None
+        # surfaces
+        self.night_sky = pygame.Surface(Window.size)
+        self.menu_surf = pygame.Surface(Window.size); self.menu_surf.set_alpha(100)
+        self.skin_menu_surf = pygame.Surface((Window.width / 11 * 9, Window.height / 11 * 9)); self.skin_menu_surf.fill(LIGHT_GRAY)
+        self.skin_menu_rect = self.skin_menu_surf.get_rect(center=[s / 2 for s in Window.display.get_size()])
+        # crafting
+        self.crafting = None
+        self.craftings = {}
+        self.craftable = None
+        self.craft_by_what = None  # list -> int
+        self.crafting_rect = workbench_img.get_rect(center=[s / 2 for s in Window.display.get_size()])
+        self.crafting_log = []
+        # skin menu
+        self.skin_anim_speed = 0.06
+        self.skins = {  # "pos" is topleft (of the player model; not the screen) just like normal pixel systems
+            "head": [
+                {"name": None},
+                {"name": "hat", "frames": 4, "pos": (-2, -1)},
+                {"name": "headband", "frames": 8, "pos": (-3, -1)},
+                {"name": "grass_hat", "frames": 6, "pos": (-2, -4)},
+                {"name": "helicopter", "frames": 7, "pos": (0, -5)},
+                {"name": "crown", "frames": 6, "pos": (-1, -3)}
+            ],
+            "face": [
+                {"name": None},
+                {"name": "glasses", "frames": 4, "frame_pause": 4, "pos": (0, 2)}
+            ],
+            "shoulder": [
+                {"name": None}
+            ],
+            "body": [
+                {"name": None},
+                {"name": "detective", "frames": 6, "pos": (0, 5)}
+            ]
+        }
+        self.skin_bts = list(self.skins.keys())
+        self.skin_indexes = dict.fromkeys(self.skin_bts, 0)
+        self.skin_anims = dict.fromkeys(self.skin_bts, 0)
+        for bt in self.skins:
+            for index, data in enumerate(self.skins[bt]):
+                if data["name"] is not None:
+                    self.skins[bt][index]["sprs"] = [scalex(img, self.skin_scale_mult) for img in imgload("Player_Skins", data["name"] + ".png", frames=data["frames"], frame_pause=data.get("frame_pause", 0))]
+                    del self.skins[bt][index]["name"]
+                else:
+                    self.skins[bt][index]["sprs"] = []
+        # spritesheets
+        self.portal_sprs = imgload(path("Spritesheets", "portal.png"), frames=7)
+        # rendering
+        self.screenshake = 0
+        self.s_render_offset = None
+        self.render_offset = [0, 0]
+        self.clicked_when = None
+        self.typing = False
+        self.worldbutton_pos_ydt = 40
+        self.max_worldbutton_poss = [45, 180 + 7 * self.worldbutton_pos_ydt]
+        # static attributes
+        self.color_codes = {"b": BLACK, "w": WHITE, "g": GREEN, "u": WATER_BLUE, "y": YELLOW}
+        self.ttypes = [("Data Files", "*.dat")]
+        self.itypes = [("PNG Image Files", "*.png"), ("JPG Image Files", "*.jpg")]
+        self.bar_rgb = bar_rgb()
+        self.def_widget_kwargs = {"pos": DPP, "font": orbit_fonts[20]}
+        self.common_languages = {"EN", "FR", "SP"}
+        self.nouns = txt_to_list(path("List_Files", "nouns.txt")) + [verb for verb in txt_to_list(path("List_Files", "verbs.txt")) if verb.endswith("ing")]
+        self.verbs = [verb for verb in txt_to_list(path("List_Files", "verbs.txt")) if verb.endswith("e")]
+        self.adjectives = txt_to_list(path("List_Files", "adjectives.txt"))
+        self.adverbs = txt_to_list(path("List_Files", "adverbs.txt"))
+        self.profanities = txt_to_list(path("List_Files", "profanities.txt"))
+        self.rhyme_url = r"https://api.datamuse.com/words?rel_rhy="
+        # dynamic surfaces
+        if isfile(path("Bg_Images", "home_bg.png")):
+            self.home_bg_img = imgload("Bg_Images", "home_bg.png")
+            self.home_bg_img.set_alpha(30)
+        else:
+            self.home_bg_img = self.bglize(imgload("Bg_Images", "def_home_bg.png"))
+        self.home_bg_img_size = self.home_bg_img.get_size()
+        self.fog_img = pygame.Surface(Window.size)
+        self.fog_light = scale2x(imgload("Bg_Images", "fog.png"))
+        self.generating_world = False
+        self.generating_world_perc = 0
+        self.generating_world_text = None
+        # rendering
+        self.screen_shake = 0
+        self.render_offset = (0, 0)
+        self.render_scale = 3
+      
+    @staticmethod
+    def stop():
+        pygame.quit()
+        sys.exit()
+
+    @staticmethod
+    def bglize(img):
+        ret = pil_to_pg(pil_blur(pg_to_pil(pgscale(img, (Window.width, Window.height - 120))), 10))
+        ret.set_alpha(30)
+        return ret
+        
+    @property
+    def mouse(self):
+        return pygame.mouse.get_pos()
+    
+    @property
+    def mouses(self):
+        return pygame.mouse.get_pressed()
+
+    @property
+    def mod(self):
+        return pygame.key.get_mods()
+    
+    @property
+    def str_mod(self):
+        return "_bg" if self.mod == 1 else ""
+        
+    def skin_data(self, bt):
+        return self.skins[bt][self.skin_indexes[bt]]
+    
+    def set_generating_world(self, tof):
+        self.generating_world = tof
+        self.events_locked = tof
+        self.generating_world_perc = 0
+        
+       
+class System:
+    def __init__(self):
+        self.version = ""
+        if self.version:
+            self.maj = self.version.split(".")[0]
+            self.min = self.version.split(".")[1]
+            self.pat = self.version.split(".")[2]
+            self.max_int = sys.maxint()
+        
+
+g = Game()
+system = System()
+
+crafting_center = [g.crafting_rect.x + _crafting_rel_center[0], g.crafting_rect.y + _crafting_rel_center[1]]
+
+
+# F U N C T I O N S ----------------------------------------------------------------------------------- #
+def is_in(elm, seq):
+    if isinstance(seq, dict):
+        itr = iter(seq.keys())
+    elif isinstance(seq, (list, tuple, set)):
+        itr = iter(seq)
+    else:
+        raise ValueError(f"Iterable must be a dict, list, tuple or set; not {type(seq)} ({seq}).")
+    if bpure(elm) in itr:
+        return True
+    else:
+        return False
+
+
+def bpure(str_):
+    ret = str_.removesuffix("_bg")
+    if "_" in ret:
+        return ret.split("_")[1]
+    else:
+        return ret
+
+
+# L A M B D A S ---------------------------------------------------------------------------------------- #
+inf = lambda num: INF if num == float("inf") else num
+
+"""- Creation of the Crafting System Surfaces -
+t = 30
+w = 400
+h = 210
+img = pygame.Surface((w, h))
+img.fill(WHITE)
+img.fill(LIGHT_GRAY, (0, t, w / 3, h))
+img.fill(GRAY, (w / 3 * 2, t, math.ceil(w / 3), h))
+workbench_rel_center = (img.get_width() / 2, (img.get_height() + 30) / 2)
+write(img, "midtop", "Input", orbit_fonts[20], BLACK, w / 3 / 2, 0)
+write(img, "midtop", "Tool", orbit_fonts[20], BLACK, workbench_img.get_width() / 2, 0)
+write(img, "midtop", "Output", orbit_fonts[20], BLACK, 400 - w / 3 / 2, 0)
+workbench_rect = img.get_rect(center=(Window.width / 2, Window.height / 2))
+pygame.image.save(img, path("Surfaces", "furnace.png"))
+"""
+
+# icons
+icons = {}
+for icon in os.listdir("Bg_Images"):
+    replaced = icon.replace(".png", "")
+    if replaced.endswith("_icon"):
+        icons[replaced.replace("_icon", "")] = imgload("Bg_Images", icon)
+
+breaking_sprs = imgload("Visual_Images", "breaking.png", frames=4)
+
+# B L O C K  D A T A ----------------------------------------------------------------------------------- #
+# selected item indicator (positions)
+selected_tool_poss = []
+x = 0
+for i in range(2):
+    selected_tool_poss.append((x, 0))
+    x += 33
+selected_block_poss = []
+x = 78
+for i in range(5):
+    selected_block_poss.append((x, 0))
+    x += 33

@@ -1,0 +1,340 @@
+import io
+import random
+import requests
+import pytesseract
+import PIL.Image
+from prim_data import a
+from settings import rand, is_in
+from pyengine.pgbasics import imgload
+from pyengine.basics import *
+from pyengine.pgbasics import *
+from pyengine.pilbasics import pil_to_pg
+from pytesseract import image_to_string
+
+
+HL = 27
+VL = 20
+L = VL * HL
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+entities = {}
+entities["portal"] = imgload("Spritesheets", "portal.png", frames=7)
+avatar_url = r"https://avatars.dicebear.com/api/pixel-art-neutral/:seed.svg?mood[]=:mood"
+avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
+quote_url = "https://inspirobot.me/api?generate=true"
+
+
+def get_avatar():
+    """
+    svg_path = path("tempfiles", "avatar.svg")
+    png_path = path("tempfiles", "avatar.jpg")
+    with open(svg_path, "wb") as f:
+        f.write(requests.get(avatar_url.replace(":mood", mood).replace(":seed", str(random.random()))).content)
+    svg = svg2rlg(svg_path)
+    renderPM.drawToFile(svg, png_path, fmt="JPG")
+    pg_img = imgload(png_path)
+    pg_img = pgscale(pg_img, (30, 30))
+    os.remove(svg_path)
+    os.remove(png_path)
+    """
+    """
+    png_path = path("tempfiles", "avatar.png")
+    with open(png_path, "wb") as f:
+        f.write(requests.get(avatar_url.replace(":seed", str(random.random()))).content)
+    pil_img = PIL.Image.open(png_path).resize((10, 10), resample=PIL.Image.BILINEAR).resize((30, 30), PIL.Image.NEAREST)
+    pg_img = pil_to_pg(pil_img)
+    os.remove(png_path)
+    """
+    img = pygame.Surface((10, 10))
+    skin_color = rgb_mult(SKIN_COLOR, randf(0.4, 8))
+    hair_color = rand_rgb()
+    hair_chance = 1
+    img.fill(skin_color)
+    for y in range(img.get_height()):
+        for x in range(img.get_width()):
+            if (x, y) in avatar_map:
+                img.set_at((x, y), avatar_map[(x, y)])
+            else:
+                truthy = False
+                try:
+                    if chance(1 / hair_chance) and img.get_at((x, y - 1)) == hair_color:
+                        truthy = True
+                except IndexError:
+                    truthy = True
+                if truthy:
+                    img.set_at((x, y), hair_color)
+        hair_chance += 0.1
+    img = pgscale(img, (30, 30))
+    return img
+    
+
+def get_quote():
+    img_url = requests.get(quote_url).text
+    img_io = requests.get(img_url).content
+    pil_img = PIL.Image.open(io.BytesIO(img_io))
+    pil_img = pil_img.resize([s // 2 for s in pil_img.size])
+    quote = image_to_string(pil_img)
+    quote = "".join([char for char in quote])
+    return quote
+    
+    
+def destroy_group(grp):
+    for spr in grp:
+        spr.kill()
+
+
+def is_transparent(image):
+    if image.get_at((0, 0))[3] == 0:
+        return True
+    else:
+        return False
+
+
+def rand_block(*args):
+    blocklist = []
+    chancelist = []
+    for arg in args:
+        if type(arg) == str:
+            blocklist.append(arg)
+        elif type(arg) == int or type(arg) == float:
+            chancelist.append(arg)
+    arr = []
+    item = -1
+    for i in range(len(chancelist)):
+        item += 1
+        for i in range(chancelist[item]):
+            arr.append(blocklist[item])
+    chance = arr[rand(0, 99)]
+    return chance
+
+
+class Biome:
+    def __init__(self):
+        self.heights = {"forest": 5, "desert": 5, "beach": 3, "mountain": 10, "industry": 2, "wasteland": 3}
+        self.blocks = {"forest":   ("f_soil", "dirt"),  "desert":    ("sand", "sand"),
+                       "beach":    ("sand", "sand"),    "mountain":  ("snow", "stone"),
+                       "swamp":    ("sw_soil", "dirt"), "prairie":   ("hay", "dirt"),
+                       "jungle":   ("f_soil", "dirt"),  "savanna":   ("sv_soil", "dirt"),
+                       "industry": ("p_soil", "dirt"),  "wasteland": ("dirt", "dirt")}
+        self.tree_heights = {"swamp": 4, "jungle": 8, "savanna": 10, "beach": 6}
+        self.tree_chances = {"forest": 8, "beach": 16, "swamp": 7, "jungle": 6, "savanna": 20}
+        self.wood_types = {"savanna": "sv_wood"}
+        self.water_chances = {"forest": 3, "beach": 3, "swamp": 5, "jungle": 4, "savanna": 100}
+        self.flatnesses = {"forest": 1, "industry": 10, "beach": 10}
+        self.biomes = list(self.blocks.keys())
+
+bio = Biome()
+
+
+def fromdict(dict_, el, exc, sf=None):
+    try:
+        try:
+            return dict_[el] + sf
+        except TypeError:
+            return dict_[el]
+    except KeyError:
+        return exc
+
+
+def get_leaf_type(blockname):
+    try:
+        type_ = blockname.split("_")[0]
+        a.blocks[type_ + "leaf"]
+        return type_ + "_leaf_bg"
+    except Exception:
+        return "f_leaf_bg"
+
+
+def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
+    horindex = blockindex % HL
+    verindex = blockindex // HL
+    entity_map = []
+    if "soil" in blockname:
+        if 2 <= horindex <= HL - 3:
+            if biome in bio.tree_chances:
+                tree_chance = chance(1 / bio.tree_chances[biome])
+            else:
+                tree_chance = 0
+            if tree_chance:
+                tree_index = blockindex - HL
+                tree_height = bio.tree_heights.get(biome, nordis(6, 2))
+                wood_type = fromdict(bio.wood_types, biome, exc="wood_bg", sf="_bg")
+                leaf_type = get_leaf_type(blockname)
+                if biome != "savanna":
+                    for i in range(tree_height):
+                        data[screen][tree_index] = wood_type
+                        tree_index -= HL
+                    if biome == "forest" or biome == "swamp":
+                        data[screen][tree_index - 2]      = leaf_type
+                        data[screen][tree_index - 1]      = leaf_type
+                        data[screen][tree_index]          = leaf_type
+                        data[screen][tree_index + 1]      = leaf_type
+                        data[screen][tree_index + 2]      = leaf_type
+                        data[screen][tree_index - HL + 1] = leaf_type
+                        data[screen][tree_index - HL]     = leaf_type
+                        data[screen][tree_index - HL - 1] = leaf_type
+                        data[screen][tree_index - HL * 2] = leaf_type
+                    elif biome == "jungle":
+                        data[screen][tree_index + HL - 2]     = leaf_type
+                        data[screen][tree_index + HL + 2]     = leaf_type
+                        data[screen][tree_index - 2]          = leaf_type
+                        data[screen][tree_index - 1]          = leaf_type
+                        data[screen][tree_index]              = leaf_type
+                        data[screen][tree_index + 1]          = leaf_type
+                        data[screen][tree_index + 2]          = leaf_type
+                        data[screen][tree_index - HL - 1]     = leaf_type
+                        data[screen][tree_index - HL]         = leaf_type
+                        data[screen][tree_index - HL + 1]     = leaf_type
+                        data[screen][tree_index - HL + 2]     = leaf_type
+                        data[screen][tree_index - HL * 2 - 2] = leaf_type
+                        data[screen][tree_index - HL * 2 - 1] = leaf_type
+                        data[screen][tree_index - HL * 2]     = leaf_type
+                        data[screen][tree_index - HL * 2 + 1] = leaf_type
+                        data[screen][tree_index - HL * 3 - 1] = leaf_type
+                        data[screen][tree_index - HL * 3]     = leaf_type
+                        data[screen][tree_index - HL * 4 - 1] = leaf_type
+                else:
+                    for i in range(tree_height):
+                        data[screen][tree_index]     = wood_type
+                        data[screen][tree_index + 1] = wood_type
+                        tree_index -= HL
+                    data[screen][tree_index + HL - 1] = leaf_type
+                    data[screen][tree_index]          = leaf_type
+                    data[screen][tree_index + 1]      = leaf_type
+                    data[screen][tree_index + HL + 2] = leaf_type
+
+                # vines
+                if biome in ("swamp", "jungle"):
+                    vine_height = nordis(tree_height // 2, 2)
+                    vine_index = np.random.choice((tree_index + HL - 2,
+                                                tree_index + HL - 1,
+                                                tree_index + HL + 1,
+                                                tree_index + HL + 2))
+                    for i in range(vine_height):
+                        data[screen][vine_index] = "vine"
+                        vine_index += HL
+                
+                if biome == "jungle":
+                    # bamboo
+                    if chance(1 / 7):
+                        bamboo_height = nordis(8, 2)
+                        bamboo_index = blockindex - HL
+                        for i in range(bamboo_height):
+                            data[screen][bamboo_index] = "bamboo_bg"
+                            bamboo_index -= HL
+                    # portal
+                    if chance(1 / 20):
+                        entity_map.append({"sort": "portal", "images": entities["portal"], "pos": (horindex, verindex), "screen": lit_screen})
+
+        if biome == "forest":
+            # watermelons
+            if chance(1 / 40):
+                data[screen][blockindex - HL] = "watermelon_bg"
+        
+        if biome == "industry":
+            # barrels
+            if chance(1 / 40):
+                barrel_indexes = [blockindex - HL, blockindex - HL * 2]
+                barrel_type = "red_barrel_bg" if chance(1 / 5) else "blue_barrel_bg"
+                for bi in barrel_indexes:
+                    data[screen][bi] = barrel_type  
+            # npc
+            if chance(1 / 50):
+                #full_name = req_to_dict(name_url.replace(":gender", choice(("male", "female"))))["name"].split()
+                #name = " ".join(full_name)
+                name = "Joe"
+                entity_map.append({"sort": "npc", "images": [get_avatar()], "pos": (horindex, verindex), "screen": lit_screen, "name": name, "script": None})
+
+    if biome == "desert":
+        if "sand" in data[screen][blockindex]:
+            if data[screen][blockindex - HL] == "air":
+                if chance(1 / 20):
+                    cactus_height = nordis(4, 2)
+                    cactus_index = blockindex - HL
+                    for i in range(cactus_height):
+                        data[screen][cactus_index] = "cactus_bg"
+                        cactus_index -= HL
+                elif chance(1 / 5):
+                    upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
+                            data[screen][blockindex - 29], data[screen][blockindex - 26],
+                            data[screen][blockindex - 25]]
+                    nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
+                            data[screen][blockindex + 1], data[screen][blockindex + 2]]
+                    if upp_blocks.count("air") == len(upp_blocks) and nei_blocks.count("sand") == len(nei_blocks):
+                        data[screen][blockindex - HL]  = "chest_bg"
+                        data[screen][blockindex - 28]  = "sand_bg"
+                        data[screen][blockindex - 29]  = "sand"
+                        data[screen][blockindex - 26]  = "sand_bg"
+                        data[screen][blockindex - 25]  = "sand"
+                        data[screen][blockindex - 54]  = "sand_bg"
+                        data[screen][blockindex - 55]  = "sand"
+                        data[screen][blockindex - 53]  = "sand"
+                        data[screen][blockindex - 81]  = "sand"
+
+    elif biome == "beach":
+        if "sand" in data[screen][blockindex] and "air" in data[screen][blockindex - HL]:
+            if not is_in("wood", (data[screen][blockindex - HL - 1], data[screen][blockindex - HL + 1])):
+                if 4 <= horindex <= HL - 2:
+                    if biome in bio.tree_chances:
+                        tree_chance = chance(1 / bio.tree_chances[biome])
+                    else:
+                        tree_chance = 0
+                    if tree_chance:
+                        tree_height = bio.tree_heights["beach"]
+                        pairs = []
+                        pairs.append(rand(1, tree_height - 1))
+                        pairs.append(tree_height - pairs[-1])
+                        
+                        tree_index = blockindex - HL
+                        for i in range(pairs[0]):
+                            data[screen][tree_index] = "wood_bg"
+                            tree_index -= HL
+                        tree_index -= 1
+                        for i in range(pairs[1]):
+                            data[screen][tree_index] = "wood_bg"
+                            tree_index -= HL
+
+                        leaves = [tree_index + HL - 2, tree_index - 1, tree_index + 2,
+                                  tree_index, tree_index - HL - 3, tree_index - HL - 1,
+                                  tree_index - HL, tree_index - HL + 1, tree_index - HL * 2 - 2,
+                                  tree_index - HL * 2, tree_index - HL * 3 + 1]
+                        for leaf in leaves:
+                            data[screen][leaf] = "f_leaf_bg"
+                        for leaf in leaves:
+                            if chance(1 / 12):
+                                data[screen][leaf] = "coconut"
+            
+            # rocks
+            if biome == "beach":
+                if 1 <= horindex <= HL - 1:
+                    if chance(1 / 25):
+                        data[screen][blockindex - HL] = "rock_bg"
+
+    if blockname == bio.blocks[biome][0]:
+        if data[screen][blockindex - HL] == "air":
+            if 2 <= horindex <= HL - 1:
+                if data[screen][blockindex - 1] == "air" or data[screen][blockindex + 1] == "air":
+                    if biome in bio.water_chances:
+                        water_chance = chance(1 / bio.water_chances[biome])
+                    else:
+                        water_chance = 0
+                    if water_chance:
+                        # check whether water can flow horizontally
+                        check_xindex = blockindex
+                        faulty = True
+                        for i in range(HL - horindex - 1):
+                            check_xindex += 1
+                            if data[screen][check_xindex] != "air":
+                                faulty = False
+                                break
+                        if not faulty:
+                            water_xindex = blockindex + 1
+                            while data[screen][water_xindex] == "air":
+                                data[screen][water_xindex] = "water"
+                                water_yindex = water_xindex + HL
+                                while data[screen][water_yindex] == "air":
+                                    data[screen][water_yindex] = "water"
+                                    water_yindex += HL
+                                water_xindex += 1
+
+    return entity_map
