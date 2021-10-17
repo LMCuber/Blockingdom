@@ -31,14 +31,14 @@ def pil_blur(pil_img, radius=2):
     return pil_img.filter(PIL.ImageFilter.GaussianBlur(radius=radius))
 
 
-def pil_to_pg(pil_img):
+def pil2pg(pil_img):
     data = pil_img.tobytes()
     size = pil_img.size
     mode = pil_img.mode
     return pygame.image.fromstring(data, size, mode).convert_alpha()
     
     
-def pil_rect_to_pg(pil_rect):
+def pil_rect2pg(pil_rect):
     return (pil_rect[0], pil_rect[1], pil_rect[2] - pil_rect[0], pil_rect[3] - pil_rect[1])
 
 

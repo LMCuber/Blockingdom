@@ -28,28 +28,30 @@ class Window:
     center = tuple([s / 2 for s in size])
     pygame.display.set_caption("Blockingdom")
     window = pygame.display.set_mode((width, height))
-    display = pygame.display.get_surface()
+    display = SmartSurface(size)
     
     
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
+cimgload = partial(imgload, scale=3)
 # visual things
-inventory_img = imgload("Bg_Images", "inventory.png")
-tool_holders_img = imgload("Bg_Images", "tool_holders.png")
-selected_item_img = imgload("Bg_Images", "selected_item.png")
-player_hit_chart = imgload("Bg_Images", "player_hit_chart.png")
-lock = imgload("Player_Skins", "lock.png")
+inventory_img = cimgload("Bg_Images", "inventory.png")
+tool_holders_img = cimgload("Bg_Images", "tool_holders.png")
+selected_item_img = cimgload("Bg_Images", "selected_item.png")
+pouch_img = cimgload("Bg_Images", "pouch.png")
+player_hit_chart = cimgload("Bg_Images", "player_hit_chart.png")
+lock = cimgload("Player_Skins", "lock.png")
 # crafting
-workbench_img = imgload("Surfaces", "workbench.png")
+workbench_img = cimgload("Surfaces", "workbench.png")
 _wbi = get_icon("arrow")
 workbench_icon = pygame.transform.scale(_wbi, [s // 2 for s in _wbi.get_size()])
-anvil_img = imgload("Surfaces", "anvil.png")
-furnace_img = imgload("Surfaces", "furnace.png")
+#anvil_img = cimgload("Surfaces", "anvil.png")
+furnace_img = cimgload("Surfaces", "furnace.png")
 _crafting_rel_center = (workbench_img.get_width() / 2, (workbench_img.get_height() + 30) / 2)
 # bg images
-frame_img = imgload("Bg_Images", "frame.png")
+frame_img = cimgload("Bg_Images", "frame.png")
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
-pygame.display.set_icon(imgload("Visual_Images", "icon.png"))
+pygame.display.set_icon(cimgload("Visual_Images", "icon.png"))
 
 # F O N T S -------------------------------------------------------------------------------------------- #
 # a maximum of two (normal + italic) of them is used; the other ones are experimental
@@ -93,9 +95,6 @@ bar_width = bar_outline_width - 4
 
 def_regen_time = millis(5)
 
-fog_img = pygame.display.get_surface()
-fog_img.fill(BLACK)
-    
 
 class Game:
     def __init__(self):
@@ -163,12 +162,12 @@ class Game:
         for bt in self.skins:
             for index, data in enumerate(self.skins[bt]):
                 if data["name"] is not None:
-                    self.skins[bt][index]["sprs"] = [scalex(img, self.skin_scale_mult) for img in imgload("Player_Skins", data["name"] + ".png", frames=data["frames"], frame_pause=data.get("frame_pause", 0))]
+                    self.skins[bt][index]["sprs"] = [scalex(img, self.skin_scale_mult) for img in cimgload("Player_Skins", data["name"] + ".png", frames=data["frames"], frame_pause=data.get("frame_pause", 0))]
                     del self.skins[bt][index]["name"]
                 else:
                     self.skins[bt][index]["sprs"] = []
         # spritesheets
-        self.portal_sprs = imgload(path("Spritesheets", "portal.png"), frames=7)
+        self.portal_sprs = cimgload(path("Spritesheets", "portal.png"), frames=7)
         # rendering
         self.screenshake = 0
         self.s_render_offset = None
@@ -184,21 +183,21 @@ class Game:
         self.bar_rgb = bar_rgb()
         self.def_widget_kwargs = {"pos": DPP, "font": orbit_fonts[20]}
         self.common_languages = {"EN", "FR", "SP"}
-        self.nouns = txt_to_list(path("List_Files", "nouns.txt")) + [verb for verb in txt_to_list(path("List_Files", "verbs.txt")) if verb.endswith("ing")]
-        self.verbs = [verb for verb in txt_to_list(path("List_Files", "verbs.txt")) if verb.endswith("e")]
-        self.adjectives = txt_to_list(path("List_Files", "adjectives.txt"))
-        self.adverbs = txt_to_list(path("List_Files", "adverbs.txt"))
-        self.profanities = txt_to_list(path("List_Files", "profanities.txt"))
+        self.nouns = txt2list(path("List_Files", "nouns.txt")) + [verb for verb in txt2list(path("List_Files", "verbs.txt")) if verb.endswith("ing")]
+        self.verbs = [verb for verb in txt2list(path("List_Files", "verbs.txt")) if verb.endswith("e")]
+        self.adjectives = txt2list(path("List_Files", "adjectives.txt"))
+        self.adverbs = txt2list(path("List_Files", "adverbs.txt"))
+        self.profanities = txt2list(path("List_Files", "profanities.txt"))
         self.rhyme_url = r"https://api.datamuse.com/words?rel_rhy="
         # dynamic surfaces
         if isfile(path("Bg_Images", "home_bg.png")):
-            self.home_bg_img = imgload("Bg_Images", "home_bg.png")
+            self.home_bg_img = cimgload("Bg_Images", "home_bg.png")
             self.home_bg_img.set_alpha(30)
         else:
-            self.home_bg_img = self.bglize(imgload("Bg_Images", "def_home_bg.png"))
+            self.home_bg_img = self.bglize(cimgload("Bg_Images", "def_home_bg.png"))
         self.home_bg_img_size = self.home_bg_img.get_size()
-        self.fog_img = pygame.Surface(Window.size)
-        self.fog_light = scale2x(imgload("Bg_Images", "fog.png"))
+        self.fog_img = SmartSurface(Window.size)
+        self.fog_light = scale2x(cimgload("Bg_Images", "fog.png"))
         self.generating_world = False
         self.generating_world_perc = 0
         self.generating_world_text = None
@@ -214,7 +213,7 @@ class Game:
 
     @staticmethod
     def bglize(img):
-        ret = pil_to_pg(pil_blur(pg_to_pil(pgscale(img, (Window.width, Window.height - 120))), 10))
+        ret = pil2pg(pil_blur(pg2pil(pgscale(img, (Window.width, Window.height - 120))), 10))
         ret.set_alpha(30)
         return ret
         
@@ -284,30 +283,14 @@ def bpure(str_):
 # L A M B D A S ---------------------------------------------------------------------------------------- #
 inf = lambda num: INF if num == float("inf") else num
 
-"""- Creation of the Crafting System Surfaces -
-t = 30
-w = 400
-h = 210
-img = pygame.Surface((w, h))
-img.fill(WHITE)
-img.fill(LIGHT_GRAY, (0, t, w / 3, h))
-img.fill(GRAY, (w / 3 * 2, t, math.ceil(w / 3), h))
-workbench_rel_center = (img.get_width() / 2, (img.get_height() + 30) / 2)
-write(img, "midtop", "Input", orbit_fonts[20], BLACK, w / 3 / 2, 0)
-write(img, "midtop", "Tool", orbit_fonts[20], BLACK, workbench_img.get_width() / 2, 0)
-write(img, "midtop", "Output", orbit_fonts[20], BLACK, 400 - w / 3 / 2, 0)
-workbench_rect = img.get_rect(center=(Window.width / 2, Window.height / 2))
-pygame.image.save(img, path("Surfaces", "furnace.png"))
-"""
-
 # icons
 icons = {}
 for icon in os.listdir("Bg_Images"):
     replaced = icon.replace(".png", "")
     if replaced.endswith("_icon"):
-        icons[replaced.replace("_icon", "")] = imgload("Bg_Images", icon)
+        icons[replaced.replace("_icon", "")] = cimgload("Bg_Images", icon)
 
-breaking_sprs = imgload("Visual_Images", "breaking.png", frames=4)
+breaking_sprs = cimgload("Visual_Images", "breaking.png", frames=4)
 
 # B L O C K  D A T A ----------------------------------------------------------------------------------- #
 # selected item indicator (positions)

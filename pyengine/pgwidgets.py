@@ -11,13 +11,6 @@ for i in range(101):
 keyboard_map = {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")", "-": "_", "=": "+"}
 
 
-def _exec_command(command, removeobj=None, *args, **kwargs):
-    if callable(command):
-        command(*args, **kwargs)
-    if removeobj:
-        removeobj._kill()
-
-
 def set_default_fonts(font):
     _eng.def_fonts = font
 
@@ -144,6 +137,15 @@ class _Widget:
         Thread(target=self.zoom, args=["in"]).start()
         self.startup_command()
     
+    def _exec_command(self, command, after=None, *args, **kwargs):
+        if callable(command):
+            command(*args, **kwargs)
+        if after == "out destroy":
+            Thread(target=self.zoom, args=["out destroy"]).start()
+        elif after == "destroy":
+            self._kill()
+
+    
     def set_pos(self, pos, anchor="center"):
         setattr(self.rect, anchor, pos)
         self.og_pos = pos
@@ -184,10 +186,10 @@ class _Widget:
                 setattr(self.rect, self.og_anchor, self.og_pos)
                 time.sleep(WOOSH_TIME)
             if type_ == "out":
-                _exec_command(self.exit_command)
+                self._exec_command(self.exit_command)
                 self.disabled = True
             elif type_ == "out destroy":
-                _exec_command(self.exit_command, self)
+                self._exec_command(self.exit_command, "destroy")
 
     def draw(self):
         self.surf.blit(self.image, self.rect)
@@ -324,7 +326,7 @@ class Entry(_Widget):
             mod = pygame.key.get_mods()
             if self.focused:
                 if name == "return":
-                    _exec_command(self.command, None, self.output)
+                    self._exec_command(self.command, None, self.output)
                     Thread(target=self.zoom, args=["out destroy"]).start()
                 elif name == "backspace":
                     if mod == CTRL:
@@ -388,22 +390,22 @@ class MessageboxOkCancel(_Widget):
         write(self.image, "center", "OK", self.font, BLACK, self.image.get_width() / 4, self.image.get_height() / 4 * 3)
         # cancel
         write(self.image, "center", "Cancel", self.font, BLACK, self.image.get_width() / 4 * 3, self.image.get_height() / 4 * 3)
-        # other and rects
+        # rects
         pygame.draw.rect(self.image, BLACK, (self.image.get_width() // 2 - 2, 30, 4, 30))
         self.rects = {}
         self.rects["ok"] = pygame.Rect(self.rect.left, self.rect.top + 30, self.text_width // 2, 60)
         self.rects["cancel"] = pygame.Rect(self.rect.left + self.text_width // 2, self.rect.top + 30, self.text_width, 60)
+        # super
         super().__init__(self.image, surf, visible_when, friends, pos, anchor, exit_command, disabled, disable_type, template, type(self), add, special_flags)
 
     def process_event(self, event): 
         if event.type == pygame.KEYDOWN:
             if event.key == ENTER:
-                _exec_command(self.command, self)
+                self._exec_command(self.command, "out destroy")
 
     def okcancel(self, mouse):
         if self.rects["ok"].collidepoint(mouse):
-            self.command()
-        Thread(target=self.zoom, args=["out destroy"]).start()
+            self._exec_command(self.command, "out destroy")
 
 
 class MessageboxError(_Widget):
@@ -459,9 +461,9 @@ class Checkbox(_Widget):
         if pygame.Rect(self.rect.left + 5, self.rect.top + 5, 20, 20).collidepoint(mouse):
             self.checked = not self.checked
             if self.checked and self.check_command:
-                _exec_command(self.check_command)
+                self._exec_command(self.check_command)
             elif not self.checked and self.uncheck_command:
-                _exec_command(self.uncheck_command)
+                self._exec_command(self.uncheck_command)
     
     def update(self):
         blitx, blity = 5, self.image.get_height() / 2 - self.box.get_height() / 2
@@ -469,9 +471,9 @@ class Checkbox(_Widget):
         if self.checked:
             bw, bh = self.box.get_size()
             self.image.blit(self.check, (blitx, blity))
-            _exec_command(self.while_checked)
+            self._exec_command(self.while_checked)
         elif self.while_not_checked:
-            _exec_command(self.while_not_checked)
+            self._exec_command(self.while_not_checked)
 
 
 class Slider(_Widget):

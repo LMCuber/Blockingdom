@@ -286,8 +286,6 @@ def init_world(type_):
                 "energy": {"amount": 50, "color": YELLOW, "pos": (32, 80), "icon": "energy"},
                 "o2": {"amount": 100, "color": SMOKE_BLUE, "pos": (32, 100), "icon": "o2"},
                 "xp": {"amount": 0, "color": LIGHT_GREEN, "pos": (32, 120), "icon": "xp"},
-                "": {},
-                "coins": {"amount": 0, "color": YELLOW_ORANGE, "pos": (32, 155), "icon": "coins"}
             }
         elif g.w.mode == "freestyle":
             g.player.inventory = ["anvil", "bush", "dynamite", "command-block", "workbench"]
@@ -519,6 +517,7 @@ class World:
         self.biome_names = []
         self.prev_screen = self.data
         self.name = None
+        self.gun_names = []
         # game settings
         self.show_hitboxes = False
         # day-night cycle
@@ -617,12 +616,15 @@ class PlayWidgets:
             if g.w.mode == "adventure":
                 if not g.skin_menu:
                     Window.display.blit(g.bars_bg, (0, 0))
+                    x = 32
+                    y = 15
                     for data in g.player.bars.values():
                         if data:
-                            pygame.draw.rect(Window.display, BLACK, (*data["pos"], bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
-                            pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in data["pos"]], perc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
-                            Window.display.blit(icons[data["icon"]], (data["pos"][0] - 22, data["pos"][1] - 3))
-                            write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], BLACK, data["pos"][0] + bar_outline_width + 8, data["pos"][1] + 3)
+                            pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
+                            pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in (x, y)], perc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
+                            Window.display.blit(icons[data["icon"]], (x - 22, y - 3))
+                            write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], BLACK, x + bar_outline_width + 8, y + 3)
+                        y += 20
 
     @staticmethod
     def show_fps_command():
@@ -645,7 +647,7 @@ class PlayWidgets:
     @staticmethod
     def fog_command():
         g.fog_img.fill(BLACK)
-        blit_center(g.fog_img, g.fog_light, g.player.rect.center)
+        g.fog_img.cblit(g.fog_light, g.player.rect.center)
         Window.display.blit(g.fog_img, (0, 0), special_flags=pygame.BLEND_MULT)
 
     @staticmethod
@@ -665,7 +667,8 @@ class PlayWidgets:
         g.player.images = [pygame.Surface((Window.size), pygame.SRCALPHA) for _ in range(longest_sprs_len)]
         _bg = pygame.Surface(g.player_size); _bg.fill(GRAY)
         for image in g.player.images:
-            blit_center(image, _bg, [s / 2 for s in image.get_size()])
+            image = SmartSurface.from_surface(image)
+            image.cblit(bg, [s / 2 for s in image.get_size()])
         if not g.player.images:
             g.player.images = [pygame.Surface(g.player_size)]; g.player.images[0].fill(GRAY)
         for anim in range(longest_sprs_len):
@@ -683,12 +686,12 @@ class PlayWidgets:
                         skin_pos[0] += _sp[0] * g.fppp
                         skin_pos[1] += _sp[1] * g.fppp
                         g.player.images[anim].blit(skin_img, skin_pos)
-        rects = [pg_to_pil(image).getbbox() for image in g.player.images]
+        rects = [pg2pil(image).getbbox() for image in g.player.images]
         x1 = min([rect[0] for rect in rects])
         y1 = min([rect[1] for rect in rects])
         x2 = max([rect[2] for rect in rects])
         y2 = max([rect[3] for rect in rects])
-        rect = pil_rect_to_pg((x1, y1, x2, y2))
+        rect = pil_rect2pg((x1, y1, x2, y2))
         g.player.images = [image.subsurface(rect) for image in g.player.images]
         g.player.rect = g.player.images[0].get_rect(center=g.player.rect.center)
         g.player.width, g.player.height = g.player.images[0].get_size()
@@ -816,6 +819,7 @@ class Player:
 
         self.tools = []
         self.tool_healths = []
+        self.tool_ammos = []
         self.inventory = []
         self.inventory_amounts = []
         self.indexes = {}
@@ -906,7 +910,7 @@ class Player:
         pil_draw.pieslice((0, 0, *[ps - 1 for ps in pie_size]), -90, degrees, fill=GRAY)
         pil_img = pil_img.resize(pie_size, PIL.Image.ANTIALIAS)
         del pil_draw
-        self.food_pie["image"] = pil_to_pg(pil_img)
+        self.food_pie["image"] = pil2pg(pil_img)
         self.food_pie["rect"] = self.food_pie["image"].get_rect()
         if self.food_pie["counter"] >= 270:
             for attr in finfo[food]["amounts"]:
@@ -1115,9 +1119,10 @@ class Player:
             self.image = self.images[int(self.anim)]
 
 
-class VisualBlock:
-    __slots__ = ["og_img", "image", "rect"]
-
+class Visual:
+    def __init__(self):
+        self.angle = 0
+    
     def function(self):
         if g.player.main == "block":
             if g.player.block is not None:
@@ -1130,16 +1135,7 @@ class VisualBlock:
                     self.rect.left = g.player.rect.right + 5
                 self.rect.centery = g.player.rect.centery
                 Window.display.blit(self.image, self.rect)
-
-
-class VisualTool:
-    __slots__ = ["og_img", "image", "rect", "angle"]
-
-    def __init__(self):
-        self.angle = 0
-
-    def function(self):
-        if g.player.main == "tool":
+        elif g.player.main == "tool":
             if g.player.tool is not None:
                 self.og_img = a.tools[g.player.tool]
                 self.image = self.og_img.copy()
@@ -1522,12 +1518,12 @@ class StaticOptionMenu(pygame.sprite.Sprite, StaticWidget):
         self.options = options
         self.default = default
         w, h = orbit_fonts[20].size(str(default))
-        self.image = pygame.Surface((w + 40, h + 10), pygame.SRCALPHA)
+        self.image = SmartSurface((w + 40, h + 10), pygame.SRCALPHA)
         w, h = self.image.get_size()
         pygame.draw.rect(self.image, bg_color, (0, 0, *self.image.get_size()), 0, 10, 10, 10, 10)
         pygame.draw.rect(self.image, DARK_BROWN, (0, 0, *self.image.get_size()), 2, 10, 10, 10, 10)
         write(self.image, "midleft", default, orbit_fonts[20], BLACK, 5, h / 2)
-        blit_center(self.image, pygame.transform.rotozoom(triangle(12), 180, 1), (w - 20, h / 2))
+        self.image.cblit(pygame.transform.rotozoom(triangle(12), 180, 1), (w - 20, h / 2))
         self.og_img = self.image.copy()
         self.rects = []
         self.rect = self.image.get_rect()
@@ -1679,8 +1675,7 @@ class MessageboxWorld(pygame.sprite.Sprite):
 
 # I N I T I A L I Z I N G  S P R I T E S -------------------------------------------------------------- #
 g.player = Player()
-v_block = VisualBlock()
-v_tool = VisualTool()
+visual = Visual()
 hov = Hovering()
 
 button_cnw = StaticButton("Create New World", (45, Window.height - 160), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", size="world", command=new_world, visible_when=pw.is_worlds_worlds)
@@ -1745,8 +1740,6 @@ def main():
                 pygame.mixer.music.play()
                 if first_music:
                     first_music = False
-        if pygame.mixer.music.get_volume() != pw.volume.value:
-            pygame.mixer.music.set_volume(pw.volume.value / 100)
 
         # event loop
         for event in pygame.event.get():
@@ -1972,7 +1965,10 @@ def main():
                         with suppress(AttributeError, TypeError):
                             spr.process_event(event)
 
+        # play loop
         if g.stage == "play":
+            set_volume(pw.volume.value / 100)
+            
             if not g.menu:
                 if g.mouses[0]:
                     if g.clicked_when == "play":
@@ -1980,13 +1976,13 @@ def main():
                             if g.player.main == "tool":
                                 if g.player.tool is not None:
                                     if g.player.direc == "left":
-                                        v_tool.angle += 3
-                                        if v_tool.angle > 90:
-                                            v_tool.angle = -90
+                                        visual.angle += 3
+                                        if visual.angle > 90:
+                                            visual.angle = -90
                                     elif g.player.direc == "right":
-                                        v_tool.angle -= 3
-                                        if v_tool.angle < -90:
-                                            v_tool.angle = 90
+                                        visual.angle -= 3
+                                        if visual.angle < -90:
+                                            visual.angle = 90
 
                             for block in all_blocks:
                                 if g.player.main == "block":
@@ -2029,10 +2025,10 @@ def main():
                                                 block.broken = 0
 
                                 elif g.player.main == "tool":
-                                    if tpure(g.player.tool) not in ginfo:
+                                    if tpure(g.player.tool) in tinfo:
                                         if is_in(block.name, tool_blocks):
-                                            if hasattr(v_tool, "rect"):
-                                                if block.rect.colliderect(v_tool.rect):
+                                            if hasattr(visual, "rect"):
+                                                if block.rect.colliderect(visual.rect):
                                                     block.try_breaking("tool")
                                                     break
 
@@ -2087,9 +2083,8 @@ def main():
             all_foreground_sprites.draw(Window.display)
             all_foreground_sprites.update()
 
-            # tool and block
-            v_tool.function()
-            v_block.function()
+            # visual tool and block
+            visual.function()
             
             # mobs
             all_mobs.function()
@@ -2119,7 +2114,7 @@ def main():
             for crafting_block in g.craftings:
                 # crafting material
                 pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
-                blit_center(Window.display, a.blocks[crafting_block], (x, y))
+                Window.display.cblit(a.blocks[crafting_block], (x, y))
                 write(Window.display, "midright", g.craftings[crafting_block], orbit_fonts[15], BLACK, x - 20, y)
                 y += yo
                 if (y - sy) / yo == 5:
@@ -2155,14 +2150,15 @@ def main():
                 except BreakAllLoops:
                     pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1]))
                     if craftable in a.blocks:
-                        blit_center(Window.display, a.blocks[craftable], (crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1]))
+                        Window.display.cblit(a.blocks[craftable], (crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1]))
                     elif craftable in a.tools:
                         blit_center(Window.display, a.tools[craftable], (crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1]))
                     g.craft_by_what = min(g.craft_by_what)
                     write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1] + 40)
 
+            # player item
             if g.crafting == "workbench":
-                blit_center(Window.display, workbench_icon, crafting_center)
+                Window.display.cblit(workbench_icon, crafting_center)
 
             if g.player.main == "block" and g.player.block is not None:
                 if g.player.block not in oinfo:
@@ -2174,7 +2170,7 @@ def main():
             else:
                 item = None
             if item is not None:
-                write(Window.display, "center", item, orbit_fonts[15], BLACK, Window.width / 2 + 30, 85)
+                write(Window.display, "center", item, orbit_fonts[15], BLACK, Window.width / 2 + 20, 90)
             if g.mod == 1:
                 if no_entries():
                     if g.player.main == "block" and g.player.block:
@@ -2182,38 +2178,32 @@ def main():
             write(Window.display, "center", "| " + str(g.w.screen + 1) + " |", orbit_fonts[20], BLACK, Window.width - 25, 20)
 
             # H O T B A R --------------------------------------------------------------------------------- #
-            Window.hotbar = pygame.Surface((256, 54), pygame.SRCALPHA)
-            Window.hotbar.blit(tool_holders_img, (0, 0))
-            Window.hotbar.blit(inventory_img, (78, 0))
-
-            x = 3
-            i = 0
-            for tool in g.player.tools:
+            Window.display.cblit(tool_holders_img, (Window.width / 2 - 96 - 35, 20), "midtop")
+            Window.display.cblit(inventory_img, (Window.width / 2 + 20, 20), "midtop")
+            Window.display.cblit(tool_holders_img, (Window.width / 2 + 20 + 96 + 55, 20), "midtop")
+            
+            # selected tool
+            x = 243
+            y = 23
+            for index, tool in enumerate(g.player.tools):
                 if tool is not None:
-                    Window.hotbar.blit(a.tools[tool], (x, 3))
-                th = g.player.tool_healths[i]
-                if th < 100:
-                    pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, perc(th, 30), 3))
+                    Window.display.blit(a.tools[tool], (x, y))
+                if tpure(tool) in tinfo:
+                    th = g.player.tool_healths[index]
+                    if th < 100:
+                        pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, perc(th, 30), y))
+                elif tpure(tool) in g.w.gun_names:
+                    pass
                 x += 33
-                i += 1
-
-            x = 81
-            i = 0
-            i = 0
-            for block in g.player.inventory:
+                
+            # selected block
+            x = 344
+            y = 23
+            for index, block in enumerate(g.player.inventory):
                 if block is not None:
-                    Window.hotbar.blit(a.blocks[block], (x, 3))
-                    write(Window.hotbar, "center", inf(g.player.inventory_amounts[i]), orbit_fonts[15], BLACK, x + 15, 43)
+                    Window.display.blit(a.blocks[block], (x, y))
+                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], BLACK, x + 15, y + 30)
                 x += 33
-                i += 1
-
-            if g.player.main == "block":
-                Window.hotbar.blit(selected_item_img, (selected_block_poss[g.player.indexes["block"]]))
-            elif g.player.main == "tool":
-                Window.hotbar.blit(selected_item_img, (selected_tool_poss[g.player.indexes["tool"]]))
-
-            hbr_width_dbt = Window.hotbar.get_width() / 2
-            Window.display.blit(Window.hotbar, (Window.width / 2 - hbr_width_dbt, 15))
 
             # P L A Y E R  B A R S ------------------------------------------------------------------------ #
             # applyping regeneration
@@ -2229,7 +2219,10 @@ def main():
                     g.player.food_pie["rect"].midbottom = (g.player.rect.centerx, g.player.rect.top - 25)
                     Window.display.blit(g.player.food_pie["image"], g.player.food_pie["rect"])
 
+        # home loop
         elif g.stage == "home":
+            set_volume(0)
+                
             Window.display.fill(DARK_BROWN)
             write(Window.display, "center", "Blockingdom", orbit_fonts[50], BLACK, Window.width // 2, 58)
             Window.display.blit(frame_img, (0, 0))
@@ -2260,8 +2253,8 @@ def main():
         # skin menu filling
         if g.skin_menu:
             # backkground (filling)
-            blit_center(Window.display, g.skin_menu_surf, (Window.width / 2, Window.height / 2))
-            blit_center(Window.display, g.player_model, (Window.width / 2, Window.height / 2), math.ceil)
+            Window.display.cblit(skin_menu_surf, (Window.width / 2, Window.height / 2))
+            Window.display.cblit(g.player_model, (Window.width / 2, Window.height / 2))
             # skins (showcase)
             for bt in g.skins:
                 if g.skin_data(bt)["sprs"]:
@@ -2279,7 +2272,7 @@ def main():
 
             # buttons (arrows)
             for button in pw.change_skin_buttons:
-                blit_center(Window.display, button["surf"], button["rect"].center)
+                Window.display.cblit(button["surf"], button["rect"].center)
             # lines (for clarity)
 
         # updating the widgets

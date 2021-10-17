@@ -18,6 +18,15 @@ prrint = print # because I always mess it up when typing fast
 
 
 # functions
+def copy_func(f):
+    g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__,
+                           argdefs=f.__defaults__,
+                           closure=f.__closure__)
+    g = functools.update_wrapper(g, f)
+    g.__kwdefaults__ = f.__kwdefaults__
+    return g
+    
+
 def correct(word, words):
     result = [len([char for char in word if char in test_word]) / len(word) for test_word in words]
     return result
@@ -31,7 +40,7 @@ def test():
     print(rand(0, 999))
     
     
-def req_to_dict(url):
+def req2dict(url):
     try:
         return json.loads(requests.get(url).text)
     except:raise
@@ -140,7 +149,7 @@ def nordis(mu, sigma):
     return int(random.gauss(mu, sigma))
 
 
-def txt_to_list(path_):
+def txt2list(path_):
     with open(path_, "r") as f:
         return [line.rstrip("\n") for line in f.readlines()]
 

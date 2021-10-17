@@ -57,10 +57,24 @@ def aaellipse(width, height, color=BLACK):
 
 
 # functions
-def pos_mouse_to_vel(pos, mouse, speed):
+def set_volume(amount):
+    if get_volume() != amount:
+        pygame.mixer.music.set_volume(amount)
+
+
+def get_volume():
+    return pygame.mixer.music.get_volume()
+
+
+def pos_mouse_to_angle(pos, mouse):
     dy = mouse[1] - pos[1]
     dx = mouse[0] - pos[0]
     angle = math.atan2(dy, dx)
+    return angle
+    
+
+def pos_mouse_to_vel(pos, mouse, speed):
+    angle = pos_mouse_to_angle(pos, mouse)
     vx = cos(angle) * speed
     vy = sin(angle) * speed
     return vx, vy
@@ -119,9 +133,9 @@ def imgload(*path_, transparency=True, colorkey=None, frames=None, frame_pause=0
             ret.append(ret[0])
     if isinstance(ret, list):
         for i, r in enumerate(ret):
-            ret[i] = pygame.transform.scale(r.convert_alpha() if transparency else r.convert(), [int(perc(scale * 100, s)) for s in ret[i].get_size()])
+            ret[i] = scalex(r.convert_alpha() if transparency else r.convert(), scale)
     elif isinstance(ret, pygame.Surface):
-        ret = pygame.transform.scale(ret.convert_alpha() if transparency else ret.convert(), [int(perc(scale * 100, s)) for s in ret.get_size()])
+        ret = scalex(ret.convert_alpha() if transparency else ret.convert(), scale)
     return ret
     
     
@@ -192,11 +206,11 @@ def invert_rgb(rgb):
     return [255 - rgb for color in rgb]
     
 
-def pg_to_pil(pg_img):
+def pg2pil(pg_img):
     return PIL.Image.frombytes("RGBA", pg_img.get_size(), pygame.image.tostring(pg_img, "RGBA"))
 
 
-def pg_rect_to_pil(pg_rect):
+def pg_rect2pil(pg_rect):
     return (pg_rect[0], pg_rect[1], pg_rect[0] + pg_rect[2], pg_rect[1] + pg_rect[3])
 
 
@@ -291,6 +305,21 @@ ENTER = _Enter()
 SHIFT = _Shift()
 CTRL = _Control()
 
+
+class SmartSurface(pygame.Surface):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    @staticmethod
+    def from_surface(surface):
+        ret = SmartSurface(surface.get_size())
+        ret.blit(surface, (0, 0))
+    
+    def cblit(self, surf, pos, anchor="center"):
+        rect = surf.get_rect()
+        setattr(rect, anchor, pos)
+        self.blit(surf, rect)
+    
 
 class SmartGroup:
     def __init__(self):

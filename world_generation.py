@@ -4,11 +4,10 @@ import requests
 import pytesseract
 import PIL.Image
 from prim_data import a
-from settings import rand, is_in
-from pyengine.pgbasics import imgload
+from settings import *
 from pyengine.basics import *
 from pyengine.pgbasics import *
-from pyengine.pilbasics import pil_to_pg
+from pyengine.pilbasics import pil2pg
 from pytesseract import image_to_string
 
 
@@ -18,7 +17,7 @@ L = VL * HL
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 entities = {}
-entities["portal"] = imgload("Spritesheets", "portal.png", frames=7)
+entities["portal"] = cimgload("Spritesheets", "portal.png", frames=7)
 avatar_url = r"https://avatars.dicebear.com/api/pixel-art-neutral/:seed.svg?mood[]=:mood"
 avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
 quote_url = "https://inspirobot.me/api?generate=true"
@@ -32,7 +31,7 @@ def get_avatar():
         f.write(requests.get(avatar_url.replace(":mood", mood).replace(":seed", str(random.random()))).content)
     svg = svg2rlg(svg_path)
     renderPM.drawToFile(svg, png_path, fmt="JPG")
-    pg_img = imgload(png_path)
+    pg_img = cimgload(png_path)
     pg_img = pgscale(pg_img, (30, 30))
     os.remove(svg_path)
     os.remove(png_path)

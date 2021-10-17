@@ -43,14 +43,14 @@ a = Assets()
 
 # images
 def load_blocks():
-    _bsprs = imgload("Spritesheets", "block_spritesheet.png")
+    _bsprs = cimgload("Spritesheets", "block_spritesheet.png")
     block_list = [
         ["air",     "        ",   "apple",    "bamboo",        "cactus",         "watermelon",       "rock"     ],
         ["chest",   "    ",       "coconut",  "coconut-piece", "command-block",  "wood",             "bush"     ],
         ["       ", "dirt",       "dynamite", "fire",          "      ",         "watermelon-piece", "grass1"   ],
         ["hay",     "    ",       "leaf",     "       ",       "sand",           "workbench",        "grass2"   ],
         ["snow",    "soil",       "stone",    "vine",          "wooden-planks",  "a_wooden-planks",  "stick"    ],
-        ["anvil",   "          ", "p_soil",   "blue_barrel",   "red_barrel",     "",                  "base-ore"]
+        ["anvil",   "          ", "p_soil",   "blue_barrel",   "red_barrel",     "weapon-crafter",   "base-ore"]
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
@@ -89,7 +89,7 @@ def load_blocks():
 
 
 def load_tools():
-    _tsprs = (imgload("Spritesheets", "tool_spritesheet.png"))
+    _tsprs = (cimgload("Spritesheets", "tool_spritesheet.png"))
     tool_list = [
         ["pickaxe", "axe",    "sickle"],
         ["shovel",  "rake",   "scissors"],
@@ -189,14 +189,8 @@ for ore in oinfo:
         chance /= 1.5
 
 ginfo = {
-    "sniper": (False, 15, 5)
+    "sniper": (False, 15, 5),
 }
-
-autocorrect_words = {*list(a.tools.keys())}
-"""
-for tool in tinfo.keys():
-    print({key: value / 5 for key, value in tinfo[tool]["blocks"].items()})
-"""
 
 load_blocks()
 load_tools() 
