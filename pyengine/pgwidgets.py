@@ -141,8 +141,8 @@ class _Widget:
         if callable(command):
             command(*args, **kwargs)
         if after == "out destroy":
-            Thread(target=self.zoom, args=["out destroy"]).start()
-        elif after == "destroy":
+            Thread(target=self.zoom, args=[after]).start()
+        elif after == "kill":
             self._kill()
 
     
@@ -189,7 +189,7 @@ class _Widget:
                 self._exec_command(self.exit_command)
                 self.disabled = True
             elif type_ == "out destroy":
-                self._exec_command(self.exit_command, "destroy")
+                self._exec_command(self.exit_command, "kill")
 
     def draw(self):
         self.surf.blit(self.image, self.rect)
@@ -205,8 +205,7 @@ class _Widget:
             _mod.widgets.remove(self)
 
     def destroy(self):
-        with suppress(ValueError):
-            Thread(target=self.zoom, args=["out destroy"]).start()
+        Thread(target=self.zoom, args=["out destroy"]).start()
         self._kill()
         
         
@@ -326,7 +325,7 @@ class Entry(_Widget):
             mod = pygame.key.get_mods()
             if self.focused:
                 if name == "return":
-                    self._exec_command(self.command, None, self.output)
+                    self._exec_command(self.command, "out destroy", self.output)
                     Thread(target=self.zoom, args=["out destroy"]).start()
                 elif name == "backspace":
                     if mod == CTRL:

@@ -1,8 +1,8 @@
 from types import SimpleNamespace as EmptyObject, FunctionType
 from math import floor, ceil, sqrt, hypot, sin, cos, atan2
 from random import randint as rand, uniform as randf
+from os.path import join as path, isfile, splitext
 from pygame.transform import scale as pgscale
-from os.path import isfile, join as path
 from collections import defaultdict
 from pygame.mouse import set_cursor
 from contextlib import suppress

@@ -34,30 +34,30 @@ class Window:
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
 cimgload = partial(imgload, scale=3)
 # visual things
-inventory_img = cimgload("Bg_Images", "inventory.png")
-tool_holders_img = cimgload("Bg_Images", "tool_holders.png")
-square_border_img = cimgload("Bg_Images", "square_border.png")
-pouch_img = cimgload("Bg_Images", "pouch.png")
-pouch_icon = cimgload("Bg_Images", "pouch_icon.png")
-player_hit_chart = cimgload("Bg_Images", "player_hit_chart.png")
-lock = cimgload("Player_Skins", "lock.png")
+inventory_img = cimgload("Images", "Bg_Images", "inventory.png")
+tool_holders_img = cimgload("Images", "Bg_Images", "tool_holders.png")
+square_border_img = cimgload("Images", "Bg_Images", "square_border.png")
+pouch_img = cimgload("Images", "Bg_Images", "pouch.png")
+pouch_icon = cimgload("Images", "Bg_Images", "pouch_icon.png")
+player_hit_chart = cimgload("Images", "Bg_Images", "player_hit_chart.png")
+lock = cimgload("Images", "Player_Skins", "lock.png")
 
 # surfaces
-workbench_img = imgload("Surfaces", "workbench.png")
+workbench_img = imgload("Images", "Surfaces", "workbench.png")
 _wbi = get_icon("arrow")
 workbench_icon = pygame.transform.scale(_wbi, [s // 2 for s in _wbi.get_size()])
-furnace_img = imgload("Surfaces", "furnace.png")
-anvil_img = imgload("Surfaces", "anvil.png")
-gun_crafter_img = imgload("Surfaces", "gun_crafter.png")
+furnace_img = imgload("Images", "Surfaces", "furnace.png")
+anvil_img = imgload("Images", "Surfaces", "anvil.png")
+gun_crafter_img = imgload("Images", "Surfaces", "gun_crafter.png")
 # crafting constants
 crafting_center = (Window.width / 2, Window.height / 2 + 15)
 crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
 
 # bg images
-frame_img = cimgload("Bg_Images", "frame.png")
+frame_img = cimgload("Images", "Bg_Images", "frame.png")
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
-pygame.display.set_icon(cimgload("Visual_Images", "icon.png"))
+pygame.display.set_icon(cimgload("Images", "Visual_Images", "icon.png"))
 
 # F O N T S -------------------------------------------------------------------------------------------- #
 # a maximum of two (normal + italic) of them is used; the other ones are experimental
@@ -167,12 +167,12 @@ class Game:
         for bt in self.skins:
             for index, data in enumerate(self.skins[bt]):
                 if data["name"] is not None:
-                    self.skins[bt][index]["sprs"] = [scalex(img, self.skin_scale_mult) for img in cimgload("Player_Skins", data["name"] + ".png", frames=data["frames"], frame_pause=data.get("frame_pause", 0))]
+                    self.skins[bt][index]["sprs"] = [scalex(img, self.skin_scale_mult) for img in cimgload("Images", "Player_Skins", data["name"] + ".png", frames=data["frames"], frame_pause=data.get("frame_pause", 0))]
                     del self.skins[bt][index]["name"]
                 else:
                     self.skins[bt][index]["sprs"] = []
         # spritesheets
-        self.portal_sprs = cimgload(path("Spritesheets", "portal.png"), frames=7)
+        self.portal_sprs = cimgload("Images", path("Spritesheets", "portal.png"), frames=7)
         # rendering
         self.screenshake = 0
         self.s_render_offset = None
@@ -196,13 +196,13 @@ class Game:
         self.rhyme_url = r"https://api.datamuse.com/words?rel_rhy="
         # dynamic surfaces
         if isfile(path("Bg_Images", "home_bg.png")):
-            self.home_bg_img = cimgload("Bg_Images", "home_bg.png")
+            self.home_bg_img = cimgload("Images", "Bg_Images", "home_bg.png")
             self.home_bg_img.set_alpha(30)
         else:
-            self.home_bg_img = self.bglize(cimgload("Bg_Images", "def_home_bg.png"))
+            self.home_bg_img = self.bglize(cimgload("Images", "Bg_Images", "def_home_bg.png"))
         self.home_bg_img_size = self.home_bg_img.get_size()
         self.fog_img = SmartSurface(Window.size)
-        self.fog_light = scale2x(cimgload("Bg_Images", "fog.png"))
+        self.fog_light = scale2x(cimgload("Images", "Bg_Images", "fog.png"))
         self.generating_world = False
         self.generating_world_perc = 0
         self.generating_world_text = None
@@ -288,12 +288,12 @@ inf = lambda num: INF if num == float("inf") else num
 
 # icons
 icons = {}
-for icon in os.listdir("Bg_Images"):
+for icon in os.listdir(path("Images", "Bg_Images")):
     replaced = icon.replace(".png", "")
     if replaced.endswith("_icon"):
-        icons[replaced.replace("_icon", "")] = cimgload("Bg_Images", icon)
+        icons[replaced.replace("_icon", "")] = cimgload("Images", "Bg_Images", icon)
 
-breaking_sprs = cimgload("Visual_Images", "breaking.png", frames=4)
+breaking_sprs = cimgload("Images", "Visual_Images", "breaking.png", frames=4)
 
 # B L O C K  D A T A ----------------------------------------------------------------------------------- #
 # selected item indicator (positions)

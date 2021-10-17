@@ -43,7 +43,7 @@ a = Assets()
 
 # images
 def load_blocks():
-    _bsprs = cimgload("Spritesheets", "block_spritesheet.png")
+    _bsprs = cimgload("Images", "Spritesheets", "block_spritesheet.png")
     block_list = [
         ["air",     "        ",   "apple",    "bamboo",        "cactus",         "watermelon",       "rock"     ],
         ["chest",   "    ",       "coconut",  "coconut-piece", "command-block",  "wood",             "bush"     ],
@@ -88,11 +88,14 @@ def load_blocks():
     del a.blocks["leaf"]
     
     # guns
-    gun_sprs = cimgload("Gun_Spritesheets", "prototype.png")
+    gun_sprs = cimgload("Images", "Gun_Spritesheets", "prototype.png")
+    a.guns = dict.fromkeys(("stock", "body", "barrel", "grip", "magazine"), {})
+    for gun in os.listdir(path("Images", "Gun_Spritesheets")):
+        gun_img = cimgload("Images", "Gun_Spritesheets", gun)
 
 
 def load_tools():
-    _tsprs = cimgload("Spritesheets", "tool_spritesheet.png")
+    _tsprs = cimgload("Images", "Spritesheets", "tool_spritesheet.png")
     tool_list = [
         ["pickaxe", "axe",    "sickle"],
         ["shovel",  "rake",   "scissors"],

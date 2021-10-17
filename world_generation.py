@@ -17,7 +17,7 @@ L = VL * HL
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 entities = {}
-entities["portal"] = cimgload("Spritesheets", "portal.png", frames=7)
+entities["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
 avatar_url = r"https://avatars.dicebear.com/api/pixel-art-neutral/:seed.svg?mood[]=:mood"
 avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
 quote_url = "https://inspirobot.me/api?generate=true"

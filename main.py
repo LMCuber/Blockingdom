@@ -465,7 +465,7 @@ class MethodHandler:
         if g.stage == "play":
             g.home_bg_img = g.bglize(Window.display.copy())
         else:
-            pygame.image.save(g.home_bg_img, path("Bg_Images", "home_bg.png"))
+            pygame.image.save(g.home_bg_img, path("Images", "Bg_Images", "home_bg.png"))
         # world data
         if g.w.screen is not None:
             if g.w.data:
@@ -1738,7 +1738,7 @@ def main():
             else:
                 music_count = float("-inf")
             if pgticks() - music_count >= 5000:
-                pygame.mixer.music.load(path("Music", random.choice(os.listdir("Music"))))
+                pygame.mixer.music.load(path("Audio", "Music", random.choice(os.listdir(path("Audio", "Music")))))
                 pygame.mixer.music.play()
                 if first_music:
                     first_music = False
@@ -2297,8 +2297,8 @@ def main():
                 Window.display.cblit(button["surf"], button["rect"].center)
             # lines (for clarity)
         
-        Window.display.blit(cimgload("test.png"), g.mouse)
-        pygame.draw.rect(Window.display, BLACK, cimgload("test.png").get_rect(topleft=g.mouse), 1)
+        Window.display.blit(cimgload("Images", "Gun_Spritesheets", "prototype.png"), g.mouse)
+        pygame.draw.rect(Window.display, BLACK, cimgload("Images", "Gun_Spritesheets", "prototype.png").get_rect(topleft=g.mouse), 1)
 
         # updating the widgets
         updating_buttons = [button for button in iter_buttons() if not button.disabled]
