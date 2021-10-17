@@ -37,12 +37,16 @@ def befriend_iterable(itr):
                 focused_widget.add_friend(looping_widget)
 
 
+def no_entries():
+    return not any((widget for widget in iter_widgets() if isinstance(widget, Entry)))
+
+
 def iter_widgets():
     return sorted(_mod.widgets, key=lambda widget: isinstance(widget, Entry))
 
 
-def no_entries():
-    return not any((widget for widget in iter_widgets() if isinstance(widget, Entry)))
+def len_enabled_widgets():
+    return len([widget for widget in iter_widgets() if not widget.disabled])
 
 
 def iter_particles():

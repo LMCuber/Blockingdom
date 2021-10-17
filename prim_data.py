@@ -88,10 +88,10 @@ def load_blocks():
     del a.blocks["leaf"]
     
     # guns
-    gun_sprs = cimgload("Images", "Gun_Spritesheets", "prototype.png")
     a.guns = dict.fromkeys(("stock", "body", "barrel", "grip", "magazine"), {})
     for gun in os.listdir(path("Images", "Gun_Spritesheets")):
-        gun_img = cimgload("Images", "Gun_Spritesheets", gun)
+        gun_sprs = cimgload("Images", "Gun_Spritesheets", gun)
+        # TODO: gun sections
 
 
 def load_tools():
