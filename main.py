@@ -80,7 +80,7 @@ def is_eatable(food):
     eat = False
     if food in finfo:
         for attr in finfo[food]["amounts"]:
-            if g.player.bars[attr]["amount"] != 100:
+            if g.player.stats[attr]["amount"] != 100:
                 eat = True
                 break
         else:
@@ -279,7 +279,7 @@ def init_world(type_):
         if g.w.mode == "adventure":
             g.player.inventory = ["workbench", "anvil", None, None, None]
             g.player.inventory_amounts = [1, 1, None, None, None]
-            g.player.bars = {
+            g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": pgticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
                 "thirst": {"amount": 50, "color": WATER_BLUE, "pos": (32, 60), "icon": "thirst"},
@@ -296,11 +296,11 @@ def init_world(type_):
     elif type_ == "existing":
         g.player.image = pygame.image.fromstring(g.player.image, (g.player.width, g.player.height), "RGBA")
         g.player.images = [pygame.image.fromstring(img, (g.player.width, g.player.height), "RGBA") for img in g.player.images]
-        g.player.bars["lives"]["regen_time"] = def_regen_time
-        g.player.bars["lives"]["last_regen"] = pgticks()
+        g.player.stats["lives"]["regen_time"] = def_regen_time
+        g.player.stats["lives"]["last_regen"] = pgticks()
 
     # dynamic surfaces
-    g.bars_bg = pygame.Surface((210, len(g.player.bars.keys()) * (17 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
+    g.bars_bg = pygame.Surface((210, len(g.player.stats.keys()) * (17 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
     # player
     g.player.rect.center = (500, 500)
     g.player.yvel = 0
@@ -560,7 +560,7 @@ class PlayWidgets:
         _def_menu_widget_height = 31
         _menu_widget_kwargs = {"anchor": "center", "template": "menu widget", "font": orbit_fonts[15]}
         self.menu_widgets = [
-            Checkbox(Window.display, "Show Bars", self.show_bars_command, checked=True, exit_command=self.checkb_sf_exit_command, **_menu_widget_kwargs),
+            Checkbox(Window.display, "Show Stats", self.show_stats_command, checked=True, exit_command=self.checkb_sf_exit_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Show FPS", self.show_fps_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Show Time", self.show_time_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Show Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
@@ -611,14 +611,14 @@ class PlayWidgets:
 
     # menu widget commands
     @staticmethod
-    def show_bars_command():
+    def show_stats_command():
         if g.stage == "play":
             if g.w.mode == "adventure":
                 if not g.skin_menu:
                     Window.display.blit(g.bars_bg, (0, 0))
                     x = 32
                     y = 15
-                    for data in g.player.bars.values():
+                    for data in g.player.stats.values():
                         if data:
                             pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
                             pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in (x, y)], perc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
@@ -807,7 +807,7 @@ class Player:
         self.in_air = True
         self.invisible = False
         self.skin = None
-        self.bars = {}
+        self.stats = {}
         self.moving_mode = "adventure"
         self.def_food_pie = {"counter": -90}
         self.food_pie = self.def_food_pie.copy()
@@ -842,7 +842,7 @@ class Player:
 
     @property
     def lives(self):
-        return self.bars["lives"]["amount"]
+        return self.stats["lives"]["amount"]
 
     @property
     def item(self):
@@ -891,14 +891,14 @@ class Player:
             self.inventory_amounts[index] = None
 
     def take_dmg(self, amount, scrsh_offset, scrsh_length):
-        self.bars["lives"]["amount"] -= amount
-        self.bars["lives"]["regen_time"] = def_regen_time
-        self.bars["lives"]["last_regen"] = pgticks()
+        self.stats["lives"]["amount"] -= amount
+        self.stats["lives"]["regen_time"] = def_regen_time
+        self.stats["lives"]["last_regen"] = pgticks()
         g.screen_shake = scrsh_length
         g.s_render_offset = scrsh_offset
 
     def heal(self, amount):
-        self.bars["lives"]["amount"] += amount
+        self.stats["lives"]["amount"] += amount
 
     def eat(self):
         food = g.player.inventory[self.indexes["block"]]
@@ -914,10 +914,10 @@ class Player:
         self.food_pie["rect"] = self.food_pie["image"].get_rect()
         if self.food_pie["counter"] >= 270:
             for attr in finfo[food]["amounts"]:
-                if self.bars[attr]["amount"] < 100:
-                    self.bars[attr]["amount"] += finfo[food]["amounts"][attr]
-                if self.bars[attr]["amount"] > 100:
-                    self.bars[attr]["amount"] = 100
+                if self.stats[attr]["amount"] < 100:
+                    self.stats[attr]["amount"] += finfo[food]["amounts"][attr]
+                if self.stats[attr]["amount"] > 100:
+                    self.stats[attr]["amount"] = 100
             self.use_up_inv(self.blocki)
             self.food_pie = self.def_food_pie.copy()
 
@@ -931,7 +931,7 @@ class Player:
             self.fall_effect = self.yvel
 
     def update_effects(self):
-        self.jump_yvel = self.def_jump_yvel / 3 * 1.8 + perc(self.bars["energy"]["amount"], self.def_jump_yvel / 3 * 1.2)
+        self.jump_yvel = self.def_jump_yvel / 3 * 1.8 + perc(self.stats["energy"]["amount"], self.def_jump_yvel / 3 * 1.2)
 
     def drops(self):
         for drop in all_drops:
@@ -1020,7 +1020,7 @@ class Player:
                         if g.w.mode == "adventure":
                             if self.yvel >= 8 and self.fall_effect != 0:
                                 self.take_dmg(round(self.yvel * 5 / fall_damage_blocks.get(block.name, 1)), 5, 30)
-                                if g.player.bars["lives"]["amount"] <= 0:
+                                if g.player.stats["lives"]["amount"] <= 0:
                                     g.player.die("fell from high ground")
                         self.dy = block.rect.top - self.rect.bottom
                         self.yvel = 0
@@ -1104,7 +1104,7 @@ class Player:
         self.achievements["steps counting"] += adx
         if self.achievements["steps counting"] >= 10_000:
             # TODO: hunger
-            self.bars["hunger"]["amount"] -= nordis(5, 5)
+            self.stats["hunger"]["amount"] -= nordis(5, 5)
             self.achievements["steps counting"] = 0
 
     def external_gravity(self):
@@ -1775,11 +1775,11 @@ def main():
 
                                 elif event.key == ENTER:
                                      if g.craftable is not None:
-                                        if g.player.bars["xp"]["amount"] >= cinfo[craftable].get("xp", 0):
-                                            if g.player.bars["energy"]["amount"] - cinfo[craftable].get("energy", 0) >= 0:
+                                        if g.player.stats["xp"]["amount"] >= cinfo[craftable].get("xp", 0):
+                                            if g.player.stats["energy"]["amount"] - cinfo[craftable].get("energy", 0) >= 0:
                                                 for crafting in g.craftings:
                                                     g.player.use_up_inv(g.player.inventory.index(crafting), g.craftings[crafting])
-                                                g.player.bars["energy"]["amount"] -= cinfo[craftable].get("energy", 0)
+                                                g.player.stats["energy"]["amount"] -= cinfo[craftable].get("energy", 0)
                                                 if craftable in a.blocks:
                                                     if g.craftable in g.player.inventory:
                                                         g.player.inventory_amounts[g.player.inventory.index(g.craftable)] += g.craft_by_what
@@ -2137,7 +2137,7 @@ def main():
                                 truthy = False
                                 break
                         if truthy:
-                            if g.player.bars["energy"]["amount"] - cinfo[craftable]["energy"] >= 0:
+                            if g.player.stats["energy"]["amount"] - cinfo[craftable]["energy"] >= 0:
                                 for recipe_block in cinfo[craftable]["recipe"]:
                                     if g.craftings[recipe_block] >= cinfo[craftable]["recipe"][recipe_block]:
                                         enough += 1
@@ -2182,7 +2182,7 @@ def main():
             Window.display.cblit(inventory_img, (Window.width / 2 + 20, 20), "midtop")
             Window.display.cblit(tool_holders_img, (Window.width / 2 + 20 + 96 + 55, 20), "midtop")
             
-            # selected tool
+            # selected tool name
             x = 243
             y = 23
             for index, tool in enumerate(g.player.tools):
@@ -2194,25 +2194,33 @@ def main():
                         pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, perc(th, 30), y))
                 elif tpure(tool) in g.w.gun_names:
                     pass
+                # border if selected
+                if g.player.main == "tool":
+                    if index == g.player.tooli:
+                        Window.display.blit(selected_item_img, (x - 3, y - 3))
                 x += 33
                 
-            # selected block
+            # selected block name
             x = 344
             y = 23
             for index, block in enumerate(g.player.inventory):
                 if block is not None:
                     Window.display.blit(a.blocks[block], (x, y))
-                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], BLACK, x + 15, y + 30)
+                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], BLACK, x + 15, y + 40)
+                # border if selected
+                if g.player.main == "block":
+                    if index == g.player.blocki:
+                        Window.display.blit(selected_item_img, (x - 3, y - 3))
                 x += 33
 
             # P L A Y E R  B A R S ------------------------------------------------------------------------ #
             # applyping regeneration
             if g.w.mode == "adventure":
-                if g.player.bars["lives"]["amount"] + 1 <= 100:
-                    if pgticks() - g.player.bars["lives"]["last_regen"] >= g.player.bars["lives"]["regen_time"]:
-                        g.player.bars["lives"]["amount"] += 1
-                        g.player.bars["lives"]["regen_time"] -= 0.2
-                        g.player.bars["lives"]["last_regen"] = pgticks()
+                if g.player.stats["lives"]["amount"] + 1 <= 100:
+                    if pgticks() - g.player.stats["lives"]["last_regen"] >= g.player.stats["lives"]["regen_time"]:
+                        g.player.stats["lives"]["amount"] += 1
+                        g.player.stats["lives"]["regen_time"] -= 0.2
+                        g.player.stats["lives"]["last_regen"] = pgticks()
 
                 # g.player food chart
                 if "image" in g.player.food_pie and "rect" in g.player.food_pie:
