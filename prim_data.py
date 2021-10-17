@@ -50,7 +50,7 @@ def load_blocks():
         ["       ", "dirt",       "dynamite", "fire",          "      ",         "watermelon-piece", "grass1"   ],
         ["hay",     "    ",       "leaf",     "       ",       "sand",           "workbench",        "grass2"   ],
         ["snow",    "soil",       "stone",    "vine",          "wooden-planks",  "a_wooden-planks",  "stick"    ],
-        ["anvil",   "          ", "p_soil",   "blue_barrel",   "red_barrel",     "weapon-crafter",   "base-ore"]
+        ["anvil",   "          ", "p_soil",   "blue_barrel",   "red_barrel",     "gun-crafter",       "base-ore"]
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):

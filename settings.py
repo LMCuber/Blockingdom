@@ -25,7 +25,7 @@ class Window:
     width = 810
     height = 600
     size = (width, height)
-    center = tuple([s / 2 for s in size])
+    center = tuple(s / 2 for s in size)
     pygame.display.set_caption("Blockingdom")
     window = pygame.display.set_mode((width, height))
     display = SmartSurface(size)
@@ -41,13 +41,18 @@ pouch_img = cimgload("Bg_Images", "pouch.png")
 pouch_icon = cimgload("Bg_Images", "pouch_icon.png")
 player_hit_chart = cimgload("Bg_Images", "player_hit_chart.png")
 lock = cimgload("Player_Skins", "lock.png")
-# crafting
-workbench_img = cimgload("Surfaces", "workbench.png")
+
+# surfaces
+workbench_img = imgload("Surfaces", "workbench.png")
 _wbi = get_icon("arrow")
 workbench_icon = pygame.transform.scale(_wbi, [s // 2 for s in _wbi.get_size()])
-#anvil_img = cimgload("Surfaces", "anvil.png")
-furnace_img = cimgload("Surfaces", "furnace.png")
-_crafting_rel_center = (workbench_img.get_width() / 2, (workbench_img.get_height() + 30) / 2)
+furnace_img = imgload("Surfaces", "furnace.png")
+anvil_img = imgload("Surfaces", "anvil.png")
+gun_crafter_img = imgload("Surfaces", "gun_crafter.png")
+# crafting constants
+crafting_center = (Window.width / 2, Window.height / 2 + 15)
+crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
+
 # bg images
 frame_img = cimgload("Bg_Images", "frame.png")
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
@@ -64,7 +69,7 @@ pixel_font = Font("pixel_font")
 neuro_fonts = [pygame.font.Font(path("Fonts", "NeuropolX", "neuropol x rg.ttf"), i) for i in range(1, 101)]
 orbit_fonts = [pygame.font.Font(path("Fonts", "Orbitron", "Orbitron-VariableFont_wght.ttf"), i) for i in range(1, 101)]
 
-# groups and lists of sprites
+# G R O U P S ------------------------------------------------------------------------------------------ #
 # Group() refers to my custom group, while pygame.sprite.Group() refers to the built-in pygame group
 all_blocks =                    SmartList()
 all_drops =                     pygame.sprite.Group()
@@ -132,7 +137,6 @@ class Game:
         self.craftings = {}
         self.craftable = None
         self.craft_by_what = None  # list -> int
-        self.crafting_rect = workbench_img.get_rect(center=[s / 2 for s in Window.display.get_size()])
         self.crafting_log = []
         # skin menu
         self.skin_anim_speed = 0.06
@@ -255,8 +259,6 @@ class System:
 
 g = Game()
 system = System()
-
-crafting_center = [g.crafting_rect.x + _crafting_rel_center[0], g.crafting_rect.y + _crafting_rel_center[1]]
 
 
 # F U N C T I O N S ----------------------------------------------------------------------------------- #

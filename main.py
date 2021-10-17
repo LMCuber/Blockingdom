@@ -210,6 +210,7 @@ def new_world(worldcode=None):
         else:
             MessageboxError(Window.display, "You have too many worlds. Delete a world to create another one.", **g.def_widget_kwargs)
             g.set_generating_world(False)
+            
         ewn.destroy()
     
     def thread_create(world_name):
@@ -277,8 +278,8 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["workbench", "anvil", None, None, None]
-            g.player.inventory_amounts = [1, 1, None, None, None]
+            g.player.inventory = ["workbench", "anvil", "gun-crafter", None, None]
+            g.player.inventory_amounts = [1, 1, 1, None, None]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": pgticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -1896,7 +1897,7 @@ def main():
                                     break
 
                         if g.clicked_when == "play":
-                            if not g.crafting_rect.collidepoint(g.mouse):
+                            if not crafting_rect.collidepoint(g.mouse):
                                 stop_crafting()
 
                             if not g.skin_menu_rect.collidepoint(g.mouse):
@@ -1925,6 +1926,10 @@ def main():
                                             break
                                         elif bpure(block.name) == "anvil":
                                             g.crafting = "anvil"
+                                            g.player.main = "block"
+                                            break
+                                        elif bpure(block.name) == "gun-crafter":
+                                            g.crafting = "gun"
                                             g.player.main = "block"
                                             break
 
@@ -2104,11 +2109,15 @@ def main():
 
             # workbench image
             if g.crafting == "workbench":
-                Window.display.blit(workbench_img, g.crafting_rect)
+                Window.display.blit(workbench_img, crafting_rect)
+            elif g.crafting == "anvil":
+                Window.display.blit(anvil_img, crafting_rect)
+            elif g.crafting == "gun":
+                Window.display.blit(gun_crafter_img, crafting_rect)
 
             # workbench blocks
-            x = g.crafting_rect.x + 30 / 2 + 25
-            y = g.crafting_rect.y + 30 + 30 / 2 + 10
+            x = crafting_rect.x + 30 / 2 + 25
+            y = crafting_rect.y + 30 + 30 / 2 + 10
             sy = y
             xo = 30 + 5
             yo = 30 + 10
@@ -2149,13 +2158,13 @@ def main():
                                     else:
                                         g.craftable = None
                 except BreakAllLoops:
-                    pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1]))
+                    pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
                     if craftable in a.blocks:
-                        Window.display.cblit(a.blocks[craftable], (crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1]))
+                        Window.display.cblit(a.blocks[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
                     elif craftable in a.tools:
-                        blit_center(Window.display, a.tools[craftable], (crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1]))
+                        blit_center(Window.display, a.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
                     g.craft_by_what = min(g.craft_by_what)
-                    write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + g.crafting_rect.width / 4, crafting_center[1] + 40)
+                    write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
 
             # player item
             if g.crafting == "workbench":
