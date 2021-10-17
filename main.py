@@ -193,7 +193,7 @@ def new_world(worldcode=None):
                                 wn = f"New_World_{g.p.new_world_count}"
                                 g.p.new_world_count += 1
                             g.w = World()
-                            generate_world(biome="industry")
+                            generate_world(biome=biome)
                             group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                             g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                             g.w.mode = game_mode
@@ -2184,11 +2184,11 @@ def main():
             Window.display.cblit(pouch_img, (Window.width / 2 + 20 + 96 + 40, 20), "midtop")
             
             # selected tool name
-            x = 243
-            y = 23
+            x = 258
+            y = 38
             for index, tool in enumerate(g.player.tools):
                 if tool is not None:
-                    Window.display.blit(a.tools[tool], (x, y))
+                    Window.display.cblit(a.tools[tool], (x, y))
                 if tpure(tool) in tinfo:
                     th = g.player.tool_healths[index]
                     if th < 100:
@@ -2198,25 +2198,25 @@ def main():
                 # border if selected
                 if g.player.main == "tool":
                     if index == g.player.tooli:
-                        Window.display.blit(selected_item_img, (x - 3, y - 3))
+                        Window.display.cblit(square_border_img, (x, y))
                 x += 33
                 
             # selected block name
-            x = 344
-            y = 23
+            x = 359
+            y = 38
             for index, block in enumerate(g.player.inventory):
                 if block is not None:
-                    Window.display.blit(a.blocks[block], (x, y))
-                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], BLACK, x + 15, y + 40)
+                    Window.display.cblit(a.blocks[block], (x, y))
+                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], BLACK, x, y + 25)
                 # border if selected
                 if g.player.main == "block":
                     if index == g.player.blocki:
-                        Window.display.blit(selected_item_img, (x - 3, y - 3))
+                        Window.display.cblit(square_border_img, (x, y))
                 x += 33
             
             # pouch icon
-            Window.display.blit(pouch_icon, (546, y))
-            write(Window.display, "center", g.player.pouch, orbit_fonts[15], BLACK, 546 + 15, y + 40)
+            Window.display.cblit(pouch_icon, (546 + 15, y))
+            write(Window.display, "center", g.player.pouch, orbit_fonts[15], BLACK, 546 + 15, y + 25)
 
             # P L A Y E R  B A R S ------------------------------------------------------------------------ #
             # applyping regeneration
