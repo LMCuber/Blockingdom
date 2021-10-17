@@ -38,6 +38,7 @@ inventory_img = cimgload("Bg_Images", "inventory.png")
 tool_holders_img = cimgload("Bg_Images", "tool_holders.png")
 selected_item_img = cimgload("Bg_Images", "selected_item.png")
 pouch_img = cimgload("Bg_Images", "pouch.png")
+pouch_icon = cimgload("Bg_Images", "pouch_icon.png")
 player_hit_chart = cimgload("Bg_Images", "player_hit_chart.png")
 lock = cimgload("Player_Skins", "lock.png")
 # crafting

@@ -823,6 +823,7 @@ class Player:
         self.inventory = []
         self.inventory_amounts = []
         self.indexes = {}
+        self.pouch = 0
         self.broken_blocks = defaultdict(int)
         self.main = "block"
 
@@ -2180,7 +2181,7 @@ def main():
             # H O T B A R --------------------------------------------------------------------------------- #
             Window.display.cblit(tool_holders_img, (Window.width / 2 - 96 - 35, 20), "midtop")
             Window.display.cblit(inventory_img, (Window.width / 2 + 20, 20), "midtop")
-            Window.display.cblit(tool_holders_img, (Window.width / 2 + 20 + 96 + 55, 20), "midtop")
+            Window.display.cblit(pouch_img, (Window.width / 2 + 20 + 96 + 40, 20), "midtop")
             
             # selected tool name
             x = 243
@@ -2212,6 +2213,10 @@ def main():
                     if index == g.player.blocki:
                         Window.display.blit(selected_item_img, (x - 3, y - 3))
                 x += 33
+            
+            # pouch icon
+            Window.display.blit(pouch_icon, (546, y))
+            write(Window.display, "center", g.player.pouch, orbit_fonts[15], BLACK, 546 + 15, y + 40)
 
             # P L A Y E R  B A R S ------------------------------------------------------------------------ #
             # applyping regeneration
