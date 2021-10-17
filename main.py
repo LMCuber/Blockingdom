@@ -2296,6 +2296,9 @@ def main():
             for button in pw.change_skin_buttons:
                 Window.display.cblit(button["surf"], button["rect"].center)
             # lines (for clarity)
+        
+        Window.display.blit(cimgload("test.png"), g.mouse)
+        pygame.draw.rect(Window.display, BLACK, cimgload("test.png").get_rect(topleft=g.mouse), 1)
 
         # updating the widgets
         updating_buttons = [button for button in iter_buttons() if not button.disabled]

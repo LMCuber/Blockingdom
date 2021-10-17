@@ -18,18 +18,19 @@ gun_crafter.fill(LIGHT_GRAY)
 gun_crafter.fill(WHITE, (0, 0, 400, 30))
 write(gun_crafter, "midtop", "Gun Crafter", orbit_fonts[20], BLACK, 200, 0)
 h = 70
-pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2 - 15, h, 30, 30))
-pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 - 15, h, 30, 30), 3)
-pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2 - 45, h, 30, 30))
-pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 - 45, h, 30, 30), 3)
+b = 1
+pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2 - 59, h + 12, 30, 30))
+pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 - 59, h + 12, 30, 30), b)
+pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2 - 29, h, 60, 30))
+pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 - 29, h, 60, 30), b)
 pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2 + 15, h, 30, 30))
-pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 + 15, h, 30, 30), 3)
+pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 + 15, h, 30, 30), b)
 pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2 - 30, h + 30, 30, 30))
-pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 - 30, h + 30, 30, 30), 3)
+pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 - 30, h + 30, 30, 30), b)
 pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2, h + 30, 30, 30))
-pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2, h + 30, 30, 30), 3)
+pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2, h + 30, 30, 30), b)
 pygame.image.save(gun_crafter, "Surfaces\gun_crafter.png")
-
+gun_crafter_img = gun_crafter.copy()
 
 # visuals
 class VisualBlock:

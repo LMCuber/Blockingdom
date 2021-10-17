@@ -86,10 +86,13 @@ def load_blocks():
     # deleting unneceserry blocks that have been modified anyway
     del a.blocks["soil"]
     del a.blocks["leaf"]
+    
+    # guns
+    gun_sprs = cimgload("Gun_Spritesheets", "prototype.png")
 
 
 def load_tools():
-    _tsprs = (cimgload("Spritesheets", "tool_spritesheet.png"))
+    _tsprs = cimgload("Spritesheets", "tool_spritesheet.png")
     tool_list = [
         ["pickaxe", "axe",    "sickle"],
         ["shovel",  "rake",   "scissors"],
