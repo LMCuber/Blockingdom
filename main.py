@@ -465,7 +465,7 @@ class MethodHandler:
         if g.stage == "play":
             g.home_bg_img = g.bglize(Window.display.copy())
         else:
-            pygame.image.save(g.home_bg_img, path("Images", "Bg_Images", "home_bg.png"))
+            pygame.image.save(g.home_bg_img, path("Images", "Background", "home_bg.png"))
         # world data
         if g.w.screen is not None:
             if g.w.data:
@@ -704,10 +704,10 @@ class PlayWidgets:
             for index, key in enumerate(type_):
                 g.keys[list(g.keys.keys())[index]] = getattr(pygame, f"K_{key.lower()}")
         else:
-            g.keys["p up"] = pygame.K_UP
-            g.keys["p left"] = pygame.K_LEFT
-            g.keys["p down"] = pygame.K_DOWN
-            g.keys["p right"] = pygame.K_RIGHT
+            g.keys["p up"] = K_UP
+            g.keys["p left"] = K_LEFT
+            g.keys["p down"] = K_DOWN
+            g.keys["p right"] = K_RIGHT
 
     @staticmethod
     def save_and_quit_command():
@@ -1732,6 +1732,10 @@ def main():
         dt = g.clock.tick(g.fps_cap) / 1000 * 120
 
         # music
+        if g.stage == "play":
+            set_volume(pw.volume.value / 100)
+        elif g.stage == "home":
+            set_volume(0)
         if not pygame.mixer.music.get_busy():
             if first_music:
                 music_count = pygame.time.get_ticks()
@@ -1756,16 +1760,8 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if g.stage == "play":
                         if no_entries():
-                            if event.key == g.keys["switch inventory"]:
-                                if g.stage == "play":
-                                    if not g.crafting:
-                                        if g.player.main == "block":
-                                            g.player.main = "tool"
-                                        elif g.player.main == "tool":
-                                            g.player.main = "block"
-
                             if g.crafting == "workbench":
-                                if event.key == g.keys["add craft"]:
+                                if event.key == K_SPACE:
                                     if g.player.block is not None:
                                         if g.player.block in g.craftings:
                                             if g.player.amount - g.craftings[g.player.block] > 0:
@@ -1794,20 +1790,31 @@ def main():
                                                     g.player.tools[index] = g.craftable
                                                 stop_crafting()
 
-                                elif event.key == pygame.K_BACKSPACE:
+                                elif event.key == K_BACKSPACE:
                                     if g.crafting_log:
                                         g.craftings[g.crafting_log[-1]] -= 1
                                         if g.craftings[g.crafting_log[-1]] == 0:
                                             del g.craftings[g.crafting_log[-1]]
                                         del g.crafting_log[-1]
+                            
+                            elif g.crafting == "gun":
+                                if event.key == K_SPACE:
+                                    if g.player.block is not None:
+                                        g.gun_parts["stock"] = g.player.block
+                                    
+                            elif event.key == K_SPACE:
+                                if g.player.main == "block":
+                                    g.player.main = "tool"
+                                elif g.player.main == "tool":
+                                    g.player.main = "block"
 
-                            if event.key == pygame.K_c:
+                            if event.key == K_c:
                                 Entry(Window.display, user_command, "Enter your command:", pos=DPP)
 
-                            elif event.key == pygame.K_p:
+                            elif event.key == K_p:
                                 g.player.cust_username()
 
-                            elif event.key == pygame.K_s:
+                            elif event.key == K_s:
                                 if g.w.mode == "freestyle":
                                     if pgticks() - last_space <= 200:
                                         if g.player.moving_mode == "freestyle":
@@ -1823,7 +1830,7 @@ def main():
                                                         break
                                     last_space = pgticks()
 
-                            elif event.key == pygame.K_ESCAPE:
+                            elif event.key == K_ESCAPE:
                                 if not g.crafting:
                                     settings()
                                 else:
@@ -1972,9 +1979,7 @@ def main():
                             spr.process_event(event)
 
         # play loop
-        if g.stage == "play":
-            set_volume(pw.volume.value / 100)
-            
+        if g.stage == "play":  
             if not g.menu:
                 if g.mouses[0]:
                     if g.clicked_when == "play":
@@ -2107,65 +2112,69 @@ def main():
             # player username
             write(Window.display, "center", g.player.username, orbit_fonts[12], BLACK, g.player.rect.centerx, g.player.rect.centery - 30)
 
-            # workbench image
+            # workbench
             if g.crafting == "workbench":
                 Window.display.blit(workbench_img, crafting_rect)
-            elif g.crafting == "anvil":
-                Window.display.blit(anvil_img, crafting_rect)
-            elif g.crafting == "gun":
-                Window.display.blit(gun_crafter_img, crafting_rect)
-
-            # workbench blocks
-            x = crafting_rect.x + 30 / 2 + 25
-            y = crafting_rect.y + 30 + 30 / 2 + 10
-            sy = y
-            xo = 30 + 5
-            yo = 30 + 10
-            for crafting_block in g.craftings:
-                # crafting material
-                pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
-                Window.display.cblit(a.blocks[crafting_block], (x, y))
-                write(Window.display, "midright", g.craftings[crafting_block], orbit_fonts[15], BLACK, x - 20, y)
-                y += yo
-                if (y - sy) / yo == 5:
-                    y = sy
-                    x += xo
-                # recieving material
-                enough = 0
-                g.craft_by_what = []
-                try:
-                    for craftable in cinfo:
-                        #if sorted(cinfo[craftable]["recipe"]) == sorted(g.craftings):
-                        #if cinfo[craftable]["recipe"] == g.craftings:
-                        truthy = True
-                        for crafting_block in g.craftings:
-                            try:
-                                if cinfo[craftable]["recipe"][crafting_block] > g.craftings[crafting_block]:
+                x = crafting_rect.x + 30 / 2 + 25
+                y = crafting_rect.y + 30 + 30 / 2 + 10
+                sy = y
+                xo = 30 + 5
+                yo = 30 + 10
+                for crafting_block in g.craftings:
+                    # crafting material
+                    pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
+                    Window.display.cblit(a.blocks[crafting_block], (x, y))
+                    write(Window.display, "midright", g.craftings[crafting_block], orbit_fonts[15], BLACK, x - 20, y)
+                    y += yo
+                    if (y - sy) / yo == 5:
+                        y = sy
+                        x += xo
+                    # recieving material
+                    enough = 0
+                    g.craft_by_what = []
+                    try:
+                        for craftable in cinfo:
+                            #if sorted(cinfo[craftable]["recipe"]) == sorted(g.craftings):
+                            #if cinfo[craftable]["recipe"] == g.craftings:
+                            truthy = True
+                            for crafting_block in g.craftings:
+                                try:
+                                    if cinfo[craftable]["recipe"][crafting_block] > g.craftings[crafting_block]:
+                                        truthy = False
+                                        break
+                                except KeyError:
                                     truthy = False
                                     break
-                            except KeyError:
-                                truthy = False
-                                break
-                        if truthy:
-                            if g.player.stats["energy"]["amount"] - cinfo[craftable]["energy"] >= 0:
-                                for recipe_block in cinfo[craftable]["recipe"]:
-                                    if g.craftings[recipe_block] >= cinfo[craftable]["recipe"][recipe_block]:
-                                        enough += 1
-                                        g.craft_by_what.append(g.craftings[recipe_block] // cinfo[craftable]["recipe"][recipe_block] * cinfo[craftable].get("amount", 1))
-                                    if enough == len(cinfo[craftable]["recipe"]):
-                                        g.craftable = craftable
-                                        raise BreakAllLoops
-                                    else:
-                                        g.craftable = None
-                except BreakAllLoops:
-                    pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                    if craftable in a.blocks:
-                        Window.display.cblit(a.blocks[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                    elif craftable in a.tools:
-                        blit_center(Window.display, a.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                    g.craft_by_what = min(g.craft_by_what)
-                    write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
+                            if truthy:
+                                if g.player.stats["energy"]["amount"] - cinfo[craftable]["energy"] >= 0:
+                                    for recipe_block in cinfo[craftable]["recipe"]:
+                                        if g.craftings[recipe_block] >= cinfo[craftable]["recipe"][recipe_block]:
+                                            enough += 1
+                                            g.craft_by_what.append(g.craftings[recipe_block] // cinfo[craftable]["recipe"][recipe_block] * cinfo[craftable].get("amount", 1))
+                                        if enough == len(cinfo[craftable]["recipe"]):
+                                            g.craftable = craftable
+                                            raise BreakAllLoops
+                                        else:
+                                            g.craftable = None
+                    except BreakAllLoops:
+                        pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                        if craftable in a.blocks:
+                            Window.display.cblit(a.blocks[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                        elif craftable in a.tools:
+                            blit_center(Window.display, a.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                        g.craft_by_what = min(g.craft_by_what)
+                        write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
 
+            # anvil
+            elif g.crafting == "anvil":
+                Window.display.blit(anvil_img, crafting_rect)
+            # gun
+            elif g.crafting == "gun":
+                Window.display.blit(gun_crafter_img, crafting_rect)
+                for k, v in g.gun_parts.items():
+                    if v is not None:
+                        Window.display.cblit(a.blocks[v], gun_crafter_part_poss[k])
+                    
             # player item
             if g.crafting == "workbench":
                 Window.display.cblit(workbench_icon, crafting_center)
@@ -2243,8 +2252,6 @@ def main():
 
         # home loop
         elif g.stage == "home":
-            set_volume(0)
-                
             Window.display.fill(DARK_BROWN)
             write(Window.display, "center", "Blockingdom", orbit_fonts[50], BLACK, Window.width // 2, 58)
             Window.display.blit(frame_img, (0, 0))
@@ -2297,8 +2304,8 @@ def main():
                 Window.display.cblit(button["surf"], button["rect"].center)
             # lines (for clarity)
         
-        Window.display.blit(cimgload("Images", "Gun_Spritesheets", "prototype.png"), g.mouse)
-        pygame.draw.rect(Window.display, BLACK, cimgload("Images", "Gun_Spritesheets", "prototype.png").get_rect(topleft=g.mouse), 1)
+        Window.display.blit(cimgload("Images", "Guns", "Spritesheet", "prototype_spritesheet2.png"), g.mouse)
+        pygame.draw.rect(Window.display, BLACK, cimgload("Images", "Guns", "Spritesheet", "prototype_spritesheet2.png").get_rect(topleft=g.mouse), 1)
 
         # updating the widgets
         updating_buttons = [button for button in iter_buttons() if not button.disabled]

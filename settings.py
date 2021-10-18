@@ -15,9 +15,17 @@ from pyengine.basics import *
 from pyengine.pilbasics import *
 
 
-# N O N - G R A P H I C A L  C L A S S E S ------------------------------------------------------------- #
+# N O N - G R A P H I C A L  C L A S S E S  P R E - I N I T I A L I Z E D ------------------------------ #
 class BlockNotFoundError(Exception):
     pass
+    
+      
+class System:
+    version = "Alpha"
+    if version not in ("Alpha", "Beta"):
+        maj = version.split(".")[0]
+        min = version.split(".")[1]
+        pat = version.split(".")[2]
     
     
 # W I N D O W ,  S U R F A C E S  A N D  S P R I T E  G R O U P S -------------------------------------- #
@@ -26,7 +34,7 @@ class Window:
     height = 600
     size = (width, height)
     center = tuple(s / 2 for s in size)
-    pygame.display.set_caption("Blockingdom")
+    pygame.display.set_caption(f"Blockingdom {System.version}")
     window = pygame.display.set_mode((width, height))
     display = SmartSurface(size)
     
@@ -34,12 +42,12 @@ class Window:
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
 cimgload = partial(imgload, scale=3)
 # visual things
-inventory_img = cimgload("Images", "Bg_Images", "inventory.png")
-tool_holders_img = cimgload("Images", "Bg_Images", "tool_holders.png")
-square_border_img = cimgload("Images", "Bg_Images", "square_border.png")
-pouch_img = cimgload("Images", "Bg_Images", "pouch.png")
-pouch_icon = cimgload("Images", "Bg_Images", "pouch_icon.png")
-player_hit_chart = cimgload("Images", "Bg_Images", "player_hit_chart.png")
+inventory_img = cimgload("Images", "Background", "inventory.png")
+tool_holders_img = cimgload("Images", "Background", "tool_holders.png")
+square_border_img = cimgload("Images", "Background", "square_border.png")
+pouch_img = cimgload("Images", "Background", "pouch.png")
+pouch_icon = cimgload("Images", "Background", "pouch_icon.png")
+player_hit_chart = cimgload("Images", "Background", "player_hit_chart.png")
 lock = cimgload("Images", "Player_Skins", "lock.png")
 
 # surfaces
@@ -52,12 +60,19 @@ gun_crafter_img = imgload("Images", "Surfaces", "gun_crafter.png")
 # crafting constants
 crafting_center = (Window.width / 2, Window.height / 2 + 15)
 crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
+w, h = gun_crafter_img.get_size()
+px, py = 205, 195
+gun_crafter_part_poss = {"stock": (px + w / 2 - 25, py + h / 2 - 7),
+                         "body": (px + w / 2, py + h / 2 - 15),
+                         "barrel": (px + w / 2 + 25, py + h / 2 - 15),
+                         "grip": (px + w / 2, py + h / 2 + 7),
+                         "magazine": (px + w / 2 + 25, py + h / 2 + 7)}
 
 # bg images
-frame_img = cimgload("Images", "Bg_Images", "frame.png")
+frame_img = cimgload("Images", "Background", "frame.png")
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
-pygame.display.set_icon(cimgload("Images", "Visual_Images", "icon.png"))
+pygame.display.set_icon(cimgload("Images", "Visuals", "icon.png"))
 
 # F O N T S -------------------------------------------------------------------------------------------- #
 # a maximum of two (normal + italic) of them is used; the other ones are experimental
@@ -106,8 +121,7 @@ class Game:
     def __init__(self):
         """ The game class has all types of global attributes related to the game, as well as the player and the 'w' object that represents a world & its data """
         # 'global' variables
-        self.keys = {"p up": pygame.K_w, "p left": pygame.K_a, "p down": pygame.K_s, "p right": pygame.K_d,
-                     "switch inventory": pygame.K_SPACE, "add craft": pygame.K_SPACE}
+        self.keys = {"p up": K_w, "p left": K_a, "p down": K_s, "p right": K_d}
         # initialization
         self.clock = pygame.time.Clock()
         self.fps_cap = 120
@@ -138,6 +152,10 @@ class Game:
         self.craftable = None
         self.craft_by_what = None  # list -> int
         self.crafting_log = []
+        # gun crafter
+        self.tup_gun_parts = os.listdir(path("Images", "Guns"))
+        self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts)
+        self.gun_parts = dict.fromkeys(self.tup_gun_parts, None)
         # skin menu
         self.skin_anim_speed = 0.06
         self.skins = {  # "pos" is topleft (of the player model; not the screen) just like normal pixel systems
@@ -195,14 +213,14 @@ class Game:
         self.profanities = txt2list(path("List_Files", "profanities.txt"))
         self.rhyme_url = r"https://api.datamuse.com/words?rel_rhy="
         # dynamic surfaces
-        if isfile(path("Bg_Images", "home_bg.png")):
-            self.home_bg_img = cimgload("Images", "Bg_Images", "home_bg.png")
+        if isfile(path("Background", "home_bg.png")):
+            self.home_bg_img = cimgload("Images", "Background", "home_bg.png")
             self.home_bg_img.set_alpha(30)
         else:
-            self.home_bg_img = self.bglize(cimgload("Images", "Bg_Images", "def_home_bg.png"))
+            self.home_bg_img = self.bglize(cimgload("Images", "Background", "def_home_bg.png"))
         self.home_bg_img_size = self.home_bg_img.get_size()
         self.fog_img = SmartSurface(Window.size)
-        self.fog_light = scale2x(cimgload("Images", "Bg_Images", "fog.png"))
+        self.fog_light = scale2x(cimgload("Images", "Background", "fog.png"))
         self.generating_world = False
         self.generating_world_perc = 0
         self.generating_world_text = None
@@ -246,19 +264,8 @@ class Game:
         self.events_locked = tof
         self.generating_world_perc = 0
         
-       
-class System:
-    def __init__(self):
-        self.version = ""
-        if self.version:
-            self.maj = self.version.split(".")[0]
-            self.min = self.version.split(".")[1]
-            self.pat = self.version.split(".")[2]
-            self.max_int = sys.maxint()
-        
 
 g = Game()
-system = System()
 
 
 # F U N C T I O N S ----------------------------------------------------------------------------------- #
@@ -288,22 +295,9 @@ inf = lambda num: INF if num == float("inf") else num
 
 # icons
 icons = {}
-for icon in os.listdir(path("Images", "Bg_Images")):
+for icon in os.listdir(path("Images", "Background")):
     replaced = icon.replace(".png", "")
     if replaced.endswith("_icon"):
-        icons[replaced.replace("_icon", "")] = cimgload("Images", "Bg_Images", icon)
+        icons[replaced.replace("_icon", "")] = cimgload("Images", "Background", icon)
 
-breaking_sprs = cimgload("Images", "Visual_Images", "breaking.png", frames=4)
-
-# B L O C K  D A T A ----------------------------------------------------------------------------------- #
-# selected item indicator (positions)
-selected_tool_poss = []
-x = 0
-for i in range(2):
-    selected_tool_poss.append((x, 0))
-    x += 33
-selected_block_poss = []
-x = 78
-for i in range(5):
-    selected_block_poss.append((x, 0))
-    x += 33
+breaking_sprs = cimgload("Images", "Visuals", "breaking.png", frames=4)

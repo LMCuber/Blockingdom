@@ -1,8 +1,15 @@
 from .imports import *
 from .basics import *
 import pygame
+from pygame.locals import *
+from pygame.transform import scale as pgscale
 from pygame.time import get_ticks as pgticks
 from pygame.transform import scale2x
+from pygame.mouse import set_cursor
+import pygame.gfxdraw
+
+
+pygame.init()
 
 
 # event costants

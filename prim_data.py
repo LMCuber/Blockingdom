@@ -86,12 +86,6 @@ def load_blocks():
     # deleting unneceserry blocks that have been modified anyway
     del a.blocks["soil"]
     del a.blocks["leaf"]
-    
-    # guns
-    a.guns = dict.fromkeys(("stock", "body", "barrel", "grip", "magazine"), {})
-    for gun in os.listdir(path("Images", "Gun_Spritesheets")):
-        gun_sprs = cimgload("Images", "Gun_Spritesheets", gun)
-        # TODO: gun sections
 
 
 def load_tools():
@@ -108,6 +102,14 @@ def load_tools():
             tl = _tsprs.subsurface(x * 30, y * 30, 30, 30)
             for name, color in tool_rarity_colors.items():
                 a.tools[f"{name}_{tool}"] = swap_palette(tl, STONE_GRAY if tool not in whole_tools else WOOD_BROWN, color)
+
+
+def load_guns():
+    for gun_part in g.tup_gun_parts:
+        for gun_filename in os.listdir(path("Images", "Guns", gun_part)):
+            gun_name = splitext(gun_filename)[0]
+            a.blocks[f"{gun_name}_{gun_part}"] = cimgload("Images", "Guns", gun_part, gun_filename)
+            
 
 tool_rarity_colors = {"wood": DARK_WOOD_BROWN, "stone": STONE_GRAY, "iron": LIGHT_GRAY, "gold": GOLD_YELLOW, "emerald": LIGHT_GREEN}
 tool_rarity_mults = {}
@@ -200,3 +202,4 @@ ginfo = {
 
 load_blocks()
 load_tools() 
+load_guns()

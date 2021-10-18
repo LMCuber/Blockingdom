@@ -1,4 +1,4 @@
-# creation of the crafting surfaces
+# workbench
 t = 30
 w = 400
 h = 210
@@ -11,6 +11,22 @@ write(img, "midtop", "Input", orbit_fonts[20], BLACK, w / 4, 0)
 write(img, "midtop", "Output", orbit_fonts[20], BLACK, w / 4 * 3, 0)
 workbench_rect = img.get_rect(center=(Window.width / 2, Window.height / 2))
 pygame.image.save(img, path("Surfaces", "anvil.png"))
+
+# furnace / anvil
+t = 30
+w = 400
+h = 210
+img = pygame.Surface((w, h))
+img.fill(LIGHT_GRAY, (0, 0, w, h))
+img.fill(GRAY, (0, t, w / 3, h))
+img.fill(DARK_GRAY, (w / 3 * 2, t, w, h))
+img.fill(WHITE, (0, 0, w, t))
+workbench_rel_center = (img.get_width() / 2, (img.get_height() + 30) / 2)
+write(img, "midtop", "Input", orbit_fonts[20], BLACK, w / 3 / 2, 0)
+write(img, "midtop", "Output", orbit_fonts[20], BLACK, (w / 3 / 2)*5, 0)
+write(img, "midtop", "Tool", orbit_fonts[20], BLACK, (w / 2), 0)
+workbench_rect = img.get_rect(center=(Window.width / 2, Window.height / 2))
+pygame.image.save(img, path("Images", "Surfaces", "anvil.png"))
 
 # gun <^>
 gun_crafter = pygame.Surface((400, 210))
@@ -29,7 +45,7 @@ pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2 - 30, h +
 pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2 - 30, h + 30, 30, 30), b)
 pygame.draw.rect(gun_crafter, GRAY,      (gun_crafter.get_width() // 2, h + 30, 30, 30))
 pygame.draw.rect(gun_crafter, DARK_GRAY, (gun_crafter.get_width() // 2, h + 30, 30, 30), b)
-pygame.image.save(gun_crafter, "Surfaces\gun_crafter.png")
+pygame.image.save(gun_crafter, "Images\Surfaces\gun_crafter.png")
 gun_crafter_img = gun_crafter.copy()
 
 # visuals
@@ -110,3 +126,14 @@ elif g.player.main == "tool":
 
 hbr_width_dbt = Window.hotbar.get_width() / 2
 Window.display.blit(Window.hotbar, (Window.width / 2 - hbr_width_dbt, 15))
+
+selected_tool_poss = []
+x = 0
+for i in range(2):
+    selected_tool_poss.append((x, 0))
+    x += 33
+selected_block_poss = []
+x = 78
+for i in range(5):
+    selected_block_poss.append((x, 0))
+    x += 33

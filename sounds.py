@@ -1,4 +1,4 @@
-from pyengine.imports import *
+from pyengine.pgbasics import *
 
 
 def blocksound(sound):
