@@ -308,9 +308,9 @@ class _Control:
         return False
         
         
-ENTER = _Enter()
-SHIFT = _Shift()
-CTRL = _Control()
+K_ENTER = _Enter()
+K_SHIFT = _Shift()
+K_CTRL = _Control()
 
 
 class SmartSurface(pygame.Surface):

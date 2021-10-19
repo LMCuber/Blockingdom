@@ -332,7 +332,7 @@ class Entry(_Widget):
                     self._exec_command(self.command, "out destroy", self.output)
                     Thread(target=self.zoom, args=["out destroy"]).start()
                 elif name == "backspace":
-                    if mod == CTRL:
+                    if mod == K_CTRL:
                         self.output = self.output[:-1]
                         while self.output[-1:] != " " and self.output != "":
                             self.output = self.output[:-1]
@@ -347,7 +347,7 @@ class Entry(_Widget):
                             if mod == CTRL and name == "v":
                                 self.output += get_clipboard()
                             else:
-                                if mod == SHIFT:
+                                if mod == K_SHIFT:
                                     self.output += keyboard_map.get(name, name.capitalize())
                                 else:
                                     self.output += name
@@ -403,7 +403,7 @@ class MessageboxOkCancel(_Widget):
 
     def process_event(self, event): 
         if event.type == pygame.KEYDOWN:
-            if event.key == ENTER:
+            if event.key == K_ENTER:
                 self._exec_command(self.command, "out destroy")
 
     def okcancel(self, mouse):
@@ -432,7 +432,7 @@ class MessageboxError(_Widget):
 
     def process_event(self, event): 
         if event.type == pygame.KEYDOWN:
-            if event.key == ENTER:
+            if event.key == K_ENTER:
                 Thread(target=self.zoom, args=["out destroy"]).start()
 
     def error(self, mouse):

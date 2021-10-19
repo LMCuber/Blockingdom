@@ -62,12 +62,12 @@ crafting_center = (Window.width / 2, Window.height / 2 + 15)
 crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
 w, h = gun_crafter_img.get_size()
 px, py = 205, 195
-gun_crafter_part_poss = {"stock": (px + w / 2 - 25, py + h / 2 - 7),
+gun_crafter_part_poss = {"stock": (px + w / 2 - 32, py + h / 2 - 9),
                          "body": (px + w / 2, py + h / 2 - 15),
-                         "barrel": (px + w / 2 + 25, py + h / 2 - 15),
-                         "grip": (px + w / 2, py + h / 2 + 7),
-                         "magazine": (px + w / 2 + 25, py + h / 2 + 7)}
-
+                         "barrel": (px + w / 2 + 33, py + h / 2 - 14),
+                         "grip": (px + w / 2 - 6, py + h / 2),
+                         "magazine": (px + w / 2 + 19, py + h / 2 + 3)}
+                         
 # bg images
 frame_img = cimgload("Images", "Background", "frame.png")
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
@@ -284,10 +284,11 @@ def is_in(elm, seq):
 
 def bpure(str_):
     ret = str_.removesuffix("_bg")
-    if "_" in ret:
-        return ret.split("_")[1]
-    else:
-        return ret
+    return ret.split("_")[1] if "_" in ret else ret
+        
+        
+def gpure(str_):
+    return str_.replace("_", " ")
 
 
 # L A M B D A S ---------------------------------------------------------------------------------------- #

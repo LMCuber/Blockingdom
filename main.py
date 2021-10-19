@@ -278,8 +278,8 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["workbench", "anvil", "gun-crafter", None, None]
-            g.player.inventory_amounts = [1, 1, 1, None, None]
+            g.player.inventory = ["gun-crafter", "prototype_stock", "prototype_body", "prototype_barrel", "prototype_grip"]
+            g.player.inventory_amounts = [1, 1, 1, 1, 1]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": pgticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -1309,7 +1309,7 @@ class Hovering:
         if g.player.main == "block":
             for block in all_blocks:
                 if block.rect.collidepoint(g.mouse):
-                    if g.player.item not in finfo:
+                    if g.player.item not in unplacable_blocks and g.player.item not in finfo:
                         if g.w.mode == "adventure":
                             if abs(g.player.rect.x - block.rect.x) // 30 > 3 or abs(g.player.rect.y - block.rect.y) // 30 > 3:
                                 self.faulty = True
@@ -1771,7 +1771,7 @@ def main():
                                             g.craftings[g.player.block] = 1 if g.mod != CTRL else g.player.amount
                                             g.crafting_log.append(g.player.block)
 
-                                elif event.key == ENTER:
+                                elif event.key == K_ENTER:
                                      if g.craftable is not None:
                                         if g.player.stats["xp"]["amount"] >= cinfo[craftable].get("xp", 0):
                                             if g.player.stats["energy"]["amount"] - cinfo[craftable].get("energy", 0) >= 0:
@@ -1799,8 +1799,8 @@ def main():
                             
                             elif g.crafting == "gun":
                                 if event.key == K_SPACE:
-                                    if g.player.block is not None:
-                                        g.gun_parts["stock"] = g.player.block
+                                    if g.player.block in gun_blocks: 
+                                        g.gun_parts[g.player.block.split("_")[1]] = g.player.block
                                     
                             elif event.key == K_SPACE:
                                 if g.player.main == "block":
@@ -1836,7 +1836,7 @@ def main():
                                 else:
                                     stop_crafting()
 
-                            elif event.key == ENTER:
+                            elif event.key == K_ENTER:
                                 for messagebox in all_messageboxes:
                                     messagebox.close("open")
 
@@ -2013,7 +2013,7 @@ def main():
                                                 if g.first_affection is None:
                                                     g.first_affection = "place"
                                                 if g.first_affection == "place":
-                                                    if not block.rect.colliderect(g.player.rect) if g.str_mod != "_bg" else True:
+                                                    if not (block.rect.colliderect(g.player.rect) if g.str_mod != "_bg" else False) and g.player.block not in unplacable_blocks:
                                                         if g.player.block is not None:
                                                             block.name = g.player.block + g.str_mod
                                                             if g.w.mode == "adventure":
@@ -2179,13 +2179,16 @@ def main():
             if g.crafting == "workbench":
                 Window.display.cblit(workbench_icon, crafting_center)
 
-            if g.player.main == "block" and g.player.block is not None:
-                if g.player.block not in oinfo:
-                    item = bpure(g.player.block).upper()
-                else:
-                    item = oinfo[g.player.block]["cform"]
-            elif g.player.main == "tool" and g.player.tool is not None:
-                item = g.player.tool.replace("_", " ").upper()
+            if g.player.item is not None:
+                if g.player.main == "block":
+                    if g.player.block in oinfo:
+                        item = oinfo[g.player.block]["cform"]
+                    elif g.player.block in gun_blocks:
+                        item = gpure(g.player.block).upper()
+                    else:
+                        item = bpure(g.player.block).upper()
+                elif g.player.main == "tool":
+                    item = g.player.tool.replace("_", " ").upper()
             else:
                 item = None
             if item is not None:
@@ -2302,10 +2305,6 @@ def main():
             # buttons (arrows)
             for button in pw.change_skin_buttons:
                 Window.display.cblit(button["surf"], button["rect"].center)
-            # lines (for clarity)
-        
-        Window.display.blit(cimgload("Images", "Guns", "Spritesheet", "prototype_spritesheet2.png"), g.mouse)
-        pygame.draw.rect(Window.display, BLACK, cimgload("Images", "Guns", "Spritesheet", "prototype_spritesheet2.png").get_rect(topleft=g.mouse), 1)
 
         # updating the widgets
         updating_buttons = [button for button in iter_buttons() if not button.disabled]

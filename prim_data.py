@@ -109,6 +109,7 @@ def load_guns():
         for gun_filename in os.listdir(path("Images", "Guns", gun_part)):
             gun_name = splitext(gun_filename)[0]
             a.blocks[f"{gun_name}_{gun_part}"] = cimgload("Images", "Guns", gun_part, gun_filename)
+            gun_blocks.append(f"{gun_name}_{gun_part}")
             
 
 tool_rarity_colors = {"wood": DARK_WOOD_BROWN, "stone": STONE_GRAY, "iron": LIGHT_GRAY, "gold": GOLD_YELLOW, "emerald": LIGHT_GREEN}
@@ -168,6 +169,7 @@ practically_no_blocks = ["air", "water"]
 dif_drop_blocks = {"coconut": {"block": "coconut-piece", "amount": 2},
                    "watermelon": {"block": "watermelon-piece", "amount": 2}}
 fall_damage_blocks = {"hay": 10}
+gun_blocks = []
 finfo = {
     "apple":
         {"amounts": {"thirst": 3, "hunger": 7}, "speed": 2},
@@ -176,8 +178,6 @@ finfo = {
     "watermelon":
         {"amounts": {"thirst": 6, "hunger": 5}, "speed": 0.8}
 }
-unplacable_blocks = {*()}
-unplacable_blocks |= finfo.keys()
 
 # crafting info
 cinfo = {
@@ -203,3 +203,5 @@ ginfo = {
 load_blocks()
 load_tools() 
 load_guns()
+
+unplacable_blocks = [*gun_blocks]
