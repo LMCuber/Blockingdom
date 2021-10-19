@@ -1,5 +1,6 @@
 from .imports import *
 from .basics import *
+from .pilbasics import pil2pg
 import pygame
 from pygame.locals import *
 from pygame.transform import scale as pgscale
@@ -64,6 +65,21 @@ def aaellipse(width, height, color=BLACK):
 
 
 # functions
+def crop_transparent(pg_img):
+    pil_img = pg2pil(pg_img)
+    pil_img = pil_img.crop(pil_img.getbbox())
+    pg_img = pil2pg(pil_img)
+    return pg_img
+
+
+def real_colorkey(img, color):
+    og_surf = img.copy()
+    og_surf.set_colorkey(color)
+    blit_surf = pygame.Surface(og_surf.get_size(), pygame.SRCALPHA)
+    blit_surf.blit(og_surf, (0, 0))
+    return blit_surf
+
+
 def set_volume(amount):
     if get_volume() != amount:
         pygame.mixer.music.set_volume(amount)

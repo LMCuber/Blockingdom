@@ -1801,6 +1801,12 @@ def main():
                                 if event.key == K_SPACE:
                                     if g.player.block in gun_blocks: 
                                         g.gun_parts[g.player.block.split("_")[1]] = g.player.block
+                                elif event.key == K_ENTER:
+                                    if all(g.gun_parts.values()):
+                                        gun_craft = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
+                                        gun_craft = real_colorkey(gun_craft, LIGHT_GRAY)
+                                        gun_craft = crop_transparent(gun_craft)
+                                        pygame.image.save(gun_craft, "test.png")
                                     
                             elif event.key == K_SPACE:
                                 if g.player.main == "block":
@@ -2171,10 +2177,19 @@ def main():
             # gun
             elif g.crafting == "gun":
                 Window.display.blit(gun_crafter_img, crafting_rect)
-                for k, v in g.gun_parts.items():
-                    if v is not None:
-                        Window.display.cblit(a.blocks[v], gun_crafter_part_poss[k])
-                    
+                for i, v in enumerate(g.gun_parts.values()):
+                    try:
+                        pos = gun_crafter_part_poss[g.tup_gun_parts[i]]
+                    except KeyError:
+                        pass
+                    else:
+                        if v is not None:
+                            Window.display.cblit(a.blocks[v], pos)
+                        else:
+                            write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
+                            #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
+                            #pygame.draw.circle(Window.display, BLACK, pos, 5)
+                        
             # player item
             if g.crafting == "workbench":
                 Window.display.cblit(workbench_icon, crafting_center)

@@ -5,6 +5,10 @@ import PIL.ImageDraw
 import pygame
 
 
+# shapes
+...
+
+# functions
 def round_corners(pil_img, radius):
     circle = PIL.Image.new('L', (radius * 2, radius * 2), 0)
     draw = PIL.ImageDraw.Draw(circle)

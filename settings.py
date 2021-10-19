@@ -61,12 +61,14 @@ gun_crafter_img = imgload("Images", "Surfaces", "gun_crafter.png")
 crafting_center = (Window.width / 2, Window.height / 2 + 15)
 crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
 w, h = gun_crafter_img.get_size()
-px, py = 205, 195
-gun_crafter_part_poss = {"stock": (px + w / 2 - 32, py + h / 2 - 9),
-                         "body": (px + w / 2, py + h / 2 - 15),
-                         "barrel": (px + w / 2 + 33, py + h / 2 - 14),
-                         "grip": (px + w / 2 - 6, py + h / 2),
-                         "magazine": (px + w / 2 + 19, py + h / 2 + 3)}
+rx, ry = 205, 195
+crafting_abs_pos = (rx, ry + 30)
+crafting_eff_size = (400, 180)
+gun_crafter_part_poss = {"stock": (rx + w // 2 - 32, ry + h // 2 - 9),
+                         "body": (rx + w // 2, ry + h // 2 - 15),
+                         "barrel": (rx + w // 2 + 33, ry + h // 2 - 14),
+                         "grip": (rx + w // 2 - 6, ry + h // 2),
+                         "magazine": (rx + w // 2 + 19, ry + h // 2 + 3)}
                          
 # bg images
 frame_img = cimgload("Images", "Background", "frame.png")
@@ -154,7 +156,7 @@ class Game:
         self.crafting_log = []
         # gun crafter
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
-        self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts)
+        self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts if gun_part not in ("Scope", "Silencer"))
         self.gun_parts = dict.fromkeys(self.tup_gun_parts, None)
         # skin menu
         self.skin_anim_speed = 0.06

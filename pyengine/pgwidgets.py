@@ -344,7 +344,7 @@ class Entry(_Widget):
                 else:
                     if len(name) == 1:
                         if len(self.output) < self.max_chars:
-                            if mod == CTRL and name == "v":
+                            if mod == K_CTRL and name == "v":
                                 self.output += get_clipboard()
                             else:
                                 if mod == K_SHIFT:
