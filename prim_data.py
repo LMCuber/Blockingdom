@@ -23,7 +23,7 @@ def cfilter(image, alpha, size, color=BLACK, colorkey=BLACK):
 
 
 def tpure(tool):
-    return tool.split("_")[1] if tool is not None else tool
+    return (tool.split("_")[1] if tool is not None else tool) if "_" in tool else tool
 
 
 # I M A G E S ------------------------------------------------------------------------------------------ #

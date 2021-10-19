@@ -1,5 +1,5 @@
+from math import floor, ceil, sqrt, hypot, sin, cos, atan2, degrees, radians
 from types import SimpleNamespace as EmptyObject, FunctionType
-from math import floor, ceil, sqrt, hypot, sin, cos, atan2
 from random import randint as rand, uniform as randf
 from os.path import join as path, isfile, splitext
 from collections import defaultdict

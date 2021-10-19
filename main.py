@@ -38,6 +38,7 @@ def user_command(command):
         elif command.startswith("give"):
             args = SmartList(int(arg) if arg.isdigit() else arg for arg in command.split()[1:])
             block = args[0]  # trying
+            a.blocks[block]
             if block in g.player.inventory:
                 g.player.inventory_amounts[g.player.inventory.index(block)] += args.get(1, 1)
             else:
@@ -47,6 +48,15 @@ def user_command(command):
             raise Exception
     except Exception:
         MessageboxError(Window.display, "Invalid or unusable command", **g.def_widget_kwargs)
+        
+        
+def custom_gun(name):
+    if name not in a.blocks:
+        a.tools[name] = g.gun_img.copy()
+        g.player.empty_tool = name
+        g.crafting = None
+    else:
+        MessageboxError(Window.display, "Name collides")
     
     
 def gwperc(amount):
@@ -281,7 +291,7 @@ def init_world(type_):
             g.player.inventory = ["gun-crafter", "prototype_stock", "prototype_body", "prototype_barrel", "prototype_grip"]
             g.player.inventory_amounts = [1, 1, 1, 1, 1]
             g.player.stats = {
-                "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": pgticks(), "regen_time": def_regen_time, "icon": "lives"},
+                "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
                 "thirst": {"amount": 50, "color": WATER_BLUE, "pos": (32, 60), "icon": "thirst"},
                 "energy": {"amount": 50, "color": YELLOW, "pos": (32, 80), "icon": "energy"},
@@ -298,7 +308,7 @@ def init_world(type_):
         g.player.image = pygame.image.fromstring(g.player.image, (g.player.width, g.player.height), "RGBA")
         g.player.images = [pygame.image.fromstring(img, (g.player.width, g.player.height), "RGBA") for img in g.player.images]
         g.player.stats["lives"]["regen_time"] = def_regen_time
-        g.player.stats["lives"]["last_regen"] = pgticks()
+        g.player.stats["lives"]["last_regen"] = ticks()
 
     # dynamic surfaces
     g.bars_bg = pygame.Surface((210, len(g.player.stats.keys()) * (17 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
@@ -518,7 +528,6 @@ class World:
         self.biome_names = []
         self.prev_screen = self.data
         self.name = None
-        self.gun_names = []
         # game settings
         self.show_hitboxes = False
         # day-night cycle
@@ -552,6 +561,7 @@ class Play:
         self.new_world_count = 0
         self.loaded_world_count = 0
         self.unlocked_skins = []
+        self.loading_times = SmartList()
 
 
 class PlayWidgets:
@@ -593,10 +603,10 @@ class PlayWidgets:
         # skin menu arrow buttons to change the skin
         self.change_skin_buttons = []
         for bt in g.skins:
-            self.change_skin_buttons.append({"name": "p-" + bt, "surf": pygame.transform.rotozoom(triangle(height=30), 90, 1)})
+            self.change_skin_buttons.append({"name": "p-" + bt, "surf": rotozoom(triangle(height=30), 90, 1)})
             self.change_skin_buttons[-1]["mask"] = pygame.mask.from_surface(self.change_skin_buttons[-1]["surf"])
         for bt in g.skins:
-            self.change_skin_buttons.append({"name": "n-" + bt, "surf": pygame.transform.rotozoom(triangle(height=30), 270, 1)})
+            self.change_skin_buttons.append({"name": "n-" + bt, "surf": rotozoom(triangle(height=30), 270, 1)})
             self.change_skin_buttons[-1]["mask"] = pygame.mask.from_surface(self.change_skin_buttons[-1]["surf"])
         sx = 135
         x = sx
@@ -845,34 +855,82 @@ class Player:
     @property
     def lives(self):
         return self.stats["lives"]["amount"]
+    
+    @lives.setter
+    def lives(self, value):
+        self.stats["lives"]["amount"] = value
 
     @property
     def item(self):
         return self.inventory[self.indexes[self.main]]
+    
+    @item.setter
+    def item(self, value):
+        self.inventory[self.indexes[self.main]] = value
 
     @property
     def itemi(self):
         return self.indexes[self.main]
+    
+    @itemi.setter
+    def itemi(self, value):
+        self.indexes[self.main] = value
 
     @property
     def block(self):
         return self.inventory[self.indexes["block"]]
+    
+    @block.setter
+    def block(self, value):
+        self.inventory[self.indexes["block"]] = value
 
     @property
     def blocki(self):
         return self.indexes["block"]
+    
+    @blocki.setter
+    def blocki(self, value):
+        self.indexes["block"] = value
+               
+    @property
+    def empty_blocki(self):
+        return first(self.inventory, None, self.blocki)
+    
+    @empty_blocki.setter
+    def empty_block(self, value):
+        self.inventory[self.empty_blocki] = value
 
     @property
     def tool(self):
         return self.tools[self.indexes["tool"]]
+    
+    @tool.setter
+    def tool(self, value):
+        self.tools[self.indexes["tool"]] = value
 
     @property
     def tooli(self):
         return self.indexes["tool"]
+    
+    @tooli.setter
+    def tooli(self, value):
+        self.indexes["tool"] = value
+        
+    @property
+    def empty_tooli(self):
+        return first(self.tools, None, self.tooli)
+
+    @empty_tooli.setter
+    def empty_tool(self, value):
+        self.tools[self.empty_tooli] = value
 
     @property
     def amount(self):
         return self.inventory_amounts[self.indexes[self.main]]
+    
+    @amount.setter
+    def amount(self, value):
+        self.inventory_amounts[self.indexes[self.main]] = value
 
     def draw(self):
         Window.display.blit(self.image, self.rect)
@@ -895,7 +953,7 @@ class Player:
     def take_dmg(self, amount, scrsh_offset, scrsh_length):
         self.stats["lives"]["amount"] -= amount
         self.stats["lives"]["regen_time"] = def_regen_time
-        self.stats["lives"]["last_regen"] = pgticks()
+        self.stats["lives"]["last_regen"] = ticks()
         g.screen_shake = scrsh_length
         g.s_render_offset = scrsh_offset
 
@@ -944,9 +1002,8 @@ class Player:
                     drop.kill()
                     pitch_shift(pickup_sound).play()
                 elif self.inventory.count(None) > 0:
-                    add_index = first(self.inventory, None, self.indexes["block"])
-                    self.inventory[add_index] = drop.name
-                    self.inventory_amounts[add_index] = drop.drop_amount
+                    self.empty_block = drop.name
+                    self.inventory_amounts[self.empty_blocki] = drop.drop_amount
                     drop.kill()
                     pitch_shift(pickup_sound).play()
                 else:
@@ -1125,34 +1182,42 @@ class Visual:
     def __init__(self):
         self.angle = 0
     
+    def draw(self):
+        Window.display.blit(self.image, self.rect)
+    
     def function(self):
         if g.player.main == "block":
             if g.player.block is not None:
                 self.og_img = a.blocks[g.player.block]
-                self.image = pygame.transform.scale(self.og_img, [s // 2 for s in self.og_img.get_size()])
+                self.image = scale(self.og_img, [s // 2 for s in self.og_img.get_size()])
                 self.rect = self.image.get_rect()
                 if g.player.direc == "left":
                     self.rect.right = g.player.rect.left - 5
                 elif g.player.direc == "right":
                     self.rect.left = g.player.rect.right + 5
                 self.rect.centery = g.player.rect.centery
-                Window.display.blit(self.image, self.rect)
+                self.draw()
         elif g.player.main == "tool":
             if g.player.tool is not None:
                 self.og_img = a.tools[g.player.tool]
                 self.image = self.og_img.copy()
-                self.rect = self.image.get_rect()
-                if g.player.direc == "left":
-                    self.image = pygame.transform.rotozoom(self.og_img.copy(), self.angle, 1)
-                elif g.player.direc == "right":
-                    self.image = pygame.transform.rotozoom(pygame.transform.flip(self.og_img, True, False), self.angle, 1)
-                self.rect.center = g.mouse
-                if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
-                    self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
-                if abs(g.player.rect.centery - g.mouse[1]) >= g.tool_range:
-                    self.rect.y += g.player.rect.centery - g.mouse[1] + (g.tool_range if g.mouse[1] > g.player.rect.centery else -g.tool_range)
-                Window.display.blit(self.image, self.rect)
-
+                if "_" in g.player.tool:
+                    self.rect = self.image.get_rect()
+                    if g.player.direc == "left":
+                        self.image = rotozoom(self.og_img.copy(), self.angle, 1)
+                    elif g.player.direc == "right":
+                        self.image = rotozoom(flip(self.og_img, True, False), self.angle, 1)
+                    self.rect.center = g.mouse
+                    if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
+                        self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
+                    if abs(g.player.rect.centery - g.mouse[1]) >= g.tool_range:
+                        self.rect.y += g.player.rect.centery - g.mouse[1] + (g.tool_range if g.mouse[1] > g.player.rect.centery else -g.tool_range)
+                    self.draw()
+                else:
+                    angle = revnum(degrees(pos_mouse_to_angle(g.player.rect.center, g.mouse)))
+                    self.image = rotozoom(flip(self.og_img, False, False if 90 > angle > -90 else True), angle, 1)
+                    self.rect.center = g.player.rect.center
+                    self.draw()
 
 class Block:
     def __init__(self, x, y, index):
@@ -1163,7 +1228,7 @@ class Block:
         self.rect.y = y
 
         self.broken = 0
-        self.last_break = pgticks()
+        self.last_break = ticks()
         self.light = 1
 
     @property
@@ -1178,8 +1243,8 @@ class Block:
     def dynamic_methods(self):
         if "dirt" in self.name:
             if all_blocks[self.index - HL].name in practically_no_blocks:
-                with AttrExs(self, "last_dirt", pgticks()):
-                    if pgticks() - self.last_dirt >= 5000:
+                with AttrExs(self, "last_dirt", ticks()):
+                    if ticks() - self.last_dirt >= 5000:
                         self.name = bio.blocks[g.w.biome_names[g.w.screen]][0] + ("_bg" if "_bg" in self.name else "")
 
 
@@ -1197,14 +1262,14 @@ class Block:
         if type_ == "normal":
             if non_bg(self.name) not in oinfo:
                 breaking_time = apply(self.name, block_breaking_times, 500)
-                if pgticks() - self.last_break >= breaking_time:
+                if ticks() - self.last_break >= breaking_time:
                     self.broken += 1
                     if self.broken >= 5:
                         if is_in(self.name, dif_drop_blocks):
                             drops.append(Drop(dif_drop_blocks[non_bg(self.name)]["block"], self.rect.centerx + rand(-5, 5), self.rect.centery + rand(-5, 5), self.name))
                         else:
                             drops.append(Drop(non_bg(self.name), self.rect.centerx + rand(-5, 5), self.rect.centery + rand(-5, 5), self.name))
-                    self.last_break = pgticks()
+                    self.last_break = ticks()
 
         elif type_ == "tool":
             if get_tinfo(g.player.tool, self.name):
@@ -1240,8 +1305,8 @@ class Block:
         self.image = a.blocks[non_bg(self.name)].copy()
         if self.name.endswith("_bg"):
             self.image = img_mult(self.image, 0.7)
-        #self.image = pygame.transform.scale2x(self.image)
-        #self.image = pygame.transform.rotate(self.image, rand(0, 360))
+        #self.image = scale2x(self.image)
+        #self.image = rotate(self.image, rand(0, 360))
 
     def function(self):
         if "dynamite" in self.name:
@@ -1289,7 +1354,7 @@ class Drop(pygame.sprite.Sprite):
         self.image = a.blocks[self.name].copy()
         self.width = self.image.get_width()
         self.height = self.image.get_height()
-        self.image = pygame.transform.scale(self.image, (self.width // 3, self.height // 3))
+        self.image = scale(self.image, (self.width // 3, self.height // 3))
         self.rect = self.image.get_rect(center=(x, y))
         self.og_pos = self.rect.center
 
@@ -1333,17 +1398,17 @@ class BreakingBlockParticle(pygame.sprite.Sprite):
         self.image = a.blocks[non_bg(name)]
         self.width = self.image.get_width()
         self.height = self.image.get_height()
-        self.image = pygame.transform.scale(self.image, (self.width // 4, self.height // 4))
+        self.image = scale(self.image, (self.width // 4, self.height // 4))
         self.rect = self.image.get_rect(center=pos)
         self.xvel = rand(-2, 2)
         self.yvel = -3
-        self.start_time = pgticks()
+        self.start_time = ticks()
 
     def update(self):
         self.yvel += 0.3
         self.rect.x += self.xvel
         self.rect.y += self.yvel
-        if pgticks() - self.start_time >= 200:
+        if ticks() - self.start_time >= 200:
             self.kill()
 
 
@@ -1525,7 +1590,7 @@ class StaticOptionMenu(pygame.sprite.Sprite, StaticWidget):
         pygame.draw.rect(self.image, bg_color, (0, 0, *self.image.get_size()), 0, 10, 10, 10, 10)
         pygame.draw.rect(self.image, DARK_BROWN, (0, 0, *self.image.get_size()), 2, 10, 10, 10, 10)
         write(self.image, "midleft", default, orbit_fonts[20], BLACK, 5, h / 2)
-        self.image.cblit(pygame.transform.rotozoom(triangle(12), 180, 1), (w - 20, h / 2))
+        self.image.cblit(rotozoom(triangle(12), 180, 1), (w - 20, h / 2))
         self.og_img = self.image.copy()
         self.rects = []
         self.rect = self.image.get_rect()
@@ -1598,14 +1663,14 @@ class MessageboxWorld(pygame.sprite.Sprite):
         if type_ == "in":
             for i in range(20):
                 size = [round((perc((i + 1) * 5, s))) for s in og_size]
-                self.image = pygame.transform.scale(og_img, size)
+                self.image = scale(og_img, size)
                 self.rect = self.image.get_rect()
                 self.rect.center = (Window.width / 2, Window.height / 2)
                 time.sleep(WOOSH_TIME)
         elif type_ == "out":
             for i in reversed(range(20)):
                 size = [round(perc((i + 1) * 5, s)) for s in og_size]
-                self.image = pygame.transform.scale(og_img, size)
+                self.image = scale(og_img, size)
                 self.rect = self.image.get_rect()
                 self.rect.center = (Window.width / 2, Window.height / 2)
                 time.sleep(WOOSH_TIME)
@@ -1704,15 +1769,15 @@ if os.path.getsize("variables.dat") > 0:
 
 
 # M A I N  L O O P ------------------------------------------------------------------------------------ #
-def main():
+def main(debug):
     # cursors
     set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.crafting is not None)
     set_cursor_when(pygame.SYSTEM_CURSOR_CROSSHAIR, lambda: g.stage == "play")
     set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.stage != "play")
     # lasts
-    last_rain_partice = pgticks()
-    last_snow_particle = pgticks()
-    last_space = pgticks()
+    last_rain_partice = ticks()
+    last_snow_particle = ticks()
+    last_space = ticks()
     # testing
     first_music = False
     music_count = None
@@ -1725,8 +1790,13 @@ def main():
         pass
     # loop
     running = True
-    print()
-    print("Started in", round(time.time() - start, 2), "seconds")
+    if debug:
+        print()
+        loading_time = round(time.time() - start, 2)
+        g.p.loading_times.append(loading_time)
+        print(f"Loaded in {loading_time}s")
+        print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
+        print()
     while running:
         # fps cap
         dt = g.clock.tick(g.fps_cap) / 1000 * 120
@@ -1741,7 +1811,7 @@ def main():
                 music_count = pygame.time.get_ticks()
             else:
                 music_count = float("-inf")
-            if pgticks() - music_count >= 5000:
+            if ticks() - music_count >= 5000:
                 pygame.mixer.music.load(path("Audio", "Music", random.choice(os.listdir(path("Audio", "Music")))))
                 pygame.mixer.music.play()
                 if first_music:
@@ -1803,10 +1873,10 @@ def main():
                                         g.gun_parts[g.player.block.split("_")[1]] = g.player.block
                                 elif event.key == K_ENTER:
                                     if all(g.gun_parts.values()):
-                                        gun_craft = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
-                                        gun_craft = real_colorkey(gun_craft, LIGHT_GRAY)
-                                        gun_craft = crop_transparent(gun_craft)
-                                        pygame.image.save(gun_craft, "test.png")
+                                        g.gun_img = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
+                                        g.gun_img = real_colorkey(g.gun_img, LIGHT_GRAY)
+                                        g.gun_img = crop_transparent(g.gun_img)
+                                        Entry(Window.display, custom_gun, "Custom gun name:", pos=DPP, input_required=True)
                                     
                             elif event.key == K_SPACE:
                                 if g.player.main == "block":
@@ -1822,7 +1892,7 @@ def main():
 
                             elif event.key == K_s:
                                 if g.w.mode == "freestyle":
-                                    if pgticks() - last_space <= 200:
+                                    if ticks() - last_space <= 200:
                                         if g.player.moving_mode == "freestyle":
                                             g.player.moving_mode = "adventure"
                                         elif g.player.moving_mode == "adventure":
@@ -1834,7 +1904,7 @@ def main():
                                                     if not hov.faulty:
                                                         block.function()
                                                         break
-                                    last_space = pgticks()
+                                    last_space = ticks()
 
                             elif event.key == K_ESCAPE:
                                 if not g.crafting:
@@ -2194,16 +2264,15 @@ def main():
             if g.crafting == "workbench":
                 Window.display.cblit(workbench_icon, crafting_center)
 
-            if g.player.item is not None:
-                if g.player.main == "block":
-                    if g.player.block in oinfo:
-                        item = oinfo[g.player.block]["cform"]
-                    elif g.player.block in gun_blocks:
-                        item = gpure(g.player.block).upper()
-                    else:
-                        item = bpure(g.player.block).upper()
-                elif g.player.main == "tool":
-                    item = g.player.tool.replace("_", " ").upper()
+            if g.player.main == "block" and g.player.block is not None:
+                if g.player.block in oinfo:
+                    item = oinfo[g.player.block]["cform"]
+                elif g.player.block in gun_blocks:
+                    item = gpure(g.player.block).upper()
+                else:
+                    item = bpure(g.player.block).upper()
+            elif g.player.main == "tool" and g.player.tool is not None:
+                item = g.player.tool.replace("_", " ").upper()
             else:
                 item = None
             if item is not None:
@@ -2219,25 +2288,27 @@ def main():
             Window.display.cblit(inventory_img, (Window.width / 2 + 20, 20), "midtop")
             Window.display.cblit(pouch_img, (Window.width / 2 + 20 + 96 + 40, 20), "midtop")
             
-            # selected tool name
+            # selected tool
             x = 258
             y = 38
             for index, tool in enumerate(g.player.tools):
                 if tool is not None:
-                    Window.display.cblit(a.tools[tool], (x, y))
-                if tpure(tool) in tinfo:
-                    th = g.player.tool_healths[index]
-                    if th < 100:
-                        pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, perc(th, 30), y))
-                elif tpure(tool) in g.w.gun_names:
-                    pass
+                    tool_img = a.tools[tool]
+                    if "_" in tool:
+                        Window.display.cblit(tool_img, (x, y))
+                    else:
+                        Window.display.cblit(rotozoom(scalex(tool_img, 0.4), 45, 1), (x, y))
+                    if tpure(tool) in tinfo:
+                        th = g.player.tool_healths[index]
+                        if th < 100:
+                            pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, perc(th, 30), y))
                 # border if selected
                 if g.player.main == "tool":
                     if index == g.player.tooli:
                         Window.display.cblit(square_border_img, (x, y))
                 x += 33
                 
-            # selected block name
+            # selected block
             x = 359
             y = 38
             for index, block in enumerate(g.player.inventory):
@@ -2258,10 +2329,10 @@ def main():
             # applyping regeneration
             if g.w.mode == "adventure":
                 if g.player.stats["lives"]["amount"] + 1 <= 100:
-                    if pgticks() - g.player.stats["lives"]["last_regen"] >= g.player.stats["lives"]["regen_time"]:
+                    if ticks() - g.player.stats["lives"]["last_regen"] >= g.player.stats["lives"]["regen_time"]:
                         g.player.stats["lives"]["amount"] += 1
                         g.player.stats["lives"]["regen_time"] -= 0.2
-                        g.player.stats["lives"]["last_regen"] = pgticks()
+                        g.player.stats["lives"]["last_regen"] = ticks()
 
                 # g.player food chart
                 if "image" in g.player.food_pie and "rect" in g.player.food_pie:
@@ -2347,4 +2418,4 @@ def main():
 
 if __name__ == "__main__":
     #import cProfile; cProfile.run("main()")
-    main()
+    main(debug=True)

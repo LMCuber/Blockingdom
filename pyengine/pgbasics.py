@@ -3,11 +3,17 @@ from .basics import *
 from .pilbasics import pil2pg
 import pygame
 from pygame.locals import *
-from pygame.transform import scale as pgscale
-from pygame.time import get_ticks as pgticks
-from pygame.transform import scale2x
-from pygame.mouse import set_cursor
 import pygame.gfxdraw
+
+
+pgscale = pygame.transform.scale
+ticks = pygame.time.get_ticks
+scale = pygame.transform.scale
+scale2x = pygame.transform.scale2x
+rotate = pygame.transform.rotate
+rotozoom = pygame.transform.rotozoom
+flip = pygame.transform.flip
+set_cursor = pygame.mouse.set_cursor
 
 
 pygame.init()
@@ -210,10 +216,6 @@ def get_icon(type_, size=(34, 34)):
     elif type_ == "check":
         pygame.draw.aalines(t, BLACK, False, ((0, h / 5 * 3), (w / 5 * 2, h), (w, 0)))
     return t
-
-
-def blit_center(dest, src, pos, func=None):
-    dest.blit(src, ((func if func is not None else lambda x: x)(pos[0] - src.get_width() / 2), (func if func is not None else lambda x: x)(pos[1] - src.get_height() / 2)))
 
 
 def fade_out(spr, amount=1, after_func=None):

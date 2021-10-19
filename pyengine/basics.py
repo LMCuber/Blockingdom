@@ -291,6 +291,24 @@ class SmartList(list):
     def extendbeginning(self, itr):
         for val in itr:
             self.insert(0, val)
+        
+    @property
+    def mean(self):
+        return sum(self) / len(self)
+    
+    @property
+    def median(self):
+        return sorted(self)[len(self) // 2]
+    
+    @property
+    def mode(self):
+        freqs = dict.fromkeys(self, 0)
+        for elem in self:
+            freqs[elem] += 1
+        max_ = max(freqs.values())
+        for elem in freqs:
+            if freqs[elem] == max_:
+                return elem
             
             
 class SmartDict(dict):
@@ -351,11 +369,6 @@ def perc(part, whole, max_=100):
 
 def relval(a, b, val):
     """ Returns the appropiate value based on the weight of the first value, i.e. with a=80, b=120 and val=50, it will return 75 """
-    
-
-def neg(num):
-    """ Returns whether a number is negative """
-    return num < 0
 
 
 def lget(l, i, d=None):

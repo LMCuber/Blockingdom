@@ -297,9 +297,10 @@ class Label(_Widget, _Overwriteable):
         
 
 class Entry(_Widget):
-    def __init__(self, surf, command, title, max_chars=None, focus=True, pos=_DEF_WIDGET_POS, start_command=None, anchor="center", default_text=None, exit_command=None, visible_when=None, font=None, friends=None, error_command=None, disabled=False, disable_type=False, template=None, add=True, special_flags=None, *args, **kwargs):
+    def __init__(self, surf, command, title, max_chars=None, input_required=False, focus=True, pos=_DEF_WIDGET_POS, start_command=None, anchor="center", default_text=None, exit_command=None, visible_when=None, font=None, friends=None, error_command=None, disabled=False, disable_type=False, template=None, add=True, special_flags=None, *args, **kwargs):
         self.font = font if font is not None else _eng.def_fonts[20]
         self.max_chars = max_chars if max_chars is not None else float("inf")
+        self.input_required = input_required
         self.text_width = self.font.size(title)[0] + 10
         self.image = pygame.Surface((self.text_width, 60))
         self.image.fill(LIGHT_GRAY)
@@ -329,8 +330,9 @@ class Entry(_Widget):
             mod = pygame.key.get_mods()
             if self.focused:
                 if name == "return":
-                    self._exec_command(self.command, "out destroy", self.output)
-                    Thread(target=self.zoom, args=["out destroy"]).start()
+                    if self.output != "" if self.input_required else True:
+                        self._exec_command(self.command, "out destroy", self.output)
+                        Thread(target=self.zoom, args=["out destroy"]).start()
                 elif name == "backspace":
                     if mod == K_CTRL:
                         self.output = self.output[:-1]
