@@ -43,7 +43,7 @@ a = Assets()
 
 # images
 def load_blocks():
-    _bsprs = cimgload("Images", "Spritesheets", "block_spritesheet.png")
+    _bsprs = cimgload("Images", "Spritesheets", "blocks.png")
     block_list = [
         ["air",     "        ",   "apple",    "bamboo",        "cactus",         "watermelon",       "rock"     ],
         ["chest",   "    ",       "coconut",  "coconut-piece", "command-block",  "wood",             "bush"     ],
@@ -89,7 +89,7 @@ def load_blocks():
 
 
 def load_tools():
-    _tsprs = cimgload("Images", "Spritesheets", "tool_spritesheet.png")
+    _tsprs = cimgload("Images", "Spritesheets", "tools.png")
     tool_list = [
         ["pickaxe", "axe",    "sickle"],
         ["shovel",  "rake",   "scissors"],
@@ -110,6 +110,17 @@ def load_guns():
             gun_name = splitext(gun_filename)[0]
             a.blocks[f"{gun_name}_{gun_part}"] = cimgload("Images", "Guns", gun_part, gun_filename)
             gun_blocks.append(f"{gun_name}_{gun_part}")
+            
+            
+def load_icons():
+    a.icons = {}
+    icon_sprs = cimgload("Images", "Spritesheets", "icons.png")
+    icon_list = [
+        ["lives", "hunger", "thirst", "energy", "o2", "xp"]
+    ]
+    for y, layer in enumerate(icon_list):
+        for x, tool in enumerate(layer):
+            a.icons[tool] = icon_sprs.subsurface(x * 15, y * 15, 15, 15)
             
 
 tool_rarity_colors = {"wood": DARK_WOOD_BROWN, "stone": STONE_GRAY, "iron": LIGHT_GRAY, "gold": GOLD_YELLOW, "emerald": LIGHT_GREEN}
@@ -203,5 +214,6 @@ ginfo = {
 load_blocks()
 load_tools() 
 load_guns()
+load_icons()
 
 unplacable_blocks = [*gun_blocks]

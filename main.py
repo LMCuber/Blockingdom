@@ -52,12 +52,14 @@ def user_command(command):
         
 def custom_gun(name):
     if name not in a.blocks:
+        for gun_part_name in g.gun_parts.values():
+            g.player.use_up_inv(g.player.inventory.index(gun_part_name), 1)
         a.tools[name] = g.gun_img.copy()
         g.player.empty_tool = name
         g.crafting = None
     else:
         MessageboxError(Window.display, "Name collides")
-    
+
     
 def gwperc(amount):
     g.generating_world_perc = amount
@@ -312,6 +314,8 @@ def init_world(type_):
 
     # dynamic surfaces
     g.bars_bg = pygame.Surface((210, len(g.player.stats.keys()) * (17 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
+    # game
+    g.gun_parts = dict.fromkeys(g.tup_gun_parts, None)
     # player
     g.player.rect.center = (500, 500)
     g.player.yvel = 0
@@ -633,7 +637,7 @@ class PlayWidgets:
                         if data:
                             pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
                             pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in (x, y)], perc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
-                            Window.display.blit(icons[data["icon"]], (x - 22, y - 3))
+                            Window.display.blit(a.icons[data["icon"]], (x - 22, y - 3))
                             write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], BLACK, x + bar_outline_width + 8, y + 3)
                         y += 20
 
@@ -851,6 +855,10 @@ class Player:
         self.update_fall_effect()
         self.update_animation()
         self.update_effects()
+    
+    @property
+    def angle(self):
+        return revnum(degrees(pos_mouse_to_angle(self.rect.center, g.mouse)))
 
     @property
     def lives(self):
@@ -1203,10 +1211,7 @@ class Visual:
                 self.image = self.og_img.copy()
                 if "_" in g.player.tool:
                     self.rect = self.image.get_rect()
-                    if g.player.direc == "left":
-                        self.image = rotozoom(self.og_img.copy(), self.angle, 1)
-                    elif g.player.direc == "right":
-                        self.image = rotozoom(flip(self.og_img, True, False), self.angle, 1)
+                    self.image = rotozoom(flip(self.og_img, True, False if 90 > g.player.angle > -90 else True), self.angle, 1)
                     self.rect.center = g.mouse
                     if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
                         self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
@@ -1214,9 +1219,7 @@ class Visual:
                         self.rect.y += g.player.rect.centery - g.mouse[1] + (g.tool_range if g.mouse[1] > g.player.rect.centery else -g.tool_range)
                     self.draw()
                 else:
-                    angle = revnum(degrees(pos_mouse_to_angle(g.player.rect.center, g.mouse)))
-                    self.image = rotozoom(flip(self.og_img, False, False if 90 > angle > -90 else True), angle, 1)
-                    self.rect.center = g.player.rect.center
+                    self.image, self.rect = rot_center(flip(self.og_img, False, False if 90 > g.player.angle > -90 else True), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
                     self.draw()
 
 class Block:
@@ -1876,6 +1879,7 @@ def main(debug):
                                         g.gun_img = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
                                         g.gun_img = real_colorkey(g.gun_img, LIGHT_GRAY)
                                         g.gun_img = crop_transparent(g.gun_img)
+                                        g.gun_img = scalex(g.gun_img, 0.7)
                                         Entry(Window.display, custom_gun, "Custom gun name:", pos=DPP, input_required=True)
                                     
                             elif event.key == K_SPACE:
@@ -1995,7 +1999,7 @@ def main(debug):
                                         elif g.skin_indexes[button["name"][2:]] < 0:
                                             g.skin_indexes[button["name"][2:]] = len(g.skins[button["name"][2:]]) - 1
 
-                            if g.player.main == "tool":
+                            if g.player.main == "tool" and "_" not in g.player.tool:
                                 all_projectiles.add(Projectile(g.player.rect.center, (5, 5), g.mouse, 20))
 
                     elif event.button == 3:
@@ -2062,14 +2066,14 @@ def main(debug):
                         if not g.menu:
                             if g.player.main == "tool":
                                 if g.player.tool is not None:
-                                    if g.player.direc == "left":
-                                        visual.angle += 3
-                                        if visual.angle > 90:
-                                            visual.angle = -90
-                                    elif g.player.direc == "right":
+                                    if 90 > g.player.angle > -90:
                                         visual.angle -= 3
                                         if visual.angle < -90:
                                             visual.angle = 90
+                                    else:
+                                        visual.angle += 3
+                                        if visual.angle > 90:
+                                            visual.angle = -90
 
                             for block in all_blocks:
                                 if g.player.main == "block":
@@ -2271,12 +2275,12 @@ def main(debug):
                     item = gpure(g.player.block).upper()
                 else:
                     item = bpure(g.player.block).upper()
+                write(Window.display, "center", item, orbit_fonts[15], BLACK, Window.width / 2 + 20, 90)
             elif g.player.main == "tool" and g.player.tool is not None:
                 item = g.player.tool.replace("_", " ").upper()
+                write(Window.display, "center", item, orbit_fonts[15], BLACK, Window.width / 2 - 96 - 35, 90)
             else:
                 item = None
-            if item is not None:
-                write(Window.display, "center", item, orbit_fonts[15], BLACK, Window.width / 2 + 20, 90)
             if g.mod == 1:
                 if no_entries():
                     if g.player.main == "block" and g.player.block:
@@ -2371,7 +2375,7 @@ def main(debug):
         # skin menu filling
         if g.skin_menu:
             # backkground (filling)
-            Window.display.cblit(skin_menu_surf, (Window.width / 2, Window.height / 2))
+            Window.display.cblit(g.skin_menu_surf, (Window.width / 2, Window.height / 2))
             Window.display.cblit(g.player_model, (Window.width / 2, Window.height / 2))
             # skins (showcase)
             for bt in g.skins:

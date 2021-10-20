@@ -157,7 +157,6 @@ class Game:
         # gun crafter
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
         self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts if gun_part not in ("Scope", "Silencer"))
-        self.gun_parts = dict.fromkeys(self.tup_gun_parts, None)
         self.gun_img = None
         # skin menu
         self.skin_anim_speed = 0.06
@@ -298,10 +297,5 @@ def gpure(str_):
 inf = lambda num: INF if num == float("inf") else num
 
 # icons
-icons = {}
-for icon in os.listdir(path("Images", "Background")):
-    replaced = icon.replace(".png", "")
-    if replaced.endswith("_icon"):
-        icons[replaced.replace("_icon", "")] = cimgload("Images", "Background", icon)
 
 breaking_sprs = cimgload("Images", "Visuals", "breaking.png", frames=4)

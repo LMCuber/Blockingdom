@@ -71,6 +71,12 @@ def aaellipse(width, height, color=BLACK):
 
 
 # functions
+def rot_center(img, angle, x, y):
+    rot_img = rotozoom(img, angle, 1)
+    new_rect = rot_img.get_rect(center=img.get_rect(center=(x, y)).center)
+    return rot_img, new_rect
+    
+    
 def crop_transparent(pg_img):
     pil_img = pg2pil(pg_img)
     pil_img = pil_img.crop(pil_img.getbbox())
