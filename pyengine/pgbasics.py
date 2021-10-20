@@ -18,7 +18,6 @@ set_cursor = pygame.mouse.set_cursor
 
 pygame.init()
 
-
 # event costants
 is_left_click = lambda event: event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
 
@@ -350,6 +349,9 @@ class SmartSurface(pygame.Surface):
         rect = surf.get_rect()
         setattr(rect, anchor, pos)
         self.blit(surf, rect)
+    
+    def to_pil(self):
+        return pg2pil(self)
     
 
 class SmartGroup:

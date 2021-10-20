@@ -286,6 +286,11 @@ def cr_block(name, screen=-1, index=None):
     g.w.data[screen].insert(index if index is not None else len(g.w.data[screen]), name)
 
 
+
+
+#a.blocks = {k: pil2pg(pil_pixelate(pg2pil(v), (16, 16))) for k, v in a.blocks.items()}
+
+
 def init_world(type_):
     if type_ == "new":
         g.player = Player()
@@ -566,8 +571,7 @@ class Play:
         self.loaded_world_count = 0
         self.unlocked_skins = []
         self.loading_times = SmartList()
-
-
+        
 class PlayWidgets:
     def __init__(self):
         # menu widgets
@@ -581,8 +585,8 @@ class PlayWidgets:
             Checkbox(Window.display, "Show Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Fog", self.fog_command, pos=(DPX, DPY), **_menu_widget_kwargs),
             Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
-            Slider(Window.display, "Animation", 0, 20, g.skin_anim_speed * g.fps_cap, height=60, **_menu_widget_kwargs),
-            Slider(Window.display, "Volume", 0, 100, 20, height=60, **_menu_widget_kwargs),
+            Slider(Window.display, "Animation", range(21), g.skin_anim_speed * g.fps_cap, height=60, **_menu_widget_kwargs),
+            Slider(Window.display, "Volume", range(101), 20, height=60, **_menu_widget_kwargs),
             ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
             Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
         ]

@@ -46,8 +46,8 @@ def pil_rect2pg(pil_rect):
     return (pil_rect[0], pil_rect[1], pil_rect[2] - pil_rect[0], pil_rect[3] - pil_rect[1])
 
 
-def pil_pixelate(pil_img):
-    small = pil_img.resize((10, 10), resample=PIL.Image.BILINEAR)
+def pil_pixelate(pil_img, size):
+    small = pil_img.resize(size, resample=PIL.Image.BILINEAR)
     result = small.resize(pil_img.size, PIL.Image.NEAREST)
     return result
     

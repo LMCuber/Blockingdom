@@ -482,8 +482,9 @@ class Checkbox(_Widget):
 
 
 class Slider(_Widget):
-    def __init__(self, surf, text, min_, max_, start=None, decimals=0, pos=(810 / 2, 600 / 2), anchor="center", color=LIGHT_GRAY, height=None, exit_command=None, visible_when=None, font=None, friends=None, disabled=False, disable_type=False, template=None, add=True, special_flags=None, *args, **kwargs):
+    def __init__(self, surf, text, values, start=None, on_move_command=None, decimals=0, pos=(810 / 2, 600 / 2), anchor="center", color=LIGHT_GRAY, height=None, exit_command=None, visible_when=None, font=None, friends=None, disabled=False, disable_type=False, template=None, add=True, special_flags=None, *args, **kwargs):
         self.font = font if font is not None else _eng.def_fonts[20]
+        self.on_move_command = on_move_command
         self.text = text
         fs = self.font.size(text)
         daw_ = 40
@@ -491,38 +492,46 @@ class Slider(_Widget):
         self.color = color
         self.image.fill(color)
         self.rect = self.image.get_rect()
-        self.value = int(start if start is not None else min_)
-        self.max = max_
+        self.values = values
+        self.value = int(start if start is not None else values[0])
         self.range = self.image.get_width() - 17
-        self.range_min = 5
-        self.range_ratio = self.range / self.max
+        self.ratio = (len(self.values) - 1) / self.range
+        self.pressed = False
         super().__init__(self.image, surf, visible_when, friends, pos, anchor, exit_command, disabled, disable_type, template, type(self), add, special_flags)
+    
+    def in_area(self):
+        return pygame.mouse.get_pressed()[0] and 5 <= self.mouse[0] <= self.rect.width - 5 and 8 <= self.mouse[1] <= self.rect.height - 8
+    
+    def process_event(self, event):
+        if is_left_click(event):
+            self.pressed = self.in_area()
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self.pressed = False
+        if event.type == pygame.MOUSEMOTION:
+            if pygame.mouse.get_pressed()[0]:
+                pass
 
     def update(self):
-        # gui
+        self.mouse = pygame.mouse.get_pos()
+        self.mouse = (self.mouse[0] - self.rect.x, self.mouse[1] - self.rect.y)
+        self.mouses = pygame.mouse.get_pressed()
         if len(threading.enumerate()) == 1:
             if not hasattr(self, "slider_img"):
                 self.slider_img = pygame.Surface((7, self.image.get_height() / 2 - 4))
                 self.slider_img.fill(GRAY)
             if not hasattr(self, "slider_rect"):
                 self.slider_rect = self.slider_img.get_rect(bottomleft=(5, self.image.get_height() - 8))
-                self.slider_rect.x += self.range_ratio * self.value
+                self.slider_rect.x += self.ratio * self.value
         if hasattr(self, "slider_img") and hasattr(self, "slider_rect"):
-            mouse_ = pygame.mouse.get_pos()
-            mouse = (mouse_[0] - self.rect.x, mouse_[1] - self.rect.y)
-            mouses = pygame.mouse.get_pressed()
-            if mouses[0] and self.slider_rect.collidepoint(mouse):
-                self.pressed = True
-            elif not mouses[0]:
-                self.pressed = False
             if hasattr(self, "pressed") and self.pressed:
-                self.slider_rect.centerx = mouse[0]
-                if self.slider_rect.left < 0 + 5:
-                    self.slider_rect.left = 0 + 5
+                self.slider_rect.centerx = self.mouse[0]
+                if self.slider_rect.left < 5:
+                    self.slider_rect.left = 5
                 elif self.slider_rect.right > self.rect.width - 5:
                     self.slider_rect.right = self.rect.width - 5
-                self.value = int(perc(self.slider_rect.x - self.range_min, self.max, max_=self.range))
+                self.value = self.values[int((self.slider_rect.x - 5) * self.ratio)]
             self.image.fill(self.color)
             write(self.image, "topleft", self.text, self.font, BLACK, 5, 5)
             write(self.image, "topright", self.value, self.font, BLACK, self.image.get_width() - 5, 5)
             self.image.blit(self.slider_img, self.slider_rect)
+            
