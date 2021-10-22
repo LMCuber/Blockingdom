@@ -66,7 +66,9 @@ crafting_abs_pos = (rx, ry + 30)
 crafting_eff_size = (400, 180)
 gun_crafter_part_poss = {"stock": (rx + w // 2 - 32, ry + h // 2 - 9),
                          "body": (rx + w // 2, ry + h // 2 - 15),
+                         "scope": (rx + w // 2 + 1, ry + h // 2 - 24),
                          "barrel": (rx + w // 2 + 33, ry + h // 2 - 14),
+                         "silencer": (rx + w // 2 + 50, ry + h // 2 - 14),
                          "grip": (rx + w // 2 - 6, ry + h // 2),
                          "magazine": (rx + w // 2 + 19, ry + h // 2 + 3)}
                          
@@ -156,7 +158,8 @@ class Game:
         self.crafting_log = []
         # gun crafter
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
-        self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts if gun_part not in ("Scope", "Silencer"))
+        self.extra_gun_parts = ("Scope", "Silencer")
+        self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts)
         self.gun_img = None
         # skin menu
         self.skin_anim_speed = 0.06

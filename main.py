@@ -6,6 +6,7 @@ start = time.time()
 import atexit
 import string
 import pickle
+import json
 import threading
 import tkinter.filedialog
 from copy import deepcopy
@@ -567,7 +568,16 @@ class Play:
         self.unlocked_skins = []
         self.loading_times = SmartList()
         self.volume = 20
-        
+       
+       
+g.p = Play()
+
+# load variables
+if os.path.getsize("variables.dat") > 0:
+    with open("variables.dat", "rb") as f:
+        g.p = pickle.load(f)
+
+
 class PlayWidgets:
     def __init__(self):
         # menu widgets
@@ -582,7 +592,7 @@ class PlayWidgets:
             Checkbox(Window.display, "Fog", self.fog_command, pos=(DPX, DPY), **_menu_widget_kwargs),
             Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
             Slider(Window.display, "Animation", range(21), int(g.skin_anim_speed) * g.fps_cap, height=60, **_menu_widget_kwargs),
-            Slider(Window.display, "Volume", range(101), g.p.volume, height=60, **_menu_widget_kwargs),
+            Slider(Window.display, "Volume", range(101), int(g.p.volume * 100), height=60, **_menu_widget_kwargs),
             ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
             Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
         ]
@@ -790,7 +800,6 @@ class PlayWidgets:
 
 
 g.w = World()
-g.p = Play()
 pw = PlayWidgets()
 
 
@@ -1760,6 +1769,7 @@ button_tp = StaticButton("Custom Textures", (35, 210), all_home_settings_buttons
 button_l = StaticOptionMenu(g.common_languages, "EN", (35, 250), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
 button_s = StaticButton("Settings", (580, 150), all_home_sprites, GRAY, icon="settings", command=pw.set_home_stage_settings, visible_when=pw.is_home)
 button_w = StaticButton("Worlds", (580, 190), all_home_sprites, GRAY, command=pw.set_home_stage_worlds, visible_when=pw.is_home)
+
 # L O A D I N G  T H E  G A M E ----------------------------------------------------------------------- #
 # load buttons
 if os.path.getsize("buttons.dat") > 0:
@@ -1767,10 +1777,6 @@ if os.path.getsize("buttons.dat") > 0:
         attrs = pickle.load(f)
         for attr in attrs:
             group(WorldButton(attr, attr["pos"]), all_home_world_world_buttons)
-# load variables
-if os.path.getsize("variables.dat") > 0:
-    with open("variables.dat", "rb") as f:
-        g.p = pickle.load(f)
 
 
 # M A I N  L O O P ------------------------------------------------------------------------------------ #
@@ -1880,7 +1886,7 @@ def main(debug):
                                     if g.player.block in gun_blocks: 
                                         g.gun_parts[g.player.block.split("_")[1]] = g.player.block
                                 elif event.key == K_ENTER:
-                                    if all(g.gun_parts.values()):
+                                    if all({k:v for k, v in g.gun_parts.items() if k not in g.extra_gun_parts}.values()):
                                         g.gun_img = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
                                         g.gun_img = real_colorkey(g.gun_img, LIGHT_GRAY)
                                         g.gun_img = crop_transparent(g.gun_img)
@@ -2256,18 +2262,14 @@ def main(debug):
             # gun
             elif g.crafting == "gun":
                 Window.display.blit(gun_crafter_img, crafting_rect)
-                for i, v in enumerate(g.gun_parts.values()):
-                    try:
-                        pos = gun_crafter_part_poss[g.tup_gun_parts[i]]
-                    except KeyError:
-                        pass
+                for part, name in g.gun_parts.items():
+                    pos = gun_crafter_part_poss[part]
+                    if name is not None:
+                        Window.display.cblit(a.blocks[name], pos)
                     else:
-                        if v is not None:
-                            Window.display.cblit(a.blocks[v], pos)
-                        else:
-                            write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
-                            #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
-                            #pygame.draw.circle(Window.display, BLACK, pos, 5)
+                        write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
+                        #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
+                        #pygame.draw.circle(Window.display, BLACK, pos, 5)
                         
             # player item
             if g.crafting == "workbench":
