@@ -9,12 +9,12 @@ import pickle
 import threading
 import tkinter.filedialog
 from copy import deepcopy
+from pyengine.pgwidgets import *
+from pyengine.pgaudio import *
 from settings import *
 from prim_data import *
 from sounds import *
 from world_generation import *
-from pyengine.pgwidgets import *
-from pyengine.pgaudio import *
 
 
 # S E T U P ------------------------------------------------------------------------------------------- #
@@ -286,11 +286,6 @@ def cr_block(name, screen=-1, index=None):
     g.w.data[screen].insert(index if index is not None else len(g.w.data[screen]), name)
 
 
-
-
-#a.blocks = {k: pil2pg(pil_pixelate(pg2pil(v), (16, 16))) for k, v in a.blocks.items()}
-
-
 def init_world(type_):
     if type_ == "new":
         g.player = Player()
@@ -307,7 +302,7 @@ def init_world(type_):
             }
         elif g.w.mode == "freestyle":
             g.player.inventory = ["anvil", "bush", "dynamite", "command-block", "workbench"]
-            g.player.inventory_amounts = [float("inf") for _ in range(5)]
+            g.player.inventory_amounts = [float("inf")] * 5
         g.player.tools = ["stone_axe", None]
         g.player.tool_healths = [100, 100]
         g.player.indexes = {"tool": 0, "block": 0}
@@ -445,7 +440,7 @@ def generate_screen(biome=None):
             elif nei.count("stone") >= 5:
                 underground[index] = "stone"
     underground = [block if block == "air" else rand_ore("stone") for block in underground]
-    underground[0:HL] = ["air" for _ in range(HL)]
+    underground[0:HL] = ["air"] * HL
     g.w.data[-1].extend(underground)
 
 
@@ -571,6 +566,7 @@ class Play:
         self.loaded_world_count = 0
         self.unlocked_skins = []
         self.loading_times = SmartList()
+        self.volume = 20
         
 class PlayWidgets:
     def __init__(self):
@@ -585,8 +581,8 @@ class PlayWidgets:
             Checkbox(Window.display, "Show Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Fog", self.fog_command, pos=(DPX, DPY), **_menu_widget_kwargs),
             Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
-            Slider(Window.display, "Animation", range(21), g.skin_anim_speed * g.fps_cap, height=60, **_menu_widget_kwargs),
-            Slider(Window.display, "Volume", range(101), 20, height=60, **_menu_widget_kwargs),
+            Slider(Window.display, "Animation", range(21), int(g.skin_anim_speed) * g.fps_cap, height=60, **_menu_widget_kwargs),
+            Slider(Window.display, "Volume", range(101), g.p.volume, height=60, **_menu_widget_kwargs),
             ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
             Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
         ]
@@ -720,12 +716,12 @@ class PlayWidgets:
     def change_movement_command(type_):
         if type_ != "Arrow Keys":
             for index, key in enumerate(type_):
-                g.keys[list(g.keys.keys())[index]] = getattr(pygame, f"K_{key.lower()}")
+                g.ckeys[list(g.ckeys.keys())[index]] = getattr(pygame, f"K_{key.lower()}")
         else:
-            g.keys["p up"] = K_UP
-            g.keys["p left"] = K_LEFT
-            g.keys["p down"] = K_DOWN
-            g.keys["p right"] = K_RIGHT
+            g.ckeys["p up"] = K_UP
+            g.ckeys["p left"] = K_LEFT
+            g.ckeys["p down"] = K_DOWN
+            g.ckeys["p right"] = K_RIGHT
 
     @staticmethod
     def save_and_quit_command():
@@ -1044,31 +1040,31 @@ class Player:
         self.still = False
 
     def movey(self, yvel):
-        self.dy += yvel
+        self.dy += self.yvel
 
     def freestyle_move(self):
         keys = pygame.key.get_pressed()
-        if keys[g.keys["p up"]]:
+        if g.keys[g.ckeys["p up"]]:
             self.movey(-self.fre_vel)
-        if keys[g.keys["p down"]]:
+        if g.keys[g.ckeys["p down"]]:
             self.movey(self.fre_vel)
-        if keys[g.keys["p left"]]:
+        if g.keys[g.ckeys["p left"]]:
             self.movex(-self.fre_vel)
-        if keys[g.keys["p right"]]:
+        if g.keys[g.ckeys["p right"]]:
             self.movex(self.fre_vel)
 
     def adventure_move(self):
         # jumping
         keys = pygame.key.get_pressed()
-        if keys[g.keys["p up"]]:
+        if g.keys[g.ckeys["p up"]]:
             if not self.in_air and self.yvel <= 0:
                 self.yvel = self.jump_yvel
                 self.in_air = True
 
         # xvel
-        if keys[g.keys["p left"]]:
+        if g.keys[g.ckeys["p left"]]:
             self.movex(-self.adv_xvel)
-        elif keys[g.keys["p right"]]:
+        elif g.keys[g.ckeys["p right"]]:
             self.movex(self.adv_xvel)
         else:
             self.still = True
@@ -1076,6 +1072,8 @@ class Player:
         # yvel
         self.yvel += self.gravity
         self.dy += self.yvel
+        
+        # collision
         for block in all_blocks:
             if block.name not in walk_through_blocks and "_bg" not in block.name:
                 # x-collision
@@ -1801,18 +1799,21 @@ def main(debug):
         print()
         loading_time = round(time.time() - start, 2)
         g.p.loading_times.append(loading_time)
-        print(f"Loaded in {loading_time}s")
+        print(f"Loaded in: {loading_time}s")
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
         print()
+
     while running:
         # fps cap
         dt = g.clock.tick(g.fps_cap) / 1000 * 120
 
         # music
         if g.stage == "play":
-            set_volume(pw.volume.value / 100)
+            volume = pw.volume.value / 100
         elif g.stage == "home":
-            set_volume(0)
+            volume = 0
+        set_volume(volume)
+        g.p.volume = volume
         if not pygame.mixer.music.get_busy():
             if first_music:
                 music_count = pygame.time.get_ticks()
@@ -1930,7 +1931,7 @@ def main(debug):
                                 g.player.indexes["tool"] = int(pygame.key.name(event.key)) - 1
 
                 elif event.type == pygame.KEYUP:
-                    if event.key == g.keys["p up"]:
+                    if event.key == g.ckeys["p up"]:
                         if g.player.yvel < 0:
                             g.player.yvel /= 3
 

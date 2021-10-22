@@ -32,14 +32,8 @@ STONE_GRAY = (65, 65, 65)
 WOOD_BROWN = (87, 44, 0)
 DARK_WOOD_BROWN = (80, 40, 0)
 
+a = EmptyObject(blocks={}, tools={}, icons={})
 
-class Assets:
-    def __init__(self):
-        self.blocks = {}
-        self.tools = {}
-        
-
-a = Assets()
 
 # images
 def load_blocks():
@@ -102,6 +96,7 @@ def load_tools():
             tl = _tsprs.subsurface(x * 30, y * 30, 30, 30)
             for name, color in tool_rarity_colors.items():
                 a.tools[f"{name}_{tool}"] = swap_palette(tl, STONE_GRAY if tool not in whole_tools else WOOD_BROWN, color)
+    a.og_tools = {k: v.copy() for k, v in a.tools.items()}
 
 
 def load_guns():
@@ -110,6 +105,7 @@ def load_guns():
             gun_name = splitext(gun_filename)[0]
             a.blocks[f"{gun_name}_{gun_part}"] = cimgload("Images", "Guns", gun_part, gun_filename)
             gun_blocks.append(f"{gun_name}_{gun_part}")
+    a.og_blocks = {k: v.copy() for k, v in a.blocks.items()}
             
             
 def load_icons():
@@ -121,6 +117,7 @@ def load_icons():
     for y, layer in enumerate(icon_list):
         for x, tool in enumerate(layer):
             a.icons[tool] = icon_sprs.subsurface(x * 15, y * 15, 15, 15)
+    a.og_icons = {k: v.copy() for k, v in a.icons.items()}
             
 
 tool_rarity_colors = {"wood": DARK_WOOD_BROWN, "stone": STONE_GRAY, "iron": LIGHT_GRAY, "gold": GOLD_YELLOW, "emerald": LIGHT_GREEN}
@@ -190,6 +187,12 @@ finfo = {
         {"amounts": {"thirst": 6, "hunger": 5}, "speed": 0.8}
 }
 
+# loading assets
+load_blocks()
+load_tools() 
+load_guns()
+load_icons()
+
 # crafting info
 cinfo = {
     "wooden-planks": {"recipe": {"wood": 1}, "amount": 2, "energy": 5},
@@ -210,10 +213,5 @@ for ore in oinfo:
 ginfo = {
     "sniper": (False, 15, 5),
 }
-
-load_blocks()
-load_tools() 
-load_guns()
-load_icons()
 
 unplacable_blocks = [*gun_blocks]

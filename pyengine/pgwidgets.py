@@ -493,7 +493,7 @@ class Slider(_Widget):
         self.image.fill(color)
         self.rect = self.image.get_rect()
         self.values = values
-        self.value = int(start if start is not None else values[0])
+        self.value = start if start is not None else values[0]
         self.range = self.image.get_width() - 17
         self.ratio = (len(self.values) - 1) / self.range
         self.pressed = False
@@ -503,13 +503,16 @@ class Slider(_Widget):
         return pygame.mouse.get_pressed()[0] and 5 <= self.mouse[0] <= self.rect.width - 5 and 8 <= self.mouse[1] <= self.rect.height - 8
     
     def process_event(self, event):
+        prev_value = self.value
         if is_left_click(event):
             self.pressed = self.in_area()
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             self.pressed = False
         if event.type == pygame.MOUSEMOTION:
             if pygame.mouse.get_pressed()[0]:
-                pass
+                self.update()
+                if prev_value != self.value:
+                    self._exec_command(self.on_move_command, None, self.value)
 
     def update(self):
         self.mouse = pygame.mouse.get_pos()
@@ -521,7 +524,7 @@ class Slider(_Widget):
                 self.slider_img.fill(GRAY)
             if not hasattr(self, "slider_rect"):
                 self.slider_rect = self.slider_img.get_rect(bottomleft=(5, self.image.get_height() - 8))
-                self.slider_rect.x += self.ratio * self.value
+                self.slider_rect.x += self.values.index(self.value if isinstance(self.value, str) else round(self.value))
         if hasattr(self, "slider_img") and hasattr(self, "slider_rect"):
             if hasattr(self, "pressed") and self.pressed:
                 self.slider_rect.centerx = self.mouse[0]
@@ -529,7 +532,7 @@ class Slider(_Widget):
                     self.slider_rect.left = 5
                 elif self.slider_rect.right > self.rect.width - 5:
                     self.slider_rect.right = self.rect.width - 5
-                self.value = self.values[int((self.slider_rect.x - 5) * self.ratio)]
+                self.value = self.values[round((self.slider_rect.x - 5) * self.ratio)]
             self.image.fill(self.color)
             write(self.image, "topleft", self.text, self.font, BLACK, 5, 5)
             write(self.image, "topright", self.value, self.font, BLACK, self.image.get_width() - 5, 5)

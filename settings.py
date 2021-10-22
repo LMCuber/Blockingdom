@@ -123,7 +123,7 @@ class Game:
     def __init__(self):
         """ The game class has all types of global attributes related to the game, as well as the player and the 'w' object that represents a world & its data """
         # 'global' variables
-        self.keys = {"p up": K_w, "p left": K_a, "p down": K_s, "p right": K_d}
+        self.ckeys = {"p up": K_w, "p left": K_a, "p down": K_s, "p right": K_d}
         # initialization
         self.clock = pygame.time.Clock()
         self.fps_cap = 120
@@ -249,6 +249,10 @@ class Game:
     @property
     def mouses(self):
         return pygame.mouse.get_pressed()
+        
+    @property
+    def keys(self):
+        return pygame.key.get_pressed()
 
     @property
     def mod(self):
