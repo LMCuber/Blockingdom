@@ -1,6 +1,6 @@
 # Welcome to Blockingdom!
-# What is Blockingdom?
+## What is Blockingdom?
 Blockingdom is a 2D open-world sandbox game. It combines the free feel of world exploration and complexity of survival crafting.
 
-# What is it made with?
+## What is it made with?
 Blockingdom is made Python with the library/framework PyGame.
