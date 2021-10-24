@@ -51,12 +51,15 @@ def user_command(command):
         MessageboxError(Window.display, "Invalid or unusable command", **g.def_widget_kwargs)
         
         
+def is_gun(name):
+    return name.split("_")[0] not in oinfo if name is not None else False
+        
+        
 def custom_gun(name):
     if name not in a.blocks:
-        for gun_part_name in g.gun_parts.values():
-            g.player.use_up_inv(g.player.inventory.index(gun_part_name), 1)
         a.tools[name] = g.gun_img.copy()
         g.player.empty_tool = name
+        g.gun_attrs[name] = g.gun_parts
         g.crafting = None
     else:
         MessageboxError(Window.display, "Name collides")
@@ -308,8 +311,8 @@ def init_world(type_):
         g.player.tool_healths = [100, 100]
         g.player.indexes = {"tool": 0, "block": 0}
     elif type_ == "existing":
-        g.player.image = pygame.image.fromstring(g.player.image, (g.player.width, g.player.height), "RGBA")
-        g.player.images = [pygame.image.fromstring(img, (g.player.width, g.player.height), "RGBA") for img in g.player.images]
+        g.player.image = SmartSurface.from_string(g.player.image, (g.player.width, g.player.height), "RGBA")
+        g.player.images = [SmartSurface.from_string(img, (g.player.width, g.player.height), "RGBA") for img in g.player.images]
         g.player.stats["lives"]["regen_time"] = def_regen_time
         g.player.stats["lives"]["last_regen"] = ticks()
 
@@ -488,16 +491,10 @@ class MethodHandler:
             if g.w.name is not None:
                 with open(path("Worlds", g.w.name + ".dat"), "wb") as f:
                     pickle.dump(g.w.data, f)
-        # entities
-        for entity in g.w.entities:
-            entity.images = [pygame.image.tostring(image, "RGBA") for image in entity.images]
-            entity.image = pygame.image.tostring(entity.image, "RGBA")
         # save button data
         for button in all_home_world_world_buttons:
             if button.data["world"] == g.w.name:
                 g.player.width, g.player.height = g.player.image.get_size()
-                g.player.image = pygame.image.tostring(g.player.image, "RGBA")
-                g.player.images = [pygame.image.tostring(img, "RGBA") for img in g.player.images]
                 button.data["player_obj"] = deepcopy(g.player)
                 button.data["world_obj"] = deepcopy(g.w)
                 break
@@ -567,7 +564,7 @@ class Play:
         self.loaded_world_count = 0
         self.unlocked_skins = []
         self.loading_times = SmartList()
-        self.volume = 20
+        self.volume = 0.2
        
        
 g.p = Play()
@@ -806,7 +803,7 @@ pw = PlayWidgets()
 # G R A P H I C A L  C L A S S E S S ------------------------------------------------------------------ #
 class Player:
     def __init__(self):
-        self.images = [pygame.Surface(g.player_size) for _ in range(4)]
+        self.images = [SmartSurface(g.player_size) for _ in range(4)]
         for image in self.images:
             image.fill(GRAY)
         self.anim = 0
@@ -1198,6 +1195,8 @@ class Player:
 
 
 class Visual:
+    __slots__ = ("image", "og_img", "rect", "angle")
+    
     def __init__(self):
         self.angle = 0
     
@@ -1232,6 +1231,12 @@ class Visual:
                 else:
                     self.image, self.rect = rot_center(flip(self.og_img, False, False if 90 > g.player.angle > -90 else True), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
                     self.draw()
+            if is_gun(g.player.tool):
+                if "scope" in g.gun_attrs[g.player.tool]:
+                    attr = ginfo["scope"][g.gun_attrs[g.player.tool]["scope"].split("_")[0]]
+                    color = attr[0]
+                    pygame.gfxdraw.line(Window.display, *g.player.rect.center, *g.mouse, color)
+  
 
 class Block:
     def __init__(self, x, y, index):
@@ -1374,7 +1379,7 @@ class Drop(pygame.sprite.Sprite):
 
 
 class Hovering:
-    __slots__ = ["image", "rect", "faulty", "show"]
+    __slots__ = ("image", "rect", "faulty", "show")
 
     def __init__(self):
         self.image = pygame.Surface((30, 30))
@@ -1428,8 +1433,8 @@ class BreakingBlockParticle(pygame.sprite.Sprite):
 
 class Entity:
     def __init__(self, images, pos, screen, anchor="bottomleft", *args, **kwargs):
-        self.images = images
         self.anim = 0
+        self.images = [SmartSurface.from_surface(image) for image in images]
         self.image = self.images[int(self.anim)]
         self.rect = self.image.get_rect()
         setattr(self.rect, anchor, [p * 30 for p in pos])
@@ -1697,8 +1702,8 @@ class MessageboxWorld(pygame.sprite.Sprite):
                 world_data = pickle.load(f)
                 g.w = self.data["world_obj"]
                 for entity in g.w.entities:
-                    entity.images = [pygame.image.fromstring(image, entity.sizes[i], "RGBA") for i, image in enumerate(entity.images)]
-                    entity.image = pygame.image.fromstring(entity.image, entity.sizes[int(entity.anim)], "RGBA")
+                    entity.images = [SmartSurface.from_string(image, entity.sizes[i], "RGBA") for i, image in enumerate(entity.images)]
+                    entity.image = SmartSurface.from_string(entity.image, entity.sizes[int(entity.anim)], "RGBA")
                 destroy_widgets()
                 g.menu = False
                 # player
@@ -1885,6 +1890,7 @@ def main(debug):
                                 if event.key == K_SPACE:
                                     if g.player.block in gun_blocks: 
                                         g.gun_parts[g.player.block.split("_")[1]] = g.player.block
+                                        g.player.use_up_inv(g.player.inventory.index(g.player.block), 1)
                                 elif event.key == K_ENTER:
                                     if all({k:v for k, v in g.gun_parts.items() if k not in g.extra_gun_parts}.values()):
                                         g.gun_img = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
@@ -2010,7 +2016,7 @@ def main(debug):
                                         elif g.skin_indexes[button["name"][2:]] < 0:
                                             g.skin_indexes[button["name"][2:]] = len(g.skins[button["name"][2:]]) - 1
 
-                            if g.player.main == "tool" and "_" not in g.player.tool:
+                            if g.player.main == "tool" and is_gun(g.player.tool):
                                 all_projectiles.add(Projectile(g.player.rect.center, (5, 5), g.mouse, 20))
 
                     elif event.button == 3:
@@ -2266,7 +2272,7 @@ def main(debug):
                     pos = gun_crafter_part_poss[part]
                     if name is not None:
                         Window.display.cblit(a.blocks[name], pos)
-                    else:
+                    elif part not in g.extra_gun_parts:
                         write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
                         #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
                         #pygame.draw.circle(Window.display, BLACK, pos, 5)

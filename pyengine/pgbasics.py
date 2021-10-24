@@ -107,7 +107,7 @@ def pos_mouse_to_angle(pos, mouse):
     return angle
     
 
-def pos_mouse_to_vel(pos, mouse, speed):
+def pos_mouse_to_vel(pos, mouse, speed=1):
     angle = pos_mouse_to_angle(pos, mouse)
     vx = cos(angle) * speed
     vy = sin(angle) * speed
@@ -339,11 +339,22 @@ K_CTRL = _Control()
 class SmartSurface(pygame.Surface):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
+    def __reduce__(self):
+        return (str, (pygame.image.tostring(self, "RGBA"),))
     
-    @staticmethod
-    def from_surface(surface):
-        ret = SmartSurface(surface.get_size())
+    def __deepcopy__(self, memo):
+        return pygame.image.tostring(self, "RGBA")
+    
+    @classmethod
+    def from_surface(cls, surface):
+        ret = cls(surface.get_size(), pygame.SRCALPHA)
         ret.blit(surface, (0, 0))
+        return ret
+        
+    @classmethod
+    def from_string(cls, string, size, format="RGBA"):
+        return cls.from_surface(pygame.image.fromstring(string, size, format))
     
     def cblit(self, surf, pos, anchor="center"):
         rect = surf.get_rect()

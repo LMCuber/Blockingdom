@@ -158,8 +158,9 @@ class Game:
         self.crafting_log = []
         # gun crafter
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
-        self.extra_gun_parts = ("Scope", "Silencer")
+        self.extra_gun_parts = ("scope", "silencer")
         self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts)
+        self.gun_attrs = {}
         self.gun_img = None
         # skin menu
         self.skin_anim_speed = 0.06

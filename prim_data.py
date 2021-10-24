@@ -211,7 +211,7 @@ for ore in oinfo:
         chance /= 1.5
 
 ginfo = {
-    "sniper": (False, 15, 5),
+    "scope": {"prototype": (GREEN + (150,), "full")}
 }
 
 unplacable_blocks = [*gun_blocks]
