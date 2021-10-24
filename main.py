@@ -864,7 +864,7 @@ class Player:
     
     @property
     def angle(self):
-        return revnum(degrees(pos_mouse_to_angle(self.rect.center, g.mouse)))
+        return revnum(degrees(two_pos_to_angle(self.rect.center, g.mouse)))
 
     @property
     def lives(self):
@@ -1235,7 +1235,13 @@ class Visual:
                 if "scope" in g.gun_attrs[g.player.tool]:
                     attr = ginfo["scope"][g.gun_attrs[g.player.tool]["scope"].split("_")[0]]
                     color = attr[0]
-                    pygame.gfxdraw.line(Window.display, *g.player.rect.center, *g.mouse, color)
+                    start_pos = g.player.rect.center
+                    vel = list(two_pos_to_vel(g.player.rect.center, g.mouse, 10))
+                    while math.hypot(vel[0], vel[1]) < math.hypot(Window.width, Window.height):
+                        vel[0] *= 2
+                        vel[1] *= 2
+                    end_pos = [int(p + v) for p, v in zip(start_pos, vel)]
+                    pygame.gfxdraw.line(Window.display, *start_pos, *end_pos, color)
   
 
 class Block:
@@ -1353,7 +1359,7 @@ class Projectile(pygame.sprite.Sprite):
         self.image = pygame.Surface(size)
         self.w, self.h = self.image.get_size()
         self.x, self.y = pos
-        self.xvel, self.yvel = pos_mouse_to_vel(pos, mouse, 15)
+        self.xvel, self.yvel = two_pos_to_vel(pos, mouse, 100)
     
     def draw(self):
         Window.display.blit(self.image, (self.x, self.y))

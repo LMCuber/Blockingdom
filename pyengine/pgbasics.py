@@ -100,15 +100,15 @@ def get_volume():
     return pygame.mixer.music.get_volume()
 
 
-def pos_mouse_to_angle(pos, mouse):
+def two_pos_to_angle(pos, mouse):
     dy = mouse[1] - pos[1]
     dx = mouse[0] - pos[0]
     angle = math.atan2(dy, dx)
     return angle
     
-
-def pos_mouse_to_vel(pos, mouse, speed=1):
-    angle = pos_mouse_to_angle(pos, mouse)
+    
+def two_pos_to_vel(pos, mouse, speed=1):
+    angle = two_pos_to_angle(pos, mouse)
     vx = cos(angle) * speed
     vy = sin(angle) * speed
     return vx, vy
