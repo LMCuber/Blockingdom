@@ -124,7 +124,10 @@ def rand_rgb():
 
 
 def distance(rect1, rect2):
-    return hypot(abs(rect1.x - rect2.x), abs(rect1.y - rect2.y))
+    try:
+        return hypot(abs(rect1.x - rect2.x), abs(rect1.y - rect2.y))
+    except AttributeError:
+        return hypot(abs(rect1[0] - rect2[0]), abs(rect1[1] - rect2[1]))
 
 
 def center_window():
@@ -365,36 +368,21 @@ class SmartSurface(pygame.Surface):
         return pg2pil(self)
     
 
-class SmartGroup:
-    def __init__(self):
-        self._sprites = []
-    
-    def __iter__(self):
-        return iter(self._sprites)
-    
+class SmartGroup(pygame.sprite.Group):
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+     
     def index(self, val):
-        return self._sprites.index(val)
+        return self.sprites().index(val)
     
     def function(self):
-        for spr in self._sprites:
+        for spr in self:
             try:
                 spr.draw()
                 spr.update()
             except AttributeError:
                 raise AttributeError(f"All sprites in the group must have a \"draw()\" and \"update()\" method. Object {spr} did not have that/those method(s).")
-
-    def add(self, spr):
-        self._sprites.append(spr)
-    
-    def remove(self, spr):
-        self._sprites.remove(spr)
-    
-    def empty(self):
-        self._sprites.clear()
-    
-    def sprites(self):
-        return self._sprites
-        
+                
 
 class BaseSprite:
     def __init__(self, group):

@@ -210,8 +210,9 @@ for ore in oinfo:
         oinfo[ore]["chance"] = chance
         chance /= 1.5
 
+# [0] = color, [1] = block-radar
 ginfo = {
-    "scope": {"prototype": (GREEN + (150,), "full")}
+    "scope": {"prototype": (GREEN + (150,), True)}
 }
 
 unplacable_blocks = [*gun_blocks]

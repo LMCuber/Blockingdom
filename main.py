@@ -72,7 +72,7 @@ def gwperc(amount):
 def update_block_states():
     for block in all_blocks:
         if non_bg(block.name) != "water":
-            moore = all_blocks.moore(block.index, HL, "edges")
+            moore = all_blocks.moore(block.layer_index, HL, "edges")
             if is_in("water", [block.name for block in moore]):
                 for block in moore:
                     if non_bg(block.name) == "water":
@@ -861,6 +861,10 @@ class Player:
         self.update_fall_effect()
         self.update_animation()
         self.update_effects()
+        
+    @property
+    def closest_blocks(self):
+        return sorted(all_blocks, key=lambda block: distance(self.rect, block.rect))
     
     @property
     def angle(self):
@@ -1235,18 +1239,25 @@ class Visual:
                 if "scope" in g.gun_attrs[g.player.tool]:
                     attr = ginfo["scope"][g.gun_attrs[g.player.tool]["scope"].split("_")[0]]
                     color = attr[0]
+                    block_radar = attr[1]
                     start_pos = g.player.rect.center
                     vel = list(two_pos_to_vel(g.player.rect.center, g.mouse, 10))
                     while math.hypot(vel[0], vel[1]) < math.hypot(Window.width, Window.height):
                         vel[0] *= 2
                         vel[1] *= 2
                     end_pos = [int(p + v) for p, v in zip(start_pos, vel)]
+                    if block_radar:
+                        for block in g.player.closest_blocks:
+                            if block.name != "air":
+                                if block.rect.clipline(start_pos, end_pos):
+                                    pygame.draw.rect(Window.display, GREEN, block.rect, 1)
+                                    break
                     pygame.gfxdraw.line(Window.display, *start_pos, *end_pos, color)
   
 
 class Block:
     def __init__(self, x, y, index):
-        self.index = index
+        self.layer_index = index
         self.utilize()
         self.rect = self.image.get_rect()
         self.rect.x = x
@@ -1257,8 +1268,8 @@ class Block:
         self.light = 1
 
     @property
-    def layer_index(self):
-        return self.index + g.w.layer_blocki
+    def abs_index(self):
+        return self.layer_index + g.w.layer_blocki
 
     def update(self):
         self.dynamic_methods()
@@ -1267,7 +1278,7 @@ class Block:
 
     def dynamic_methods(self):
         if "dirt" in self.name:
-            if all_blocks[self.index - HL].name in practically_no_blocks:
+            if all_blocks[self.layer_index - HL].name in practically_no_blocks:
                 with AttrExs(self, "last_dirt", ticks()):
                     if ticks() - self.last_dirt >= 5000:
                         self.name = bio.blocks[g.w.biome_names[g.w.screen]][0] + ("_bg" if "_bg" in self.name else "")
@@ -1326,7 +1337,7 @@ class Block:
                 group(drop, all_drops)
 
     def utilize(self):
-        self.name = g.w.data[g.w.screen][self.layer_index]
+        self.name = g.w.data[g.w.screen][self.abs_index]
         self.image = a.blocks[non_bg(self.name)].copy()
         if self.name.endswith("_bg"):
             self.image = img_mult(self.image, 0.7)
@@ -1336,14 +1347,14 @@ class Block:
     def function(self):
         if "dynamite" in self.name:
             exloded_indexes = [
-                                self.index - 28, self.index - HL, self.index - 26,
-                                self.index - 1,  self.index,      self.index + 1,
-                                self.index + 26, self.index + HL, self.index + 28
+                                self.layer_index - 28, self.layer_index - HL, self.layer_index - 26,
+                                self.layer_index - 1,  self.layer_index,      self.layer_index + 1,
+                                self.layer_index + 26, self.layer_index + HL, self.layer_index + 28
                               ]
             for block in all_blocks:
-                if block.index != self.index and block.index in exloded_indexes and block.name == "dynamite":
+                if block.layer_index != self.layer_index and block.layer_index in exloded_indexes and block.name == "dynamite":
                     block.function()
-                elif block.index in exloded_indexes:
+                elif block.layer_index in exloded_indexes:
                     block.name = "air"
                     block.image = a.blocks["air"].copy()
                     update_block_states()
@@ -1354,21 +1365,40 @@ class Block:
 
 
 class Projectile(pygame.sprite.Sprite):
-    def __init__(self, pos, size, mouse, speed):
+    def __init__(self, pos, size, mouse, speed, pierce=False):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.Surface(size)
         self.w, self.h = self.image.get_size()
         self.x, self.y = pos
         self.xvel, self.yvel = two_pos_to_vel(pos, mouse, 100)
+        self.pierce = pierce
+    
+    @property
+    def rect(self):
+        return self.image.get_rect(topleft=(self.x, self.y))
+    
+    def collision(self):
+        for block in g.player.closest_blocks:
+            if block.name != "air":
+                if block.rect.clipline((self.x, self.y), (self.last_x, self.last_y)):
+                    g.w.data[g.w.screen][block.abs_index] = "air"
+                    utilize_blocks()
+                    if not self.pierce:
+                        self.kill()
+                        break
+        else:
+            if self.x - self.w <= 0 or self.x >= Window.width or self.y - self.h <= 0 or self.y >= Window.height:
+                self.kill()
     
     def draw(self):
         Window.display.blit(self.image, (self.x, self.y))
 
     def update(self):
+        self.last_x = self.x
+        self.last_y = self.y
         self.x += self.xvel
         self.y += self.yvel
-        if self.x - self.w <= 0 or self.x >= Window.width or self.y - self.h <= 0 or self.y >= Window.height:
-            all_projectiles.remove(self)
+        self.collision()
 
 
 class Drop(pygame.sprite.Sprite):
