@@ -227,9 +227,9 @@ class Game:
         self.home_bg_img_size = self.home_bg_img.get_size()
         self.fog_img = SmartSurface(Window.size)
         self.fog_light = scale2x(cimgload("Images", "Background", "fog.png"))
-        self.generating_world = False
-        self.generating_world_perc = 0
-        self.generating_world_text = None
+        self.loading_world = False
+        self.loading_world_perc = 0
+        self.loading_world_text = None
         # rendering
         self.screen_shake = 0
         self.render_offset = (0, 0)
@@ -269,10 +269,10 @@ class Game:
     def skin_data(self, bt):
         return self.skins[bt][self.skin_indexes[bt]]
     
-    def set_generating_world(self, tof):
-        self.generating_world = tof
+    def set_loading_world(self, tof):
+        self.loading_world = tof
         self.events_locked = tof
-        self.generating_world_perc = 0
+        self.loading_world_perc = 0
         
 
 g = Game()

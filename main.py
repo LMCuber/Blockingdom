@@ -28,7 +28,7 @@ def user_command(command):
     try:
         if command.startswith("tool"):
             args = command.split()[1:]
-            a.tools[args[0]]  # trying
+            g.w.tools[args[0]]  # trying
             g.player.tools[g.player.tooli] = args[0]
             g.player.tool_healths[g.player.tooli] = 100
         elif command.startswith("tp"):
@@ -39,7 +39,7 @@ def user_command(command):
         elif command.startswith("give"):
             args = SmartList(int(arg) if arg.isdigit() else arg for arg in command.split()[1:])
             block = args[0]  # trying
-            a.blocks[block]
+            g.w.blocks[block]
             if block in g.player.inventory:
                 g.player.inventory_amounts[g.player.inventory.index(block)] += args.get(1, 1)
             else:
@@ -56,8 +56,8 @@ def is_gun(name):
         
         
 def custom_gun(name):
-    if name not in a.blocks:
-        a.tools[name] = g.gun_img.copy()
+    if name not in g.w.blocks:
+        g.w.tools[name] = SmartSurface.from_surface(g.gun_img.copy())
         g.player.empty_tool = name
         g.gun_attrs[name] = g.gun_parts
         g.crafting = None
@@ -66,7 +66,7 @@ def custom_gun(name):
 
     
 def gwperc(amount):
-    g.generating_world_perc = amount
+    g.loading_world_perc = amount
 
 
 def update_block_states():
@@ -191,7 +191,7 @@ def new_world(worldcode=None):
         world_code = None
 
     def create(wn):
-        g.set_generating_world(True)
+        g.set_loading_world(True)
         game_mode = "adventure"  # switching game mode
         if g.p.next_worldbutton_pos[1] < g.max_worldbutton_poss[1]:
             if wn is not None:
@@ -209,7 +209,7 @@ def new_world(worldcode=None):
                                 wn = f"New_World_{g.p.new_world_count}"
                                 g.p.new_world_count += 1
                             g.w = World()
-                            generate_world(biome=biome)
+                            generate_world(biome="jungle")
                             group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                             g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                             g.w.mode = game_mode
@@ -222,10 +222,10 @@ def new_world(worldcode=None):
                         generate_world(world_code)
                 else:
                     MessageboxError(Window.display, "A world with the same name already exists.", **g.def_widget_kwargs)
-                    g.set_generating_world(False)
+                    g.set_loading_world(False)
         else:
             MessageboxError(Window.display, "You have too many worlds. Delete a world to create another one.", **g.def_widget_kwargs)
-            g.set_generating_world(False)
+            g.set_loading_world(False)
             
         ewn.destroy()
     
@@ -325,7 +325,7 @@ def init_world(type_):
     g.player.yvel = 0
     # Go!
     g.stage = "play"
-    g.set_generating_world(False)
+    g.set_loading_world(False)
 
 
 def generate_world(worldcode=None, biome=None, screens=5):
@@ -450,8 +450,8 @@ def generate_screen(biome=None):
 
 def save_screen(daemonic):
     if not daemonic:
-        del g.w.data[g.w.screen][g.w.layer_blocki:g.w.layer_blocki * 2]
-        for index, block in enumerate(all_blocks, g.w.layer_blocki):
+        del g.w.data[g.w.screen][g.w.abs_blocki:g.w.abs_blocki * 2]
+        for index, block in enumerate(all_blocks, g.w.abs_blocki):
             g.w.data[g.w.screen].insert(index, block.name)
 
 
@@ -487,7 +487,7 @@ class MethodHandler:
         # world data
         if g.w.screen is not None:
             if g.w.data:
-               save_screen(g.generating_world)
+               save_screen(g.loading_world)
             if g.w.name is not None:
                 with open(path("Worlds", g.w.name + ".dat"), "wb") as f:
                     pickle.dump(g.w.data, f)
@@ -542,6 +542,24 @@ class World:
         self.dnc_index = 0
         self.dnc_minutes = 5
         self.dnc_vel = self.dnc_len / g.fps_cap / (self.dnc_minutes * 60 / 2)
+        # saved assets
+        self.assets = {"blocks": {}, "tools": {}, "icons": {}}
+        self.asset_sizes = a.asset_sizes
+        for atype, dict_ in a.assets.items():
+            for name, img in dict_.items():
+                self.assets[atype][name] = SmartSurface.from_surface(img)
+        
+    @property
+    def blocks(self):
+        return self.assets["blocks"]
+    
+    @property
+    def tools(self):
+        return self.assets["tools"]
+        
+    @property
+    def icons(self):
+        return self.assets["icons"]
 
     def set_dn_colors(self):
         if random.randint(1, self.hound_round_chance) == 1:
@@ -551,7 +569,7 @@ class World:
         self.dnc_len = len(self.dnc_colors)
 
     @property
-    def layer_blocki(self):
+    def abs_blocki(self):
         return self.layer * L
 
 
@@ -564,8 +582,9 @@ class Play:
         self.loaded_world_count = 0
         self.unlocked_skins = []
         self.loading_times = SmartList()
+        self.anim_fps = 7
         self.volume = 0.2
-       
+        
        
 g.p = Play()
 
@@ -588,7 +607,7 @@ class PlayWidgets:
             Checkbox(Window.display, "Show Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Fog", self.fog_command, pos=(DPX, DPY), **_menu_widget_kwargs),
             Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
-            Slider(Window.display, "Animation", range(21), int(g.skin_anim_speed) * g.fps_cap, height=60, **_menu_widget_kwargs),
+            Slider(Window.display, "Animation", range(21), g.p.anim_fps, height=60, **_menu_widget_kwargs),
             Slider(Window.display, "Volume", range(101), int(g.p.volume * 100), height=60, **_menu_widget_kwargs),
             ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
             Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
@@ -608,7 +627,7 @@ class PlayWidgets:
         self.death_cause = self.death_screen_widgets[0]
         self.right_bar_widgets = self.menu_widgets[1:5]
         self.show_fps_type = self.menu_widgets[2]
-        self.skin_fps = self.menu_widgets[6]
+        self.anim_fps = self.menu_widgets[6]
         self.volume = self.menu_widgets[7]
         befriend_iterable(self.menu_widgets)
         # skin menu arrow buttons to change the skin
@@ -644,7 +663,7 @@ class PlayWidgets:
                         if data:
                             pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
                             pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in (x, y)], perc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
-                            Window.display.blit(a.icons[data["icon"]], (x - 22, y - 3))
+                            Window.display.blit(g.w.icons[data["icon"]], (x - 22, y - 3))
                             write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], BLACK, x + bar_outline_width + 8, y + 3)
                         y += 20
 
@@ -807,7 +826,7 @@ class Player:
         for image in self.images:
             image.fill(GRAY)
         self.anim = 0
-        self.update_animation()
+        self.animate()
         self.rect = self.image.get_rect(center=(Window.width / 2, Window.height / 2))
         self.rect.center = (Window.width / 2, Window.height / 2)
         self.width = self.rect.width
@@ -859,12 +878,12 @@ class Player:
         self.off_screen()
         self.drops()
         self.update_fall_effect()
-        self.update_animation()
+        self.animate()
         self.update_effects()
         
     @property
     def closest_blocks(self):
-        return sorted(all_blocks, key=lambda block: distance(self.rect, block.rect))
+        yield from sorted(all_blocks, key=lambda block: distance(self.rect, block.rect))
     
     @property
     def angle(self):
@@ -1130,7 +1149,7 @@ class Player:
 
     def off_screen(self):
         if self.rect.right < 0:
-            save_screen(g.generating_world)
+            save_screen(g.loading_world)
             self.rect.left = Window.width - 1
             if g.w.screen > 0:
                 g.w.screen -= 1
@@ -1141,7 +1160,7 @@ class Player:
             self.gain_ground()
 
         elif self.rect.left > Window.width:
-            save_screen(g.generating_world)
+            save_screen(g.loading_world)
             self.rect.right = 1
             if g.w.screen < len(g.w.data) - 1:
                 g.w.screen += 1
@@ -1153,7 +1172,7 @@ class Player:
             self.gain_ground()
 
         elif self.rect.top > Window.height:
-            save_screen(g.generating_world)
+            save_screen(g.loading_world)
             self.rect.top = 1
             self.dy = 0
             self.yvel = 0
@@ -1166,7 +1185,7 @@ class Player:
                 self.gain_ground()
 
         elif self.rect.bottom < 0:
-            save_screen(g.generating_world)
+            save_screen(g.loading_world)
             self.rect.top = Window.height - 1
             g.w.layer -= 1
             if g.w.layer < 0:
@@ -1189,8 +1208,8 @@ class Player:
     def external_gravity(self):
         pass
 
-    def update_animation(self):
-        self.anim += pw.skin_fps.value / g.fps_cap
+    def animate(self):
+        self.anim += g.p.anim_fps
         try:
             self.image = self.images[int(self.anim)]
         except IndexError:
@@ -1210,7 +1229,7 @@ class Visual:
     def function(self):
         if g.player.main == "block":
             if g.player.block is not None:
-                self.og_img = a.blocks[g.player.block]
+                self.og_img = g.w.blocks[g.player.block]
                 self.image = scale(self.og_img, [s // 2 for s in self.og_img.get_size()])
                 self.rect = self.image.get_rect()
                 if g.player.direc == "left":
@@ -1221,7 +1240,7 @@ class Visual:
                 self.draw()
         elif g.player.main == "tool":
             if g.player.tool is not None:
-                self.og_img = a.tools[g.player.tool]
+                self.og_img = g.w.tools[g.player.tool]
                 self.image = self.og_img.copy()
                 if "_" in g.player.tool:
                     self.rect = self.image.get_rect()
@@ -1269,7 +1288,7 @@ class Block:
 
     @property
     def abs_index(self):
-        return self.layer_index + g.w.layer_blocki
+        return self.layer_index + g.w.abs_blocki
 
     def update(self):
         self.dynamic_methods()
@@ -1328,7 +1347,7 @@ class Block:
             g.player.broken_blocks[non_bg(self.name)] += 1
             data = g.w.data[g.w.screen]
             self.name = "air"
-            self.image = a.blocks[self.name].copy()
+            self.image = g.w.blocks[self.name].copy()
             self.broken = 0
             update_block_states()
 
@@ -1338,7 +1357,7 @@ class Block:
 
     def utilize(self):
         self.name = g.w.data[g.w.screen][self.abs_index]
-        self.image = a.blocks[non_bg(self.name)].copy()
+        self.image = g.w.blocks[non_bg(self.name)].copy()
         if self.name.endswith("_bg"):
             self.image = img_mult(self.image, 0.7)
         #self.image = scale2x(self.image)
@@ -1356,7 +1375,7 @@ class Block:
                     block.function()
                 elif block.layer_index in exloded_indexes:
                     block.name = "air"
-                    block.image = a.blocks["air"].copy()
+                    block.image = g.w.blocks["air"].copy()
                     update_block_states()
         elif "command-block" in self.name:
             def set_command(cmd):
@@ -1406,7 +1425,7 @@ class Drop(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         self.name = name
         self.drop_amount = apply(prev, dif_drop_blocks, 1)
-        self.image = a.blocks[self.name].copy()
+        self.image = g.w.blocks[self.name].copy()
         self.width = self.image.get_width()
         self.height = self.image.get_height()
         self.image = scale(self.image, (self.width // 3, self.height // 3))
@@ -1450,7 +1469,7 @@ class Hovering:
 class BreakingBlockParticle(pygame.sprite.Sprite):
     def __init__(self, name, pos):
         pygame.sprite.Sprite.__init__(self)
-        self.image = a.blocks[non_bg(name)]
+        self.image = g.w.blocks[non_bg(name)]
         self.width = self.image.get_width()
         self.height = self.image.get_height()
         self.image = scale(self.image, (self.width // 4, self.height // 4))
@@ -1491,7 +1510,7 @@ class Entity:
         Window.display.blit(self.image, self.rect)
 
     def animate(self):
-        self.anim += pw.skin_fps.value / g.fps_cap
+        self.anim += g.p.anim_fps
         try:
             self.image = self.images[int(self.anim)]
         except IndexError:
@@ -1734,9 +1753,13 @@ class MessageboxWorld(pygame.sprite.Sprite):
     def close(self, option):
         if option == "open":
             with open(path("Worlds", self.data["world"] + ".dat"), "rb") as f:
-                # setup
+                # world assets
                 world_data = pickle.load(f)
                 g.w = self.data["world_obj"]
+                for atype, dict_ in g.w.assets.items():
+                    for name, string in dict_.items():
+                        g.w.assets[atype][name] = SmartSurface.from_string(string, g.w.asset_sizes[name], "RGBA")
+                # world entities
                 for entity in g.w.entities:
                     entity.images = [SmartSurface.from_string(image, entity.sizes[i], "RGBA") for i, image in enumerate(entity.images)]
                     entity.image = SmartSurface.from_string(entity.image, entity.sizes[int(entity.anim)], "RGBA")
@@ -1853,6 +1876,9 @@ def main(debug):
     while running:
         # fps cap
         dt = g.clock.tick(g.fps_cap) / 1000 * 120
+        
+        # global dynamic variables
+        g.p.anim_fps = pw.anim_fps.value / g.fps_cap
 
         # music
         if g.stage == "play":
@@ -1903,7 +1929,7 @@ def main(debug):
                                                 for crafting in g.craftings:
                                                     g.player.use_up_inv(g.player.inventory.index(crafting), g.craftings[crafting])
                                                 g.player.stats["energy"]["amount"] -= cinfo[craftable].get("energy", 0)
-                                                if craftable in a.blocks:
+                                                if craftable in g.w.blocks:
                                                     if g.craftable in g.player.inventory:
                                                         g.player.inventory_amounts[g.player.inventory.index(g.craftable)] += g.craft_by_what
                                                     else:
@@ -2151,7 +2177,7 @@ def main(debug):
                                                             block.name = g.player.block + g.str_mod
                                                             if g.w.mode == "adventure":
                                                                 g.player.use_up_inv(g.player.itemi)
-                                                            block.image = a.blocks[non_bg(block.name)].copy()
+                                                            block.image = g.w.blocks[non_bg(block.name)].copy()
                                                             if "_bg" in block.name:
                                                                 block.image = img_mult(block.image, 0.8)
                                             elif stmt:
@@ -2163,7 +2189,7 @@ def main(debug):
                                                             block.try_breaking()
                                                     elif g.w.mode == "freestyle":
                                                         block.name = "air"
-                                                        block.image = a.blocks["air"].copy()
+                                                        block.image = g.w.blocks["air"].copy()
                                                         update_block_states()
                                             else:
                                                 block.broken = 0
@@ -2256,7 +2282,7 @@ def main(debug):
                 for crafting_block in g.craftings:
                     # crafting material
                     pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
-                    Window.display.cblit(a.blocks[crafting_block], (x, y))
+                    Window.display.cblit(g.w.blocks[crafting_block], (x, y))
                     write(Window.display, "midright", g.craftings[crafting_block], orbit_fonts[15], BLACK, x - 20, y)
                     y += yo
                     if (y - sy) / yo == 5:
@@ -2291,10 +2317,10 @@ def main(debug):
                                             g.craftable = None
                     except BreakAllLoops:
                         pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                        if craftable in a.blocks:
-                            Window.display.cblit(a.blocks[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                        elif craftable in a.tools:
-                            blit_center(Window.display, a.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                        if craftable in g.w.blocks:
+                            Window.display.cblit(g.w.blocks[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                        elif craftable in g.w.tools:
+                            blit_center(Window.display, g.w.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
                         g.craft_by_what = min(g.craft_by_what)
                         write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
 
@@ -2307,7 +2333,7 @@ def main(debug):
                 for part, name in g.gun_parts.items():
                     pos = gun_crafter_part_poss[part]
                     if name is not None:
-                        Window.display.cblit(a.blocks[name], pos)
+                        Window.display.cblit(g.w.blocks[name], pos)
                     elif part not in g.extra_gun_parts:
                         write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
                         #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
@@ -2346,7 +2372,7 @@ def main(debug):
             y = 38
             for index, tool in enumerate(g.player.tools):
                 if tool is not None:
-                    tool_img = a.tools[tool]
+                    tool_img = g.w.tools[tool]
                     if "_" in tool:
                         Window.display.cblit(tool_img, (x, y))
                     else:
@@ -2366,7 +2392,7 @@ def main(debug):
             y = 38
             for index, block in enumerate(g.player.inventory):
                 if block is not None:
-                    Window.display.cblit(a.blocks[block], (x, y))
+                    Window.display.cblit(g.w.blocks[block], (x, y))
                     write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], BLACK, x, y + 25)
                 # border if selected
                 if g.player.main == "block":
@@ -2417,9 +2443,9 @@ def main(debug):
             all_messageboxes.update()
             
             # generating world loading bar
-            if g.generating_world:
+            if g.loading_world:
                 pygame.draw.rect(Window.display, BLACK, (Window.width / 2 - 100, Window.height / 2 - 15, 200, 30), 3)
-                pygame.draw.rect(Window.display, LIGHT_GREEN, (Window.width / 2 - 98, Window.height / 2 - 13, g.generating_world_perc * 2 - 4, 26))
+                pygame.draw.rect(Window.display, LIGHT_GREEN, (Window.width / 2 - 98, Window.height / 2 - 13, g.loading_world_perc * 2 - 4, 26))
             
         # skin menu filling
         if g.skin_menu:

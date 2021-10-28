@@ -1,20 +1,17 @@
 import io
 import random
 import requests
-import pytesseract
 import PIL.Image
 from prim_data import a
 from settings import *
 from pyengine.basics import *
 from pyengine.pgbasics import *
 from pyengine.pilbasics import pil2pg
-from pytesseract import image_to_string
 
 
 HL = 27
 VL = 20
 L = VL * HL
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 entities = {}
 entities["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
@@ -221,10 +218,11 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                         for i in range(bamboo_height):
                             data[screen][bamboo_index] = "bamboo_bg"
                             bamboo_index -= HL
-                    # portal
-                    if chance(1 / 20):
-                        entity_map.append({"sort": "portal", "images": entities["portal"], "pos": (horindex, verindex), "screen": lit_screen})
-
+        if 0 <= horindex <= HL - 3:
+            # portal
+            if chance(1 / 20):
+                entity_map.append({"sort": "portal", "images": entities["portal"], "pos": (horindex, verindex), "screen": lit_screen})
+               
         if biome == "forest":
             # watermelons
             if chance(1 / 40):
