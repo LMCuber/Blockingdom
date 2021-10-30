@@ -218,10 +218,12 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                         for i in range(bamboo_height):
                             data[screen][bamboo_index] = "bamboo_bg"
                             bamboo_index -= HL
-        if 0 <= horindex <= HL - 3:
-            # portal
-            if chance(1 / 20):
-                entity_map.append({"sort": "portal", "images": entities["portal"], "pos": (horindex, verindex), "screen": lit_screen})
+             
+        if biome == "jungle":
+            if 0 <= horindex <= HL - 3:
+                # portal
+                if chance(1 / 20):
+                    entity_map.append({"sort": "portal", "images": entities["portal"], "pos": (horindex, verindex), "screen": lit_screen})
                
         if biome == "forest":
             # watermelons

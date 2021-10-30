@@ -184,20 +184,31 @@ def utilize_blocks():
         block.broken = 0
 
 
-def new_world(worldcode=None):
-    if worldcode is not None:
-        world_code = worldcode[:]
-    else:
-        world_code = None
+def new_world(worldcode=None):  
+    def init_world_data(wn):
+        _glob.world_name = wn
+        start_generating()
+    
+    def destroy_ewn():
+        ewn.destroy()
+        
+    class Global:
+        def __init__(self):
+            self.world_name = None
+            self.world_code = worldcode[:] if worldcode is not None else None
+            
+    _glob = Global()
 
-    def create(wn):
+    @pgloading(g, "g", "loading_world_perc", globals() | locals())
+    def create():
+        wn = _glob.world_name
         g.set_loading_world(True)
         game_mode = "adventure"  # switching game mode
         if g.p.next_worldbutton_pos[1] < g.max_worldbutton_poss[1]:
             if wn is not None:
                 if wn not in g.p.world_names:
                     g.w.screen = 0
-                    if world_code is None:
+                    if _glob.world_code is None:
                         try:
                             open(path("tempfiles", wn + ".txt"), "w").close()
                             os.remove(path("tempfiles", wn + ".txt"))
@@ -209,7 +220,7 @@ def new_world(worldcode=None):
                                 wn = f"New_World_{g.p.new_world_count}"
                                 g.p.new_world_count += 1
                             g.w = World()
-                            generate_world(biome="jungle")
+                            generate_world(biome=biome)
                             group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                             g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                             g.w.mode = game_mode
@@ -219,26 +230,21 @@ def new_world(worldcode=None):
                             g.p.world_names.append(wn)
                             init_world("new")
                     else:
-                        generate_world(world_code)
+                        generate_world(_glob.world_code)
                 else:
                     MessageboxError(Window.display, "A world with the same name already exists.", **g.def_widget_kwargs)
                     g.set_loading_world(False)
         else:
             MessageboxError(Window.display, "You have too many worlds. Delete a world to create another one.", **g.def_widget_kwargs)
             g.set_loading_world(False)
-            
-        ewn.destroy()
+        destroy_ewn()
     
-    def thread_create(world_name):
-        t = Thread(target=create, args=[world_name])
+    def start_generating():
+        t = Thread(target=create)
         t.setDaemon(True)
         t.start()
-       
 
-    if world_code is not None:
-        create()
-
-    ewn = Entry(Window.display, thread_create, "Enter world name:", pos=(DPX, DPY - 30), font=orbit_fonts[20])
+    ewn = Entry(Window.display, init_world_data, "Enter world name:", pos=(DPX, DPY - 30), font=orbit_fonts[20])
 
 
 def settings():

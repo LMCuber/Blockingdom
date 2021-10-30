@@ -42,7 +42,7 @@ def no_entries():
 
 
 def iter_widgets():
-    yield from sorted(_mod.widgets, key=lambda widget: isinstance(widget, Entry))
+    return sorted(_mod.widgets, key=lambda widget: isinstance(widget, Entry))
 
 
 def len_enabled_widgets():

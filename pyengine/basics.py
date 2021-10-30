@@ -7,6 +7,7 @@ import platform
 import time
 import pycountry
 import requests
+import string
 import json
 
 
@@ -18,6 +19,15 @@ prrint = print # because I always mess it up when typing fast
 
 
 # functions
+def pin():
+    return [choice(range(9)) for _ in range(4)]
+
+
+def token(length=20, valid_chars="default"):
+    chars = string.ascii_uppercase + string.ascii_lowercase + "".join([str(x) for x in range(9)]) if valid_chars == "default" else valid_chars
+    return "".join([choice(chars) for _ in range(length)])
+
+
 def copy_func(f):
     g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__,
                            argdefs=f.__defaults__,
@@ -267,6 +277,9 @@ t = TranslatorString()
 class SmartList(list):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+    
+    def to_string(self):
+        return "".join(self)
     
     def moore(self, index, hl=None, area="edgescorners"):
         neighbors = []
