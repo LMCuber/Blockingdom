@@ -2,6 +2,7 @@ from .imports import *
 import tkinter
 import sys
 import os
+import io
 import random
 import platform
 import time
@@ -20,6 +21,12 @@ prrint = print # because I always mess it up when typing fast
 
 
 # functions
+def snappetimg(width=500):
+    url = r"https://img.snappet.org/sql/{seed}.png?mode=max&w={width}"
+    url = url.replace("{seed}", str(rand(47, 222219))).replace("{width}", str(width))
+    return PIL.Image.open(io.BytesIO(requests.get(url).content))
+    
+
 def pin():
     return [choice(range(9)) for _ in range(4)]
 
@@ -52,9 +59,7 @@ def test():
     
     
 def req2dict(url):
-    try:
-        return json.loads(requests.get(url).text)
-    except:raise
+    return json.loads(requests.get(url).text)
 
 
 def rel_heat(t, w):
@@ -215,7 +220,7 @@ def valtok(dict_, value):
     return keys[values.index(value)]
 
 
-def print_error(e):
+def print_error(e: Exception):
     print(type(e).__name__ + ": ", *e.args)
 
 
@@ -290,7 +295,7 @@ def delay(secs):
         return wrapper
 
     return decorator
-
+    
 
 # classes
 class Platform:
@@ -316,7 +321,7 @@ class Infinity:
     def __floordiv__(self, other): return self.def_val
     def __pow__(self, other): return self.def_val
         
-
+        
 class TranslatorString(str):
     def __or__(self, other):
         return other

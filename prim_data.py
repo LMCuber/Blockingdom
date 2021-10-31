@@ -153,6 +153,8 @@ oinfo = {
     "corundum":  {"moh": 9,  "cform": "Al2O3",          "color": (176, 223, 230)},
     "diamond":   {"moh": 10, "cform": "C",              "color": POWDER_BLUE}
 }
+ore_blocks = list(oinfo.keys())
+ore_blocks.remove("stone")
 
 block_breaking_times = {"stone": 1000, "sand": 200, "hay": 150, "soil": 200, "dirt": 200, "watermelon": 500}
 tinfo = {

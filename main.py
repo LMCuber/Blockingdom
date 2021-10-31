@@ -220,7 +220,7 @@ def new_world(worldcode=None):
                                 wn = f"New_World_{g.p.new_world_count}"
                                 g.p.new_world_count += 1
                             g.w = World()
-                            generate_world(biome=biome)
+                            generate_world(biome="jungle")
                             group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                             g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                             g.w.mode = game_mode
@@ -591,7 +591,7 @@ class Play:
         self.loaded_world_count = 0
         self.unlocked_skins = []
         self.loading_times = SmartList()
-        self.anim_fps = 7
+        self.anim_fps = 0.0583
         self.volume = 0.2
         
        
@@ -616,7 +616,7 @@ class PlayWidgets:
             Checkbox(Window.display, "Show Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Fog", self.fog_command, pos=(DPX, DPY), **_menu_widget_kwargs),
             Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
-            Slider(Window.display, "Animation", range(21), g.p.anim_fps, height=60, **_menu_widget_kwargs),
+            Slider(Window.display, "Animation", range(21), int(g.p.anim_fps * g.fps_cap), height=60, **_menu_widget_kwargs),
             Slider(Window.display, "Volume", range(101), int(g.p.volume * 100), height=60, **_menu_widget_kwargs),
             ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
             Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
@@ -1324,7 +1324,7 @@ class Block:
     def try_breaking(self, type_="normal"):
         drops = []
         if type_ == "normal":
-            if non_bg(self.name) not in oinfo:
+            if non_bg(self.name) not in ore_blocks:
                 breaking_time = apply(self.name, block_breaking_times, 500)
                 if ticks() - self.last_break >= breaking_time:
                     self.broken += 1
@@ -2455,6 +2455,7 @@ def main(debug):
             if g.loading_world:
                 pygame.draw.rect(Window.display, BLACK, (Window.width / 2 - 100, Window.height / 2 - 15, 200, 30), 3)
                 pygame.draw.rect(Window.display, LIGHT_GREEN, (Window.width / 2 - 98, Window.height / 2 - 13, g.loading_world_perc * 2 - 4, 26))
+                write(Window.display, "center", f"{int(g.loading_world_perc)}%", orbit_fonts[20], BLACK, *Window.center)
             
         # skin menu filling
         if g.skin_menu:
