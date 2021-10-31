@@ -296,63 +296,6 @@ def hide_cursor(w, h):
     
     
 # decorator functions
-def pgloading(obj, obj_name, attr_name, varibs=None):
-    varibs = varibs if varibs else {}
-    varibs |= locals()
-    varibs[obj_name] = varibs["obj"]
-    
-    def decorator(func):
-        while (placeholder := token()) in inspect.getsource(func):
-            pass
-        lines = inspect.getsourcelines(func)[0]
-        additions = [placeholder] * len(lines)
-        code = list(sum(zip(lines, additions), ()))
-        n_placeholders = 0
-        for index, line in enumerate(code[:]):
-            if line == placeholder:
-                try:
-                    checked_line = code[index + 1]
-                except IndexError:
-                    checked_line = code[index - 1]
-                indent = ""
-                if index != 0:
-                    for i, char in enumerate(checked_line):
-                        if char == " ":
-                            indent += " "
-                        else:
-                            break
-                else:
-                    indent = ""
-                extra_indentations = ("elif", "else", "except", "finally")
-                for ind in extra_indentations:
-                    if checked_line.strip().startswith(ind):
-                        indent += "    "
-                        break
-                code[index] = indent + line + "\n"
-                n_placeholders += 1
-        perc_inc = 100 / n_placeholders
-        code = [line[4:] for line in code]
-        for index, line in enumerate(code[:]):
-            if line.startswith("@"):
-                del code[index]
-            else:
-                break
-        del code[:2]
-        code = [line[4:] for line in code]
-        # replace placeholders
-        for index, line in enumerate(code):
-            if line.strip(" \n") == placeholder:
-                code[index] = line.replace(placeholder + "\n", f"{obj_name}.{attr_name} += {perc_inc}\n")
-        code = "".join(code)
-        
-        def wrapper(*args, **kwargs):
-            exec(code, globals(), varibs)
-        
-        return wrapper
-    
-    return decorator
-
-
 def depr_loading(func, window, font, exit_command=None):
     class T:
         def __init__(self):

@@ -199,7 +199,7 @@ def new_world(worldcode=None):
             
     _glob = Global()
 
-    @pgloading(g, "g", "loading_world_perc", globals() | locals())
+    #@pgloading(g, "g", "loading_world_perc", globals() | locals())
     def create():
         wn = _glob.world_name
         g.set_loading_world(True)
@@ -238,6 +238,9 @@ def new_world(worldcode=None):
             MessageboxError(Window.display, "You have too many worlds. Delete a world to create another one.", **g.def_widget_kwargs)
             g.set_loading_world(False)
         destroy_ewn()
+
+    _cr_world_dt = 100 / len(inspect.getsourcelines(create)[0])
+    create = scatter(create, f"g.loading_world_perc += {_cr_world_dt}", globals() | locals())
     
     def start_generating():
         t = Thread(target=create)
