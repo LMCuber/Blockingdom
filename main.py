@@ -240,7 +240,7 @@ def new_world(worldcode=None):
         destroy_ewn()
 
     _cr_world_dt = 100 / len(inspect.getsourcelines(create)[0])
-    create = scatter(create, f"g.loading_world_perc += {_cr_world_dt}", globals() | locals())
+    create = scatter(create, f"g.loading_world_perc += {_cr_world_dt}", globals(), locals())
     
     def start_generating():
         t = Thread(target=create)

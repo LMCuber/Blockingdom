@@ -220,8 +220,7 @@ def print_error(e):
 
 
 # decorator functions
-def scatter(func, stmt, varibs=None):
-    varibs = (varibs if varibs else {}) | locals()
+def scatter(func, stmt, globs, locs):
     while (placeholder := token()) in inspect.getsource(func):
         pass
     lines = inspect.getsourcelines(func)[0]
@@ -266,7 +265,7 @@ def scatter(func, stmt, varibs=None):
     code = "".join(code)
         
     def wrapper():
-        exec(code, globals(), varibs)
+        exec(code, globs, locs)
     
     return wrapper
 
