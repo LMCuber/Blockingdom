@@ -569,7 +569,15 @@ class World:
     @property
     def icons(self):
         return self.assets["icons"]
-
+  
+    @property
+    def text_color(self):
+        return contrast_color(g.w.dnc_color)
+        
+    @property
+    def dnc_color(self):
+        return self.dnc_colors[int(self.dnc_index)]
+        
     def set_dn_colors(self):
         if random.randint(1, self.hound_round_chance) == 1:
             self.dnc_colors = self.hr_dnc_colors.copy()
@@ -673,7 +681,7 @@ class PlayWidgets:
                             pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
                             pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in (x, y)], perc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
                             Window.display.blit(g.w.icons[data["icon"]], (x - 22, y - 3))
-                            write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], BLACK, x + bar_outline_width + 8, y + 3)
+                            write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], g.w.text_color, x + bar_outline_width + 8, y + 3)
                         y += 20
 
     @staticmethod
@@ -684,7 +692,8 @@ class PlayWidgets:
     @staticmethod
     def show_time_command():
         if g.stage == "play":
-            write(Window.display, "topright", f"{int(g.w.dnc_index)} / 722", orbit_fonts[20], BLACK, Window.width - 10, 70)
+            t = f"{int(g.w.dnc_index / 722 * 100)}%"
+            write(Window.display, "topright", t, orbit_fonts[20], g.w.text_color, Window.width - 10, 70)
 
     @staticmethod
     def checkb_sf_exit_command():
@@ -1253,7 +1262,7 @@ class Visual:
                 self.image = self.og_img.copy()
                 if "_" in g.player.tool:
                     self.rect = self.image.get_rect()
-                    self.image = rotozoom(flip(self.og_img, True, False if 90 > g.player.angle > -90 else True), self.angle, 1)
+                    self.image, self.rect = rot_center(flip(self.og_img, True, False if 90 > g.player.angle > -90 else True), self.angle, *g.player.rect.center)
                     self.rect.center = g.mouse
                     if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
                         self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
@@ -1715,26 +1724,32 @@ class MessageboxWorld(pygame.sprite.Sprite):
         self.box_size = (self.rect.width / 2 - 15, self.text_height + 10)
         box = pygame.Surface(self.box_size)
         self.box_writing_pos = (box.get_width() / 2, box.get_height() / 2)
+        pygame.draw.rect(self.image, DARKISH_GREEN, (0, 0, *self.image.get_size()), 4)
         # question mark
         write(self.image, "center", "?", orbit_fonts[30], BLACK, self.rect.width / 2, 60)
         # open world
         self.open_rect = box.get_rect(bottomleft=(self.rect.left + 20, self.rect.bottom - 20))
-        box.fill(WHITE)
+        self.br = self.open_rect
+        pygame.draw.rect(box, WHITE, (0, 0, *self.br.size))
+        pygame.draw.rect(box, LIGHT_GRAY, (0, 0, *self.br.size), 4)
         write(box, "center", "Open", orbit_fonts[20], BLACK, *self.box_writing_pos)
         self.image.blit(box, (10, 150))
         # delete world
         self.delete_rect = box.get_rect(bottomright=(self.rect.right - 20, self.rect.bottom - 20))
-        box.fill(WHITE)
+        pygame.draw.rect(box, WHITE, (0, 0, *self.br.size))
+        pygame.draw.rect(box, LIGHT_GRAY, (0, 0, *self.br.size), 4)
         write(box, "center", "Delete", orbit_fonts[20], BLACK, *self.box_writing_pos)
         self.image.blit(box, (self.rect.width - self.delete_rect.width - 10, 150))
         # rename world
         self.rename_rect = box.get_rect(bottomright=(self.rect.right - 20, self.rect.bottom - 60))
-        box.fill(WHITE)
+        pygame.draw.rect(box, WHITE, (0, 0, *self.br.size))
+        pygame.draw.rect(box, LIGHT_GRAY, (0, 0, *self.br.size), 4)
         write(box, "center", "Rename", orbit_fonts[20], BLACK, *self.box_writing_pos)
         self.image.blit(box, (self.rect.width - self.rename_rect.width - 10, 110))
         # download world
         self.download_rect = box.get_rect(bottomleft=(self.rect.left + 20, self.rect.bottom - 60))
-        box.fill(WHITE)
+        pygame.draw.rect(box, WHITE, (0, 0, *self.br.size))
+        pygame.draw.rect(box, LIGHT_GRAY, (0, 0, *self.br.size), 4)
         write(box, "center", "Download", orbit_fonts[20], BLACK, *self.box_writing_pos)
         self.image.blit(box, (10, 110))
         # animation
@@ -2212,7 +2227,7 @@ def main(debug):
                                                     break
 
             # filling
-            Window.display.fill(g.w.dnc_colors[int(g.w.dnc_index)])
+            Window.display.fill(g.w.dnc_color)
 
             # menu filling
             if g.menu or g.skin_menu:
@@ -2278,7 +2293,7 @@ def main(debug):
 
             # P L A Y  B L I T S -------------------------------------------------------------------------- #
             # player username
-            write(Window.display, "center", g.player.username, orbit_fonts[12], BLACK, g.player.rect.centerx, g.player.rect.centery - 30)
+            write(Window.display, "center", g.player.username, orbit_fonts[12], g.w.text_color, g.player.rect.centerx, g.player.rect.centery - 30)
 
             # workbench
             if g.crafting == "workbench":
@@ -2359,17 +2374,17 @@ def main(debug):
                     item = gpure(g.player.block).upper()
                 else:
                     item = bpure(g.player.block).upper()
-                write(Window.display, "center", item, orbit_fonts[15], BLACK, Window.width / 2 + 20, 90)
+                write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
             elif g.player.main == "tool" and g.player.tool is not None:
                 item = g.player.tool.replace("_", " ").upper()
-                write(Window.display, "center", item, orbit_fonts[15], BLACK, Window.width / 2 - 96 - 35, 90)
+                write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 - 96 - 35, 90)
             else:
                 item = None
             if g.mod == 1:
                 if no_entries():
                     if g.player.main == "block" and g.player.block:
                         write(Window.display, "center", "(BACKGROUND)", orbit_fonts[15], BLACK, Window.width / 2 + 30, 105)
-            write(Window.display, "center", "| " + str(g.w.screen + 1) + " |", orbit_fonts[20], BLACK, Window.width - 25, 20)
+            write(Window.display, "center", f"| {g.w.screen + 1} |", orbit_fonts[20], g.w.text_color, Window.width - 25, 20)
 
             # H O T B A R --------------------------------------------------------------------------------- #
             Window.display.cblit(tool_holders_img, (Window.width / 2 - 96 - 35, 20), "midtop")
@@ -2402,7 +2417,7 @@ def main(debug):
             for index, block in enumerate(g.player.inventory):
                 if block is not None:
                     Window.display.cblit(g.w.blocks[block], (x, y))
-                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], BLACK, x, y + 25)
+                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], g.w.text_color, x, y + 25)
                 # border if selected
                 if g.player.main == "block":
                     if index == g.player.blocki:
@@ -2411,7 +2426,7 @@ def main(debug):
             
             # pouch icon
             Window.display.cblit(pouch_icon, (546 + 15, y))
-            write(Window.display, "center", g.player.pouch, orbit_fonts[15], BLACK, 546 + 15, y + 25)
+            write(Window.display, "center", g.player.pouch, orbit_fonts[15], g.w.text_color, 546 + 15, y + 25)
 
             # P L A Y E R  B A R S ------------------------------------------------------------------------ #
             # applyping regeneration

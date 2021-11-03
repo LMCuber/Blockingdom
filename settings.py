@@ -245,7 +245,7 @@ class Game:
         ret = pil2pg(pil_blur(pg2pil(pgscale(img, (Window.width, Window.height - 120))), 10))
         ret.set_alpha(30)
         return ret
-        
+
     @property
     def mouse(self):
         return pygame.mouse.get_pos()
