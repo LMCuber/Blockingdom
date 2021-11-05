@@ -65,7 +65,7 @@ def custom_gun(name):
         MessageboxError(Window.display, "Name collides")
 
     
-def gwperc(amount):
+def gwfromperc(amount):
     g.loading_world_perc = amount
 
 
@@ -544,13 +544,14 @@ class World:
         # day-night cycle
         self.hound_round = False
         self.hound_round_chance = 20
-        self.def_dnc_colors = [SKY_BLUE for _ in range(360)] + lerp(SKY_BLUE, DARK_BLUE, 180) + lerp(DARK_BLUE, BLACK, 180)
+        self.def_dnc_colors = [SKY_BLUE] * 180 + lerp(SKY_BLUE, DARK_BLUE, 180) + lerp(DARK_BLUE, BLACK, 180) + [BLACK] * 180
         self.hr_dnc_colors = [SKY_BLUE for _ in range(360)] + lerp(SKY_BLUE, ORANGE, 180) + lerp(ORANGE, BLACK, 180)
-        self.set_dn_colors()
+        self.set_dnc_colors()
         self.dnc_direc = op.add
         self.dnc_index = 0
         self.dnc_minutes = 5
-        self.dnc_vel = self.dnc_len / g.fps_cap / (self.dnc_minutes * 60 / 2)
+        self.dnc_vel = self.dnc_minute_vel / 20
+        self.dnc_hours = list(range(12, 24)) + list(range(0, 12))
         # saved assets
         self.assets = {"blocks": {}, "tools": {}, "icons": {}}
         self.asset_sizes = a.asset_sizes
@@ -577,13 +578,26 @@ class World:
     @property
     def dnc_color(self):
         return self.dnc_colors[int(self.dnc_index)]
+    
+    @property
+    def dnc_length(self):
+        for dnct in ("", "def", "hr"):
+            with suppress(AttributeError):
+                return len(getattr(self, dnct + "_dnc_colors"))
+            
+    @property
+    def dnc_second_vel(self):
+        return self.dnc_length * 2 / g.fps_cap
+    
+    @property
+    def dnc_minute_vel(self):
+        return self.dnc_second_vel / 60
         
-    def set_dn_colors(self):
+    def set_dnc_colors(self):
         if random.randint(1, self.hound_round_chance) == 1:
             self.dnc_colors = self.hr_dnc_colors.copy()
         else:
             self.dnc_colors = self.def_dnc_colors.copy()
-        self.dnc_len = len(self.dnc_colors)
 
     @property
     def abs_blocki(self):
@@ -679,7 +693,7 @@ class PlayWidgets:
                     for data in g.player.stats.values():
                         if data:
                             pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
-                            pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in (x, y)], perc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
+                            pygame.draw.rect(Window.display, g.bar_rgb[data["amount"] - 1], (*[p + 2 for p in (x, y)], fromperc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
                             Window.display.blit(g.w.icons[data["icon"]], (x - 22, y - 3))
                             write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], g.w.text_color, x + bar_outline_width + 8, y + 3)
                         y += 20
@@ -692,8 +706,8 @@ class PlayWidgets:
     @staticmethod
     def show_time_command():
         if g.stage == "play":
-            t = f"{int(g.w.dnc_index / 722 * 100)}%"
-            write(Window.display, "topright", t, orbit_fonts[20], g.w.text_color, Window.width - 10, 70)
+            fin = int(g.w.dnc_index)
+            write(Window.display, "topright", fin, orbit_fonts[20], g.w.text_color, Window.width - 10, 70)
 
     @staticmethod
     def checkb_sf_exit_command():
@@ -897,6 +911,7 @@ class Player:
         self.drops()
         self.update_fall_effect()
         self.animate()
+        self.interact()
         self.update_effects()
         
     @property
@@ -990,8 +1005,12 @@ class Player:
     def draw(self):
         Window.display.blit(self.image, self.rect)
         
-    def interact_with_npcs(self):
-        pass # TODO
+    def interact(self):
+        for entity in g.w.entities:
+            if self.rect.colliderect(entity) and g.w.screen == entity.screen:
+                if entity.sort == "portal":
+                    self.rect.center = [rand(0, s) for s in Window.size]
+                    break
 
     def die(self, cause):
         self.dead = True
@@ -1046,7 +1065,7 @@ class Player:
             self.fall_effect = self.yvel
 
     def update_effects(self):
-        self.jump_yvel = self.def_jump_yvel / 3 * 1.8 + perc(self.stats["energy"]["amount"], self.def_jump_yvel / 3 * 1.2)
+        self.jump_yvel = self.def_jump_yvel / 3 * 1.8 + fromperc(self.stats["energy"]["amount"], self.def_jump_yvel / 3 * 1.2)
 
     def drops(self):
         for drop in all_drops:
@@ -1760,14 +1779,14 @@ class MessageboxWorld(pygame.sprite.Sprite):
         og_size = og_img.get_size()
         if type_ == "in":
             for i in range(20):
-                size = [round((perc((i + 1) * 5, s))) for s in og_size]
+                size = [round((fromperc((i + 1) * 5, s))) for s in og_size]
                 self.image = scale(og_img, size)
                 self.rect = self.image.get_rect()
                 self.rect.center = (Window.width / 2, Window.height / 2)
                 time.sleep(WOOSH_TIME)
         elif type_ == "out":
             for i in reversed(range(20)):
-                size = [round(perc((i + 1) * 5, s)) for s in og_size]
+                size = [round(fromperc((i + 1) * 5, s)) for s in og_size]
                 self.image = scale(og_img, size)
                 self.rect = self.image.get_rect()
                 self.rect.center = (Window.width / 2, Window.height / 2)
@@ -1896,7 +1915,6 @@ def main(debug):
         print(f"Loaded in: {loading_time}s")
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
         print()
-
     while running:
         # fps cap
         dt = g.clock.tick(g.fps_cap) / 1000 * 120
@@ -2234,14 +2252,14 @@ def main(debug):
                 Window.display.blit(g.menu_surf, (0, 0))
 
             # day-night cycle
-            g.w.dnc_index = g.w.dnc_direc(g.w.dnc_index, perc(dt * 100, g.w.dnc_vel))
+            g.w.dnc_index = g.w.dnc_direc(g.w.dnc_index, fromperc(dt * 100, g.w.dnc_vel))
             if g.w.dnc_index >= len(g.w.dnc_colors) - 1:
                 g.w.dnc_index = len(g.w.dnc_colors) - 1
                 g.w.dnc_direc = op.sub
             elif g.w.dnc_index <= 0:
                 g.w.dnc_index = 0
                 g.w.dnc_direc = op.add
-                g.w.set_dn_colors()
+                g.w.set_dnc_colors()
                 if g.w.hound_round_chance > 1:
                     g.w.hound_round_chance -= 1
 
@@ -2404,7 +2422,7 @@ def main(debug):
                     if tpure(tool) in tinfo:
                         th = g.player.tool_healths[index]
                         if th < 100:
-                            pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, perc(th, 30), y))
+                            pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, fromperc(th, 30), y))
                 # border if selected
                 if g.player.main == "tool":
                     if index == g.player.tooli:
