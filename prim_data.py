@@ -45,7 +45,7 @@ a = A()
 def load_blocks():
     _bsprs = cimgload("Images", "Spritesheets", "blocks.png")
     block_list = [
-        ["air",     "        ",   "apple",    "bamboo",        "cactus",         "watermelon",       "rock"     ],
+        ["air",     "bucket",     "apple",    "bamboo",        "cactus",         "watermelon",       "rock"     ],
         ["chest",   "    ",       "coconut",  "coconut-piece", "command-block",  "wood",             "bush"     ],
         ["       ", "dirt",       "dynamite", "fire",          "      ",         "watermelon-piece", "grass1"   ],
         ["hay",     "    ",       "leaf",     "       ",       "sand",           "workbench",        "grass2"   ],

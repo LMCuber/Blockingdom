@@ -303,7 +303,7 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["gun-crafter", "prototype_stock", "prototype_body", "prototype_barrel", "prototype_grip"]
+            g.player.inventory = ["bucket", None, None, None, None]
             g.player.inventory_amounts = [1, 1, 1, 1, 1]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
@@ -1035,7 +1035,7 @@ class Player:
         self.stats["lives"]["amount"] += amount
 
     def eat(self):
-        food = g.player.inventory[self.indexes["block"]]
+        food = self.block
         self.food_pie["counter"] += get_finfo(self.inventory[self.indexes["block"]])["speed"]
         degrees = self.food_pie["counter"]
         pie_size = (40, 40)
@@ -1075,9 +1075,9 @@ class Player:
                     self.inventory_amounts[index] += drop.drop_amount
                     drop.kill()
                     pitch_shift(pickup_sound).play()
-                elif self.inventory.count(None) > 0:
-                    self.empty_block = drop.name
+                elif None in self.inventory:
                     self.inventory_amounts[self.empty_blocki] = drop.drop_amount
+                    self.empty_block = drop.name
                     drop.kill()
                     pitch_shift(pickup_sound).play()
                 else:
@@ -1975,12 +1975,10 @@ def main(debug):
                                                     if g.craftable in g.player.inventory:
                                                         g.player.inventory_amounts[g.player.inventory.index(g.craftable)] += g.craft_by_what
                                                     else:
-                                                        index = findi(g.player.inventory, lambda x: x is None, g.player.blocki)
-                                                        g.player.inventory[index] = g.craftable
+                                                        g.player.empty_block = g.craftable
                                                         g.player.inventory_amounts[index] = g.craft_by_what
                                                 else:
-                                                    index = findi(g.player.tools, lambda x: x is None, g.player.tooli)
-                                                    g.player.tools[index] = g.craftable
+                                                    g.player.empty_tool = g.craftable
                                                 stop_crafting()
 
                                 elif event.key == K_BACKSPACE:
@@ -2422,7 +2420,7 @@ def main(debug):
                     if tpure(tool) in tinfo:
                         th = g.player.tool_healths[index]
                         if th < 100:
-                            pygame.draw.rect(Window.hotbar, g.health_bar_colors[int(th)], (x, 40, fromperc(th, 30), y))
+                            pygame.draw.rect(Window.display, g.bar_rgb[int(th)], (Window.width / 2 - 161, y + 23, fromperc(th, 30), 5))
                 # border if selected
                 if g.player.main == "tool":
                     if index == g.player.tooli:
