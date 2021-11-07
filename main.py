@@ -1082,11 +1082,12 @@ class Player:
     def drops(self):
         for drop in all_drops:
             if drop.rect.colliderect(self.rect):
-                self.new_block(drop.name, drop.drop_amount)
-                drop.kill()
-                pitch_shift(pickup_sound).play()
-                if None not in self.inventory:
-                    drop.rect.center = [pos + random.randint(-1, 1) for pos in drop.og_pos]
+                if None in g.player.inventory:
+                    self.new_block(drop.name, drop.drop_amount)
+                    drop.kill()
+                    pitch_shift(pickup_sound).play()
+                    if None not in self.inventory:
+                        drop.rect.center = [pos + random.randint(-1, 1) for pos in drop.og_pos]
 
     def rand_username(self):
         self.username = f"Player{rand(0, 9)}{rand(0, 9)}"
@@ -1889,6 +1890,7 @@ def main(debug):
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
         print()
         while running:
+            print(g.player.inventory, g.player.inventory_amounts)
             # fps cap
             dt = g.clock.tick(g.fps_cap) / 1000 * 120
             
@@ -2416,7 +2418,7 @@ def main(debug):
                     Window.display.cblit(workbench_icon, crafting_center)
 
                 if g.player.main == "block" and g.player.block is not None:
-                    if g.player.block in oinfo:
+                    if g.player.block in ore_blocks:
                         item = oinfo[g.player.block]["cform"]
                     elif g.player.block in gun_blocks:
                         item = gpure(g.player.block).upper()
