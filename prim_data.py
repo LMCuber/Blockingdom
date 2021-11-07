@@ -5,9 +5,91 @@ from pyengine.basics import *
 
 
 black_filter = pygame.Surface((30, 30)); black_filter.set_alpha(200)
+avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
 
+
+# C L A S S E S ---------------------------------------------------------------------------------------- #
+class Entity:
+    entity_imgs = {}
+    entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
+    
+    def __init__(self, images, pos, screen, layer, anchor="bottomleft", *args, **kwargs):
+        self.anim = 0
+        self.images = [SmartSurface.from_surface(image) for image in images] if isinstance(images, list) else [SmartSurface.from_surface(img) for img in Entity.entity_imgs[images]]
+        self.image = self.images[int(self.anim)]
+        self.rect = self.image.get_rect()
+        setattr(self.rect, anchor, [p for p in pos])
+        self.screen = screen
+        self.layer = layer
+        self.sizes = [image.get_size() for image in self.images]
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def is_drawable(self):
+        return g.w.screen == self.screen and g.w.layer == self.layer
+
+    def update(self):
+        if self.is_drawable():
+            self.animate()
+            self.draw()
+
+    def draw(self):
+        Window.display.blit(self.image, self.rect)
+
+    def animate(self):
+        self.anim += g.p.anim_fps
+        try:
+            self.image = self.images[int(self.anim)]
+        except IndexError:
+            self.anim = 0
+            self.image = self.images[int(self.anim)]
+   
 
 # F U N C T I O N S ------------------------------------------------------------------------------------ #
+def get_avatar():
+    """
+    svg_path = path("tempfiles", "avatar.svg")
+    png_path = path("tempfiles", "avatar.jpg")
+    with open(svg_path, "wb") as f:
+        f.write(requests.get(avatar_url.replace(":mood", mood).replace(":seed", str(random.random()))).content)
+    svg = svg2rlg(svg_path)
+    renderPM.drawToFile(svg, png_path, fmt="JPG")
+    pg_img = cimgload(png_path)
+    pg_img = pgscale(pg_img, (30, 30))
+    os.remove(svg_path)
+    os.remove(png_path)
+    """
+    """
+    png_path = path("tempfiles", "avatar.png")
+    with open(png_path, "wb") as f:
+        f.write(requests.get(avatar_url.replace(":seed", str(random.random()))).content)
+    pil_img = PIL.Image.open(png_path).resize((10, 10), resample=PIL.Image.BILINEAR).resize((30, 30), PIL.Image.NEAREST)
+    pg_img = pil_to_pg(pil_img)
+    os.remove(png_path)
+    """
+    img = pygame.Surface((10, 10))
+    skin_color = rgb_mult(SKIN_COLOR, randf(0.4, 8))
+    hair_color = rand_rgb()
+    hair_chance = 1
+    img.fill(skin_color)
+    for y in range(img.get_height()):
+        for x in range(img.get_width()):
+            if (x, y) in avatar_map:
+                img.set_at((x, y), avatar_map[(x, y)])
+            else:
+                truthy = False
+                try:
+                    if chance(1 / hair_chance) and img.get_at((x, y - 1)) == hair_color:
+                        truthy = True
+                except IndexError:
+                    truthy = True
+                if truthy:
+                    img.set_at((x, y), hair_color)
+        hair_chance += 0.1
+    img = pgscale(img, (30, 30))
+    return img
+    
+    
 def norm_ore(ore):
     return ore.removesuffix("en")
     
@@ -32,6 +114,7 @@ STONE_GRAY = (65, 65, 65)
 WOOD_BROWN = (87, 44, 0)
 DARK_WOOD_BROWN = (80, 40, 0)
 
+
 class A:
     def __init__(self):
         self.assets = {"blocks": {}, "tools": {}, "icons": {}}
@@ -45,12 +128,12 @@ a = A()
 def load_blocks():
     _bsprs = cimgload("Images", "Spritesheets", "blocks.png")
     block_list = [
-        ["air",     "bucket",     "apple",    "bamboo",        "cactus",         "watermelon",       "rock"     ],
-        ["chest",   "    ",       "coconut",  "coconut-piece", "command-block",  "wood",             "bush"     ],
-        ["       ", "dirt",       "dynamite", "fire",          "      ",         "watermelon-piece", "grass1"   ],
-        ["hay",     "    ",       "leaf",     "       ",       "sand",           "workbench",        "grass2"   ],
-        ["snow",    "soil",       "stone",    "vine",          "wooden-planks",  "a_wooden-planks",  "stick"    ],
-        ["anvil",   "          ", "p_soil",   "blue_barrel",   "red_barrel",     "gun-crafter",       "base-ore"]
+        ["air",     "bucket",  "apple",    "bamboo",        "cactus",        "watermelon",       "rock"     ],
+        ["chest",   "    ",    "coconut",  "coconut-piece", "command-block", "wood",             "bush"     ],
+        ["       ", "dirt",    "dynamite", "fire",          "      ",        "watermelon-piece", "grass1"   ],
+        ["hay",     "    ",    "leaf",     "       ",       "sand",          "workbench",        "grass2"   ],
+        ["snow",    "soil",    "stone",    "vine",          "wooden-planks", "a_wooden-planks",  "stick"    ],
+        ["anvil",   "furnace", "p_soil",   "blue_barrel",   "red_barrel",    "gun-crafter",       "base-ore"]
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
@@ -65,8 +148,8 @@ def load_blocks():
     a.assets["blocks"]["sk_leaf"] = cfilter(a.assets["blocks"]["leaf"].copy(), 150, (30, 30), PINK)
     a.assets["blocks"]["water"] = pygame.Surface((30, 30), pygame.SRCALPHA); a.assets["blocks"]["water"].fill((17, 130, 177)); a.assets["blocks"]["water"].set_alpha(180)
     a.assets["blocks"]["glass"] = pygame.Surface((30, 30), pygame.SRCALPHA); a.assets["blocks"]["glass"].fill(WHITE, (0, 0, 30, 2)); a.assets["blocks"]["glass"].fill(WHITE, (28, 0, 2, 30)); a.assets["blocks"]["glass"].fill(WHITE, (0, 28, 30, 2)); a.assets["blocks"]["glass"].fill(WHITE, (0, 0, 2, 30))
-    a.assets["blocks"]["spike-plant"] = pygame.Surface((30, 30), pygame.SRCALPHA)
     # spike plant
+    a.assets["blocks"]["spike-plant"] = pygame.Surface((30, 30), pygame.SRCALPHA)
     for i in range(3):
         _x = nordis(15, 3)
         _y = 30
@@ -79,6 +162,14 @@ def load_blocks():
             _y -= 3
             pygame.draw.rect(a.assets["blocks"]["spike-plant"], rgb_mult(GREEN, randf(0.6, 1.4)), (_x, _y, 3, 3))
     pygame.draw.rect(a.assets["blocks"]["spike-plant"], rgb_mult(YELLOW, randf(0.6, 1.4)), (_x, _y, 3, 3))
+    # portal generator
+    a.assets["blocks"]["portal-generator"] = pygame.Surface((30, 30), pygame.SRCALPHA)
+    for y in range(10):
+        for x in range(10):
+            surf = a.assets["blocks"]["portal-generator"]
+            color = [rand(0, 255) for _ in range(3)]
+            rect = (x * 3, y * 3, 3, 3)
+            pygame.draw.rect(surf, color, rect)
     # ores
     for name, color in [(oi, oinfo[oi]["color"]) for oi in oinfo]:
         if name != "stone":
@@ -144,7 +235,7 @@ for r in tool_rarity_colors:
 oinfo = {
     "talc":      {"moh": 1,  "cform": "Mg3Si4O10",      "color": MINT},
     "gypsum":    {"moh": 2,  "cform": "CaSO4.2H2O",     "color": LIGHT_GRAY},
-    "stone":     {"moh": 3,  "cform": None,             "color": None},            "gold":      {"moh": 3,  "cform": "Au",           "color": GOLD_YELLOW},
+    "stone":     {"moh": 3,  "cform": None,             "color": None},            "gold":      {"moh": 3,  "cform": "Au",           "color": GOLD_YELLOW}, "coal": {"moh": 3, "cform": "AICo", "color": BLACK},
     "iron":      {"moh": 4,  "cform": "Fe",             "color": LIGHT_GRAY},
     "palladium": {"moh": 5,  "cform": "Pd",             "color": (190, 173, 210)}, "obisidian": {"moh": 5, "cform": "SiO2",          "color": (20, 20, 20)},
     "titanium":  {"moh": 6,  "cform": "FeTiO3",         "color": (210, 210, 210)}, "uranium":   {"moh": 6, "cform": "U",             "color": MOSS_GREEN},
@@ -192,6 +283,9 @@ dif_drop_blocks = {"coconut": {"block": "coconut-piece", "amount": 2},
                    "watermelon": {"block": "watermelon-piece", "amount": 2}}
 fall_damage_blocks = {"hay": 10}
 gun_blocks = []
+burnable_blocks = []
+fuel_blocks = ["coal"]
+
 finfo = {
     "apple":
         {"amounts": {"thirst": 3, "hunger": 7}, "speed": 2},
@@ -212,7 +306,8 @@ load_asset_sizes()
 cinfo = {
     "wooden-planks": {"recipe": {"wood": 1}, "amount": 2, "energy": 5},
     "sand brick": {"recipe": {"sand": 1}, "energy": 7},
-    "anvil": {"recipe": {"stone": 1}, "energy": 10}
+    "anvil": {"recipe": {"stone": 1}, "energy": 10},
+    "portal-generator": {"recipe": {"water": 1}}
 }
 
 for tool in a.assets["tools"]:
@@ -220,11 +315,11 @@ for tool in a.assets["tools"]:
     if n == "axe":
         cinfo[tool] = {"recipe": {norm_ore(o): 2, "stick": 1}, "energy": 8}
 
-chance = 2
+c = 2
 for ore in oinfo:
     if ore != "stone":
-        oinfo[ore]["chance"] = chance
-        chance /= 1.5
+        oinfo[ore]["chance"] = c
+        c /= 1.5
 
 # [0] = color, [1] = block-radar
 ginfo = {

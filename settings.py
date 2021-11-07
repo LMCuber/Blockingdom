@@ -26,7 +26,7 @@ class System:
         maj = version.split(".")[0]
         min = version.split(".")[1]
         pat = version.split(".")[2]
-    
+        
     
 # W I N D O W ,  S U R F A C E S  A N D  S P R I T E  G R O U P S -------------------------------------- #
 class Window:
@@ -131,6 +131,7 @@ class Game:
         self.fps_cap = 120
         self.dt = None
         self.events_locked = False
+        self.noise = Noise()
         # constants
         self.fppp = 3
         self.player_size = (27, 27)
@@ -156,12 +157,18 @@ class Game:
         self.craftable = None
         self.craft_by_what = None  # list -> int
         self.crafting_log = []
+        # furnace
+        self.burnings = {}
+        self.burning_log = []
+        self.fuels = {}
+        self.fuel_log = []
         # gun crafter
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
         self.extra_gun_parts = ("scope", "silencer")
         self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts)
         self.gun_attrs = {}
         self.gun_img = None
+        self.gun_log = []
         # skin menu
         self.skin_anim_speed = 0.06
         self.skins = {  # "pos" is topleft (of the player model; not the screen) just like normal pixel systems
@@ -270,8 +277,7 @@ class Game:
         return self.skins[bt][self.skin_indexes[bt]]
     
     def set_loading_world(self, tof):
-        self.loading_world = tof
-        self.events_locked = tof
+        self.loading_world = self.events_locked = tof
         self.loading_world_perc = 0
         
 

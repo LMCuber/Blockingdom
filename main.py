@@ -289,8 +289,7 @@ def delete_all_worlds():
             g.w.name = None
             g.p.next_worldbutton_pos = g.p.starting_worldbutton_pos[:]
             g.p.new_world_count = 1
-        MessageboxOkCancel(Window.display, "Delete all worlds? This cannot be undone.",
-                           pos=DPP, command=delete, font=orbit_fonts[20])
+        MessageboxOkCancel(Window.display, "Delete all worlds? This cannot be undone.", delete, pos=DPP, font=orbit_fonts[20])
     else:
         MessageboxError(Window.display, "You have no worlds to delete.", **g.def_widget_kwargs)
 
@@ -303,8 +302,8 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["bucket", None, None, None, None]
-            g.player.inventory_amounts = [1, 1, 1, 1, 1]
+            g.player.inventory = ["water", "furnace", "workbench", "glass", None]
+            g.player.inventory_amounts = [1, 1, 1, 1, None]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -400,13 +399,13 @@ def generate_screen(biome=None):
     for _ in range(L):
         cr_block("air")
     # noise generation
-    noise = linear_noise(bio.heights.get(biome, 4), HL, bio.flatnesses.get(biome, 0))
+    nse = g.noise.linear(bio.heights.get(biome, 4), HL, bio.flatnesses.get(biome, 0))
     # biome (ground)
     noise_num = 0
     for blockindex, blockname in enumerate(g.w.data[screen]):
         if 512 < blockindex < 540:
             noise_index = blockindex
-            noise_height = noise[noise_num]
+            noise_height = nse[noise_num]
             # uneven height
             noise_height % 2
             if noise_height % 2 == 1:
@@ -437,8 +436,8 @@ def generate_screen(biome=None):
             g.w.data[screen][noise_index] = biome_pack[0]
             noise_num += 1
     for blockindex, blockname in enumerate(g.w.data[screen]):
-        entity_map = world_modifications(g.w.data, screen, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1)
-        g.w.entities.extend([Entity(**dict_entity) for dict_entity in entity_map])
+        entities = world_modifications(g.w.data, screen, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1)
+        g.w.entities.extend(entities)
     # sky
     for _ in range(L):
         cr_block("air", index=0)
@@ -706,7 +705,8 @@ class PlayWidgets:
     @staticmethod
     def show_time_command():
         if g.stage == "play":
-            fin = int(g.w.dnc_index)
+            ind = int(g.w.dnc_index)
+            fin = f"{ind} / {g.w.dnc_length}"
             write(Window.display, "topright", fin, orbit_fonts[20], g.w.text_color, Window.width - 10, 70)
 
     @staticmethod
@@ -903,7 +903,7 @@ class Player:
         self.draw()
         self.dx = 0
         self.dy = 0
-        if no_entries():
+        if no_widgets(Entry):
             getattr(self, self.moving_mode + "_move")()
         self.update_move()
         self.external_gravity()
@@ -913,6 +913,9 @@ class Player:
         self.animate()
         self.interact()
         self.update_effects()
+         
+    def draw(self):
+        Window.display.blit(self.image, self.rect)
         
     @property
     def closest_blocks(self):
@@ -968,7 +971,10 @@ class Player:
     
     @empty_blocki.setter
     def empty_block(self, value):
-        self.inventory[self.empty_blocki] = value
+        if isinstance(value, tuple):
+            self.inventory_amounts[self.empty_blocki], self.inventory[self.empty_blocki] = reversed(value)
+        else:
+            self.inventory[self.empty_blocki] = value
 
     @property
     def tool(self):
@@ -1001,16 +1007,22 @@ class Player:
     @amount.setter
     def amount(self, value):
         self.inventory_amounts[self.indexes[self.main]] = value
-
-    def draw(self):
-        Window.display.blit(self.image, self.rect)
+            
+    def new_block(self, name, amount):
+        if name in self.inventory:
+            self.inventory_amounts[self.inventory.index(name)] += amount
+        else:
+            self.empty_block = name, amount
+    
+    def new_tool(self, name):
+        self.tool_healths[self.empty_tooli] = 100
+        self.empty_tool = name
+    
+    def link_worlds():
+        pass
         
     def interact(self):
-        for entity in g.w.entities:
-            if self.rect.colliderect(entity) and g.w.screen == entity.screen:
-                if entity.sort == "portal":
-                    self.rect.center = [rand(0, s) for s in Window.size]
-                    break
+        pass
 
     def die(self, cause):
         self.dead = True
@@ -1070,17 +1082,10 @@ class Player:
     def drops(self):
         for drop in all_drops:
             if drop.rect.colliderect(self.rect):
-                if drop.name in self.inventory:
-                    index = self.inventory.index(drop.name)
-                    self.inventory_amounts[index] += drop.drop_amount
-                    drop.kill()
-                    pitch_shift(pickup_sound).play()
-                elif None in self.inventory:
-                    self.inventory_amounts[self.empty_blocki] = drop.drop_amount
-                    self.empty_block = drop.name
-                    drop.kill()
-                    pitch_shift(pickup_sound).play()
-                else:
+                self.new_block(drop.name, drop.drop_amount)
+                drop.kill()
+                pitch_shift(pickup_sound).play()
+                if None not in self.inventory:
                     drop.rect.center = [pos + random.randint(-1, 1) for pos in drop.og_pos]
 
     def rand_username(self):
@@ -1523,38 +1528,6 @@ class BreakingBlockParticle(pygame.sprite.Sprite):
             self.kill()
 
 
-class Entity:
-    def __init__(self, images, pos, screen, anchor="bottomleft", *args, **kwargs):
-        self.anim = 0
-        self.images = [SmartSurface.from_surface(image) for image in images]
-        self.image = self.images[int(self.anim)]
-        self.rect = self.image.get_rect()
-        setattr(self.rect, anchor, [p * 30 for p in pos])
-        self.screen = screen
-        self.sizes = [image.get_size() for image in self.images]
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-        
-    def is_drawable(self):
-        return g.w.screen == self.screen
-
-    def update(self):
-        if self.is_drawable():
-            self.animate()
-            self.draw()
-
-    def draw(self):
-        Window.display.blit(self.image, self.rect)
-
-    def animate(self):
-        self.anim += g.p.anim_fps
-        try:
-            self.image = self.images[int(self.anim)]
-        except IndexError:
-            self.anim = 0
-            self.image = self.images[int(self.anim)]
-
-
 class Mob:
     def __init__(self, mobtype):
         self.image = pygame.Surface((50, 50))
@@ -1686,7 +1659,7 @@ class StaticToggleButton(pygame.sprite.Sprite, StaticWidget):
         self.image = pygame.Surface((w, h), pygame.SRCALPHA)
         pygame.draw.rect(self.image, LIGHT_BROWN, (0, 0, *self.image.get_size()), 0, 10, 10, 10, 10)
         pygame.draw.rect(self.image, DARK_BROWN, (0, 0, *self.image.get_size()), 2, 10, 10, 10, 10)
-        write(self.image, "topleft", text, orbit_fonts[16], self.text_color, 5, 5)
+        write(self.image, "topleft", text, orbit_fonts[20], self.text_color, 5, 5)
 
 
 class StaticOptionMenu(pygame.sprite.Sprite, StaticWidget):
@@ -1888,652 +1861,711 @@ if os.path.getsize("buttons.dat") > 0:
 
 # M A I N  L O O P ------------------------------------------------------------------------------------ #
 def main(debug):
-    # cursors
-    set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.crafting is not None)
-    set_cursor_when(pygame.SYSTEM_CURSOR_CROSSHAIR, lambda: g.stage == "play")
-    set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.stage != "play")
-    # lasts
-    last_rain_partice = ticks()
-    last_snow_particle = ticks()
-    last_space = ticks()
-    # testing
-    first_music = False
-    music_count = None
-    # counts
-    g.stage = "home"
-    # really start
-    #atexit.register(MethodHandler.save, "quit")  # in case of a fatal bug / crash the game autosaves
-    if platform.system() == "Windows":
-        # windows signals
-        pass
-    # loop
-    running = True
-    if debug:
+    with nullcontext() if debug else redirect_stdout(open(os.devnull, "w")):
+        # cursors
+        set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.crafting is not None)
+        set_cursor_when(pygame.SYSTEM_CURSOR_CROSSHAIR, lambda: g.stage == "play")
+        set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.stage != "play")
+        # lasts
+        last_rain_partice = ticks()
+        last_snow_particle = ticks()
+        last_space = ticks()
+        # testing
+        first_music = False
+        music_count = None
+        # counts
+        g.stage = "home"
+        # really start
+        #atexit.register(MethodHandler.save, "quit")  # in case of a fatal bug / crash the game autosaves
+        if platform.system() == "Windows":
+            # windows signals
+            pass
+        # loop
+        running = True
         print()
         loading_time = round(time.time() - start, 2)
         g.p.loading_times.append(loading_time)
         print(f"Loaded in: {loading_time}s")
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
         print()
-    while running:
-        # fps cap
-        dt = g.clock.tick(g.fps_cap) / 1000 * 120
-        
-        # global dynamic variables
-        g.p.anim_fps = pw.anim_fps.value / g.fps_cap
-
-        # music
-        if g.stage == "play":
-            volume = pw.volume.value / 100
-        elif g.stage == "home":
-            volume = 0
-        set_volume(volume)
-        g.p.volume = volume
-        if not pygame.mixer.music.get_busy():
-            if first_music:
-                music_count = pygame.time.get_ticks()
-            else:
-                music_count = float("-inf")
-            if ticks() - music_count >= 5000:
-                pygame.mixer.music.load(path("Audio", "Music", random.choice(os.listdir(path("Audio", "Music")))))
-                pygame.mixer.music.play()
-                if first_music:
-                    first_music = False
-
-        # event loop
-        for event in pygame.event.get():
-            # 'x' button
-            if event.type == pygame.QUIT:
-                running = False
+        while running:
+            # fps cap
+            dt = g.clock.tick(g.fps_cap) / 1000 * 120
             
-            # mechanical events
-            if not g.events_locked:
-                process_widget_events(event, g.mouse)
+            # global dynamic variables
+            g.p.anim_fps = pw.anim_fps.value / g.fps_cap
+
+            # music
+            if g.stage == "play":
+                volume = pw.volume.value / 100
+            elif g.stage == "home":
+                volume = 0
+            set_volume(volume)
+            g.p.volume = volume
+            if not pygame.mixer.music.get_busy():
+                if first_music:
+                    music_count = pygame.time.get_ticks()
+                else:
+                    music_count = float("-inf")
+                if ticks() - music_count >= 5000:
+                    pygame.mixer.music.load(path("Audio", "Music", random.choice(os.listdir(path("Audio", "Music")))))
+                    pygame.mixer.music.play()
+                    if first_music:
+                        first_music = False
+
+            # event loop
+            for event in pygame.event.get():
+                # 'x' button
+                if event.type == pygame.QUIT:
+                    running = False
                 
-                if event.type == pygame.KEYDOWN:
-                    if g.stage == "play":
-                        if no_entries():
-                            if g.crafting == "workbench":
-                                if event.key == K_SPACE:
-                                    if g.player.block is not None:
-                                        if g.player.block in g.craftings:
-                                            if g.player.amount - g.craftings[g.player.block] > 0:
-                                                g.craftings[g.player.block] += 1 if g.mod != CTRL else g.player.amount - g.craftings[g.player.block]
+                # mechanical events
+                if not g.events_locked:
+                    process_widget_events(event, g.mouse)
+                    
+                    if event.type == pygame.KEYDOWN:
+                        if g.stage == "play":
+                            if no_widgets(Entry):
+                                if g.crafting == "workbench":
+                                    if event.key == K_SPACE:
+                                        if g.player.block is not None:
+                                            if g.player.block in g.craftings:
+                                                if g.player.amount - g.craftings[g.player.block] > 0:
+                                                    g.craftings[g.player.block] += 1 if g.mod != K_CTRL else g.player.amount - g.craftings[g.player.block]
+                                                    g.crafting_log.append(g.player.block)
+                                            else:
+                                                g.craftings[g.player.block] = 1 if g.mod != K_CTRL else g.player.amount
                                                 g.crafting_log.append(g.player.block)
-                                        else:
-                                            g.craftings[g.player.block] = 1 if g.mod != CTRL else g.player.amount
-                                            g.crafting_log.append(g.player.block)
 
-                                elif event.key == K_ENTER:
-                                     if g.craftable is not None:
-                                        if g.player.stats["xp"]["amount"] >= cinfo[craftable].get("xp", 0):
-                                            if g.player.stats["energy"]["amount"] - cinfo[craftable].get("energy", 0) >= 0:
-                                                for crafting in g.craftings:
-                                                    g.player.use_up_inv(g.player.inventory.index(crafting), g.craftings[crafting])
-                                                g.player.stats["energy"]["amount"] -= cinfo[craftable].get("energy", 0)
-                                                if craftable in g.w.blocks:
-                                                    if g.craftable in g.player.inventory:
-                                                        g.player.inventory_amounts[g.player.inventory.index(g.craftable)] += g.craft_by_what
+                                    elif event.key == K_ENTER:
+                                         if g.craftable is not None:
+                                            if g.player.stats["xp"]["amount"] >= cinfo[craftable].get("xp", 0):
+                                                if g.player.stats["energy"]["amount"] - cinfo[craftable].get("energy", 0) >= 0:
+                                                    for crafting in g.craftings:
+                                                        g.player.use_up_inv(g.player.inventory.index(crafting), g.craftings[crafting])
+                                                    g.player.stats["energy"]["amount"] -= cinfo[craftable].get("energy", 0)
+                                                    if craftable in g.w.blocks:
+                                                        g.player.new_block(g.craftable, g.craft_by_what)
                                                     else:
-                                                        g.player.empty_block = g.craftable
-                                                        g.player.inventory_amounts[index] = g.craft_by_what
+                                                        g.player.new_tool(g.craftable)
+                                                    stop_crafting()
+
+                                    elif event.key == K_BACKSPACE:
+                                        if g.crafting_log:
+                                            g.craftings[g.crafting_log[-1]] -= 1
+                                            if g.craftings[g.crafting_log[-1]] == 0:
+                                                del g.craftings[g.crafting_log[-1]]
+                                            del g.crafting_log[-1]
+                                            
+                                elif g.crafting == "furnace":
+                                    if event.key == K_SPACE:
+                                        if g.player.block is not None:
+                                            if g.player.block not in fuel_blocks:
+                                                if g.player.block in g.burnings:
+                                                    if g.player.amount - g.burnings[g.player.block] > 0:
+                                                        g.burnings[g.player.block] += 1 if g.mod != K_CTRL else g.player.amount - g.craftings[g.player.block]
                                                 else:
-                                                    g.player.empty_tool = g.craftable
-                                                stop_crafting()
-
-                                elif event.key == K_BACKSPACE:
-                                    if g.crafting_log:
-                                        g.craftings[g.crafting_log[-1]] -= 1
-                                        if g.craftings[g.crafting_log[-1]] == 0:
-                                            del g.craftings[g.crafting_log[-1]]
-                                        del g.crafting_log[-1]
-                            
-                            elif g.crafting == "gun":
-                                if event.key == K_SPACE:
-                                    if g.player.block in gun_blocks: 
-                                        g.gun_parts[g.player.block.split("_")[1]] = g.player.block
-                                        g.player.use_up_inv(g.player.inventory.index(g.player.block), 1)
-                                elif event.key == K_ENTER:
-                                    if all({k:v for k, v in g.gun_parts.items() if k not in g.extra_gun_parts}.values()):
-                                        g.gun_img = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
-                                        g.gun_img = real_colorkey(g.gun_img, LIGHT_GRAY)
-                                        g.gun_img = crop_transparent(g.gun_img)
-                                        g.gun_img = scalex(g.gun_img, 0.7)
-                                        Entry(Window.display, custom_gun, "Custom gun name:", pos=DPP, input_required=True)
+                                                    g.burnings[g.player.block] = 1 if g.mod != K_CTRL else g.player.amount
+                                                g.burning_log.append(g.player.block)
+                                            else:
+                                                if g.player.block in g.fuels:
+                                                    g.fuels[g.player.block] += 1 if g.mod != K_CTRL else g.player.amount - g.craftings[g.player.block]
+                                                else:
+                                                    g.fuels[g.player.block] = 1 if g.mod != K_CTRL else g.player.amount
+                                                g.fuel_log.append(g.player.block)
+                                                
+                                    elif event.key == K_BACKSPACE:
+                                        if g.burning_log:
+                                            g.burnings[g.burning_log[-1]] -= 1
+                                            if g.burnings[g.burning_log[-1]] == 0:
+                                                del g.burnings[g.burning_log[-1]]
+                                            del g.burning[-1]
+                                
+                                elif g.crafting == "gun":
+                                    if event.key == K_SPACE:
+                                        if g.player.block in gun_blocks: 
+                                            g.gun_parts[g.player.block.split("_")[1]] = g.player.block
+                                            g.player.use_up_inv(g.player.inventory.index(g.player.block), 1)
+                                            g.gun_log.append(g.player.block.split("_")[1])
+                                            
+                                    elif event.key == K_ENTER:
+                                        if all({k:v for k, v in g.gun_parts.items() if k not in g.extra_gun_parts}.values()):
+                                            g.gun_img = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
+                                            g.gun_img = real_colorkey(g.gun_img, LIGHT_GRAY)
+                                            g.gun_img = crop_transparent(g.gun_img)
+                                            g.gun_img = scalex(g.gun_img, 0.7)
+                                            Entry(Window.display, custom_gun, "Custom gun name:", pos=DPP, input_required=True)
                                     
-                            elif event.key == K_SPACE:
-                                if g.player.main == "block":
-                                    g.player.main = "tool"
-                                elif g.player.main == "tool":
-                                    g.player.main = "block"
+                                    elif event.key == K_BACKSPACE:
+                                        g.gun_parts[g.gun_log[-1]] = None
+                                        del g.gun_log[-1]
+                                    
+                                elif event.key == K_SPACE:
+                                    if g.player.main == "block":
+                                        g.player.main = "tool"
+                                    elif g.player.main == "tool":
+                                        g.player.main = "block"
 
-                            if event.key == K_c:
-                                Entry(Window.display, user_command, "Enter your command:", pos=DPP)
+                                if event.key == K_c:
+                                    Entry(Window.display, user_command, "Enter your command:", pos=DPP)
 
-                            elif event.key == K_p:
-                                g.player.cust_username()
+                                elif event.key == K_p:
+                                    g.player.cust_username()
 
-                            elif event.key == K_s:
-                                if g.w.mode == "freestyle":
-                                    if ticks() - last_space <= 200:
-                                        if g.player.moving_mode == "freestyle":
-                                            g.player.moving_mode = "adventure"
-                                        elif g.player.moving_mode == "adventure":
-                                            g.player.moving_mode = "freestyle"
+                                elif event.key == K_s:
+                                    if g.w.mode == "freestyle":
+                                        if ticks() - last_space <= 200:
+                                            if g.player.moving_mode == "freestyle":
+                                                g.player.moving_mode = "adventure"
+                                            elif g.player.moving_mode == "adventure":
+                                                g.player.moving_mode = "freestyle"
+                                        else:
+                                            for block in all_blocks:
+                                                if is_in(block.name, functionable_blocks):
+                                                    if hov.rect.topleft == block.rect.topleft:
+                                                        if not hov.faulty:
+                                                            block.function()
+                                                            break
+                                        last_space = ticks()
+
+                                elif event.key == K_ESCAPE:
+                                    if not g.crafting:
+                                        settings()
                                     else:
-                                        for block in all_blocks:
-                                            if is_in(block.name, functionable_blocks):
-                                                if hov.rect.topleft == block.rect.topleft:
-                                                    if not hov.faulty:
-                                                        block.function()
-                                                        break
-                                    last_space = ticks()
+                                        stop_crafting()
 
-                            elif event.key == K_ESCAPE:
-                                if not g.crafting:
-                                    settings()
-                                else:
+                                elif event.key == K_ENTER:
+                                    for messagebox in all_messageboxes:
+                                        messagebox.close("open")
+
+                                elif g.player.main == "block" and pygame.key.name(event.key) in ("1", "2", "3", "4", "5"):
+                                    g.player.indexes["block"] = int(pygame.key.name(event.key)) - 1
+                                elif g.player.main == "tool" and pygame.key.name(event.key) in ("1", "2"):
+                                    g.player.indexes["tool"] = int(pygame.key.name(event.key)) - 1
+
+                    elif event.type == pygame.KEYUP:
+                        if event.key == g.ckeys["p up"]:
+                            if g.player.yvel < 0:
+                                g.player.yvel /= 3
+
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        if event.button == 1:
+                            g.clicked_when = g.stage
+
+                            for widget in iter_widgets():
+                                if widget.visible_when is None:
+                                    if widget.disable_type != "static":
+                                        if "static" not in widget.special_flags:
+                                            if not widget.rect.collidepoint(g.mouse):
+                                                faulty = True
+                                                for friend in widget.friends:
+                                                    if friend.rect.collidepoint(g.mouse):
+                                                        faulty = False
+                                                        break
+                                                else:
+                                                    faulty = True
+                                                if faulty:
+                                                    if not widget.disable_type:
+                                                        Thread(target=widget.zoom, args=["out destroy"]).start()
+                                                    elif not widget.disabled:
+                                                        widget.disable()
+
+                            for messagebox in all_messageboxes:
+                                if messagebox.open_rect.collidepoint(g.mouse):
+                                    messagebox.close("open")
+                                    break
+                                elif messagebox.delete_rect.collidepoint(g.mouse):
+                                    messagebox.close("delete")
+                                    break
+                                elif messagebox.rename_rect.collidepoint(g.mouse):
+                                    messagebox.close("rename")
+                                    break
+                                elif messagebox.download_rect.collidepoint(g.mouse):
+                                    messagebox.close("download")
+                                    break
+                                elif not messagebox.rect.collidepoint(g.mouse):
+                                    Thread(target=messagebox.zoom, args=["out"]).start()
+                                    break
+
+                            if not all_messageboxes:
+                                for button in all_home_world_world_buttons:
+                                    if button.rect.collidepoint(g.mouse):
+                                        mb = MessageboxWorld(button.data)
+                                        group(mb, all_messageboxes)
+                                        break
+
+                            if g.clicked_when == "play":
+                                if not crafting_rect.collidepoint(g.mouse):
                                     stop_crafting()
 
-                            elif event.key == K_ENTER:
-                                for messagebox in all_messageboxes:
-                                    messagebox.close("open")
+                                if not g.skin_menu_rect.collidepoint(g.mouse):
+                                    g.skin_menu = False
+                                    pw.skin_done.disable()
+                                else:
+                                    for button in pw.change_skin_buttons:
+                                        if point_in_mask(g.mouse, button["mask"], button["rect"]):
+                                            g.skin_indexes[button["name"][2:]] += 1 if button["name"][0] == "n" else -1
+                                            if g.skin_indexes[button["name"][2:]] > len(g.skins[button["name"][2:]]) - 1:
+                                                g.skin_indexes[button["name"][2:]] = 0
+                                            elif g.skin_indexes[button["name"][2:]] < 0:
+                                                g.skin_indexes[button["name"][2:]] = len(g.skins[button["name"][2:]]) - 1
 
-                            elif g.player.main == "block" and pygame.key.name(event.key) in ("1", "2", "3", "4", "5"):
-                                g.player.indexes["block"] = int(pygame.key.name(event.key)) - 1
-                            elif g.player.main == "tool" and pygame.key.name(event.key) in ("1", "2"):
-                                g.player.indexes["tool"] = int(pygame.key.name(event.key)) - 1
+                                if g.player.main == "tool" and is_gun(g.player.tool):
+                                    all_projectiles.add(Projectile(g.player.rect.center, (5, 5), g.mouse, 20))
 
-                elif event.type == pygame.KEYUP:
-                    if event.key == g.ckeys["p up"]:
-                        if g.player.yvel < 0:
-                            g.player.yvel /= 3
+                        elif event.button == 3:
+                            if g.stage == "play":
+                                for block in all_blocks:
+                                    if block.rect.collidepoint(g.mouse):
+                                        if not hov.faulty:
+                                            if non_bg(block.name) == "workbench":
+                                                g.crafting = "workbench"
+                                                g.player.main = "block"
+                                                break
+                                            elif non_bg(block.name) == "furnace":
+                                                g.crafting = "furnace"
+                                                g.player.main = "block"
+                                            elif non_bg(block.name) == "anvil":
+                                                g.crafting = "anvil"
+                                                g.player.main = "block"
+                                                break
+                                            elif non_bg(block.name) == "gun-crafter":
+                                                g.crafting = "gun"
+                                                g.player.main = "block"
+                                                break
+                                            elif non_bg(block.name) == "water":
+                                                if g.player.block == "bucket":
+                                                    g.w.data[g.w.screen][block.abs_index] = "air"
+                                                    g.player.new_block("water", 1)
+                                                    block.utilize()
+                                            elif non_bg(block.name) == "portal-generator":
+                                                pos = [roundn(p, 30) for p in g.player.rect.center]
+                                                g.w.entities.append(Entity("portal", pos, g.w.screen, 1))
+                                                block.name = "air"
+                                                block.utilize()
+                                                
+                                for entity in g.w.entities:
+                                    if no_widgets(Entry):
+                                        if entity.rect.collidepoint(g.mouse):
+                                            if entity.sort == "portal" and entity.is_drawable():
+                                                MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", pos=DPP)
 
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    if event.button == 1:
-                        g.clicked_when = g.stage
-
-                        for widget in iter_widgets():
-                            if widget.visible_when is None:
-                                if widget.disable_type != "static":
-                                    if "static" not in widget.special_flags:
-                                        if not widget.rect.collidepoint(g.mouse):
-                                            faulty = True
-                                            for friend in widget.friends:
-                                                if friend.rect.collidepoint(g.mouse):
-                                                    faulty = False
-                                                    break
-                                            else:
-                                                faulty = True
-                                            if faulty:
-                                                if not widget.disable_type:
-                                                    Thread(target=widget.zoom, args=["out destroy"]).start()
-                                                elif not widget.disabled:
-                                                    widget.disable()
-                                        else:
-                                            if isinstance(widget, MessageboxOkCancel):
-                                                widget.okcancel(g.mouse)
-                                            elif isinstance(widget, MessageboxError):
-                                                widget.error(g.mouse)
-                                            elif isinstance(widget, Checkbox):
-                                                widget.toggle(g.mouse)
-
-                        for messagebox in all_messageboxes:
-                            if messagebox.open_rect.collidepoint(g.mouse):
-                                messagebox.close("open")
-                                break
-                            elif messagebox.delete_rect.collidepoint(g.mouse):
-                                messagebox.close("delete")
-                                break
-                            elif messagebox.rename_rect.collidepoint(g.mouse):
-                                messagebox.close("rename")
-                                break
-                            elif messagebox.download_rect.collidepoint(g.mouse):
-                                messagebox.close("download")
-                                break
-                            elif not messagebox.rect.collidepoint(g.mouse):
-                                Thread(target=messagebox.zoom, args=["out"]).start()
-                                break
-
-                        if not all_messageboxes:
-                            for button in all_home_world_world_buttons:
-                                if button.rect.collidepoint(g.mouse):
-                                    mb = MessageboxWorld(button.data)
-                                    group(mb, all_messageboxes)
-                                    break
-
-                        if g.clicked_when == "play":
-                            if not crafting_rect.collidepoint(g.mouse):
-                                stop_crafting()
-
-                            if not g.skin_menu_rect.collidepoint(g.mouse):
-                                g.skin_menu = False
-                                pw.skin_done.disable()
-                            else:
-                                for button in pw.change_skin_buttons:
-                                    if point_in_mask(g.mouse, button["mask"], button["rect"]):
-                                        g.skin_indexes[button["name"][2:]] += 1 if button["name"][0] == "n" else -1
-                                        if g.skin_indexes[button["name"][2:]] > len(g.skins[button["name"][2:]]) - 1:
-                                            g.skin_indexes[button["name"][2:]] = 0
-                                        elif g.skin_indexes[button["name"][2:]] < 0:
-                                            g.skin_indexes[button["name"][2:]] = len(g.skins[button["name"][2:]]) - 1
-
-                            if g.player.main == "tool" and is_gun(g.player.tool):
-                                all_projectiles.add(Projectile(g.player.rect.center, (5, 5), g.mouse, 20))
-
-                    elif event.button == 3:
-                        if g.stage == "play":
+                    elif event.type == pygame.MOUSEBUTTONUP:
+                        if event.button == 1:
+                            g.first_affection = None
+                            g.clicked_when = None
                             for block in all_blocks:
-                                if block.rect.collidepoint(g.mouse):
-                                    if not hov.faulty:
-                                        if bpure(block.name) == "workbench":
-                                            g.crafting = "workbench"
-                                            g.player.main = "block"
-                                            break
-                                        elif bpure(block.name) == "anvil":
-                                            g.crafting = "anvil"
-                                            g.player.main = "block"
-                                            break
-                                        elif bpure(block.name) == "gun-crafter":
-                                            g.crafting = "gun"
-                                            g.player.main = "block"
-                                            break
+                                block.broken = 0
+                            if g.stage == "play":
+                                g.player.food_pie = g.player.def_food_pie.copy()
 
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    if event.button == 1:
-                        g.first_affection = None
-                        g.clicked_when = None
+                    elif event.type == pygame.MOUSEWHEEL:
+                        if g.stage == "play":
+                            if g.player.main == "block":
+                                main = "block"
+                                max_index = 5
+                            elif g.player.main == "tool":
+                                main = "tool"
+                                max_index = 2
+
+                            if event.y > 0:
+                                if g.player.indexes[main] > 0:
+                                    g.player.indexes[main] -= 1
+                                else:
+                                    g.player.indexes[main] = max_index - 1
+                            elif event.y < 0:
+                                if g.player.indexes[main] < max_index - 1:
+                                    g.player.indexes[main] += 1
+                                else:
+                                    g.player.indexes[main] = 0
+
+                    elif event.type == pygame.MOUSEMOTION:
                         for block in all_blocks:
-                            block.broken = 0
-                        if g.stage == "play":
-                            g.player.food_pie = g.player.def_food_pie.copy()
+                            block.check_not_hovering()
 
-                elif event.type == pygame.MOUSEWHEEL:
-                    if g.stage == "play":
-                        if g.player.main == "block":
-                            main = "block"
-                            max_index = 5
-                        elif g.player.main == "tool":
-                            main = "tool"
-                            max_index = 2
+                    if g.stage == "home":
+                        for spr in all_home_sprites.sprites() + all_home_world_world_buttons.sprites() + all_home_world_static_buttons.sprites() + all_home_settings_buttons.sprites():
+                            with suppress(AttributeError, TypeError):
+                                spr.process_event(event)
 
-                        if event.y > 0:
-                            if g.player.indexes[main] > 0:
-                                g.player.indexes[main] -= 1
-                            else:
-                                g.player.indexes[main] = max_index - 1
-                        elif event.y < 0:
-                            if g.player.indexes[main] < max_index - 1:
-                                g.player.indexes[main] += 1
-                            else:
-                                g.player.indexes[main] = 0
-
-                elif event.type == pygame.MOUSEMOTION:
-                    for block in all_blocks:
-                        block.check_not_hovering()
-
-                if g.stage == "home":
-                    for spr in all_home_sprites.sprites() + all_home_world_world_buttons.sprites() + all_home_world_static_buttons.sprites() + all_home_settings_buttons.sprites():
-                        with suppress(AttributeError, TypeError):
-                            spr.process_event(event)
-
-        # play loop
-        if g.stage == "play":  
-            if not g.menu:
-                if g.mouses[0]:
-                    if g.clicked_when == "play":
-                        if not g.menu:
-                            if g.player.main == "tool":
-                                if g.player.tool is not None:
-                                    if 90 > g.player.angle > -90:
-                                        visual.angle -= 3
-                                        if visual.angle < -90:
-                                            visual.angle = 90
-                                    else:
-                                        visual.angle += 3
-                                        if visual.angle > 90:
-                                            visual.angle = -90
-
-                            for block in all_blocks:
-                                if g.player.main == "block":
-                                    if hov.rect.topleft == block.rect.topleft:
-                                        # check whether the block is a food
-                                        if g.player.amount is not None and is_in(g.player.block, finfo):
-                                            if is_eatable(g.player.block):
-                                                if g.player.amount > 0:
-                                                    g.player.eat()
+            # play loop
+            if g.stage == "play":  
+                if not g.menu:
+                    if g.mouses[0]:
+                        if g.clicked_when == "play":
+                            if not g.menu:
+                                if g.player.main == "tool":
+                                    if g.player.tool is not None:
+                                        if 90 > g.player.angle > -90:
+                                            visual.angle -= 3
+                                            if visual.angle < -90:
+                                                visual.angle = 90
                                         else:
-                                            # ok then, the block is not a food
-                                            if g.w.mode == "adventure":
-                                                stmt = not hov.faulty
-                                            elif g.w.mode == "freestyle":
-                                                stmt = True
-                                            if block.name == "air" and stmt:
-                                                if g.first_affection is None:
-                                                    g.first_affection = "place"
-                                                if g.first_affection == "place":
-                                                    if not (block.rect.colliderect(g.player.rect) if g.str_mod != "_bg" else False) and g.player.block not in unplacable_blocks:
-                                                        if g.player.block is not None:
-                                                            block.name = g.player.block + g.str_mod
-                                                            if g.w.mode == "adventure":
-                                                                g.player.use_up_inv(g.player.itemi)
-                                                            block.image = g.w.blocks[non_bg(block.name)].copy()
-                                                            if "_bg" in block.name:
-                                                                block.image = img_mult(block.image, 0.8)
-                                            elif stmt:
-                                                if g.first_affection is None:
-                                                    g.first_affection = "break"
-                                                if g.first_affection == "break":
-                                                    if g.w.mode == "adventure":
-                                                        if non_bg(block.name) not in unbreakable_blocks:
-                                                            block.try_breaking()
-                                                    elif g.w.mode == "freestyle":
-                                                        block.name = "air"
-                                                        block.image = g.w.blocks["air"].copy()
-                                                        update_block_states()
+                                            visual.angle += 3
+                                            if visual.angle > 90:
+                                                visual.angle = -90
+
+                                for block in all_blocks:
+                                    if g.player.main == "block":
+                                        if hov.rect.topleft == block.rect.topleft:
+                                            # check whether the block is a food
+                                            if g.player.amount is not None and is_in(g.player.block, finfo):
+                                                if is_eatable(g.player.block):
+                                                    if g.player.amount > 0:
+                                                        g.player.eat()
                                             else:
-                                                block.broken = 0
+                                                # ok then, the block is not a food
+                                                if g.w.mode == "adventure":
+                                                    stmt = not hov.faulty
+                                                elif g.w.mode == "freestyle":
+                                                    stmt = True
+                                                if block.name == "air" and stmt:
+                                                    if g.first_affection is None:
+                                                        g.first_affection = "place"
+                                                    if g.first_affection == "place":
+                                                        if not (block.rect.colliderect(g.player.rect) if g.str_mod != "_bg" else False) and g.player.block not in unplacable_blocks:
+                                                            if g.player.block is not None:
+                                                                block.name = g.player.block + g.str_mod
+                                                                if g.w.mode == "adventure":
+                                                                    g.player.use_up_inv(g.player.itemi)
+                                                                block.image = g.w.blocks[non_bg(block.name)].copy()
+                                                                if "_bg" in block.name:
+                                                                    block.image = img_mult(block.image, 0.8)
+                                                elif stmt:
+                                                    if g.first_affection is None:
+                                                        g.first_affection = "break"
+                                                    if g.first_affection == "break":
+                                                        if g.w.mode == "adventure":
+                                                            if non_bg(block.name) not in unbreakable_blocks:
+                                                                block.try_breaking()
+                                                        elif g.w.mode == "freestyle":
+                                                            block.name = "air"
+                                                            block.image = g.w.blocks["air"].copy()
+                                                            update_block_states()
+                                                else:
+                                                    block.broken = 0
 
-                                elif g.player.main == "tool":
-                                    if tpure(g.player.tool) in tinfo:
-                                        if is_in(block.name, tool_blocks):
-                                            if hasattr(visual, "rect"):
-                                                if block.rect.colliderect(visual.rect):
-                                                    block.try_breaking("tool")
-                                                    break
+                                    elif g.player.main == "tool":
+                                        if tpure(g.player.tool) in tinfo:
+                                            if is_in(block.name, tool_blocks):
+                                                if hasattr(visual, "rect"):
+                                                    if block.rect.colliderect(visual.rect):
+                                                        block.try_breaking("tool")
+                                                        break
 
-            # filling
-            Window.display.fill(g.w.dnc_color)
+                # filling
+                Window.display.fill(g.w.dnc_color)
 
-            # menu filling
-            if g.menu or g.skin_menu:
-                Window.display.blit(g.menu_surf, (0, 0))
+                # menu filling
+                if g.menu or g.skin_menu:
+                    Window.display.blit(g.menu_surf, (0, 0))
 
-            # day-night cycle
-            g.w.dnc_index = g.w.dnc_direc(g.w.dnc_index, fromperc(dt * 100, g.w.dnc_vel))
-            if g.w.dnc_index >= len(g.w.dnc_colors) - 1:
-                g.w.dnc_index = len(g.w.dnc_colors) - 1
-                g.w.dnc_direc = op.sub
-            elif g.w.dnc_index <= 0:
-                g.w.dnc_index = 0
-                g.w.dnc_direc = op.add
-                g.w.set_dnc_colors()
-                if g.w.hound_round_chance > 1:
-                    g.w.hound_round_chance -= 1
+                # day-night cycle
+                g.w.dnc_index = g.w.dnc_direc(g.w.dnc_index, fromperc(dt * 100, g.w.dnc_vel))
+                if g.w.dnc_index >= len(g.w.dnc_colors) - 1:
+                    g.w.dnc_index = len(g.w.dnc_colors) - 1
+                    g.w.dnc_direc = op.sub
+                elif g.w.dnc_index <= 0:
+                    g.w.dnc_index = 0
+                    g.w.dnc_direc = op.add
+                    g.w.set_dnc_colors()
+                    if g.w.hound_round_chance > 1:
+                        g.w.hound_round_chance -= 1
 
-            # right bar surf
-            if any([widget.checked for widget in pw.right_bar_widgets if isinstance(widget, Checkbox)]):
-                pass
-                #Window.display.blit(right_bar_surf, (Window.width - right_bar_surf.get_width(), 0))
+                # right bar surf
+                if any([widget.checked for widget in pw.right_bar_widgets if isinstance(widget, Checkbox)]):
+                    pass
+                    #Window.display.blit(right_bar_surf, (Window.width - right_bar_surf.get_width(), 0))
 
-            # blocks
-            for block in all_blocks:
-                if block.name != "air":
-                    block.update()
-                    if g.w.show_hitboxes:
-                        pygame.draw.rect(Window.display, GREEN, block.rect, 1)
-                        pygame.draw.rect(Window.display, GREEN, g.player.rect, 1)
+                # blocks
+                for block in all_blocks:
+                    if block.name != "air":
+                        block.update()
+                        if g.w.show_hitboxes:
+                            pygame.draw.rect(Window.display, GREEN, block.rect, 1)
+                            pygame.draw.rect(Window.display, GREEN, g.player.rect, 1)
 
-            # entities
-            for entity in g.w.entities:
-                entity.update()
+                # entities
+                for entity in g.w.entities:
+                    entity.update()
 
-            # death sreen
-            if g.player.dead:
-                Window.display.blit(death_screen, (0, 0))
+                # death sreen
+                if g.player.dead:
+                    Window.display.blit(death_screen, (0, 0))
 
-            # particles from the engine
-            draw_and_update_particles()
-            
-            # projectiles
-            all_projectiles.function()
+                # particles from the engine
+                draw_and_update_particles()
+                
+                # projectiles
+                all_projectiles.function()
 
-            # foregorund sprites (so also the player)
-            g.player.function()
-            all_foreground_sprites.draw(Window.display)
-            all_foreground_sprites.update()
+                # foregorund sprites (so also the player)
+                g.player.function()
+                all_foreground_sprites.draw(Window.display)
+                all_foreground_sprites.update()
 
-            # visual tool and block
-            visual.function()
-            
-            # mobs
-            all_mobs.function()
+                # visual tool and block
+                visual.function()
+                
+                # mobs
+                all_mobs.function()
 
-            # hovering
-            if not g.menu:
-                hov.function()
+                # hovering
+                if not g.menu:
+                    hov.function()
 
-            for block in all_blocks:
-                if int(block.broken) > 0:
-                    Window.display.blit(breaking_sprs[int(block.broken) - 1], (block.rect.x, block.rect.y))
+                for block in all_blocks:
+                    if int(block.broken) > 0:
+                        Window.display.blit(breaking_sprs[int(block.broken) - 1], (block.rect.x, block.rect.y))
 
-            # P L A Y  B L I T S -------------------------------------------------------------------------- #
-            # player username
-            write(Window.display, "center", g.player.username, orbit_fonts[12], g.w.text_color, g.player.rect.centerx, g.player.rect.centery - 30)
+                # P L A Y  B L I T S -------------------------------------------------------------------------- #
+                # player username
+                write(Window.display, "center", g.player.username, orbit_fonts[12], g.w.text_color, g.player.rect.centerx, g.player.rect.centery - 30)
 
-            # workbench
-            if g.crafting == "workbench":
-                Window.display.blit(workbench_img, crafting_rect)
-                x = crafting_rect.x + 30 / 2 + 25
-                y = crafting_rect.y + 30 + 30 / 2 + 10
-                sy = y
-                xo = 30 + 5
-                yo = 30 + 10
-                for crafting_block in g.craftings:
-                    # crafting material
-                    pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
-                    Window.display.cblit(g.w.blocks[crafting_block], (x, y))
-                    write(Window.display, "midright", g.craftings[crafting_block], orbit_fonts[15], BLACK, x - 20, y)
-                    y += yo
-                    if (y - sy) / yo == 5:
-                        y = sy
-                        x += xo
-                    # recieving material
-                    enough = 0
-                    g.craft_by_what = []
-                    try:
-                        for craftable in cinfo:
-                            #if sorted(cinfo[craftable]["recipe"]) == sorted(g.craftings):
-                            #if cinfo[craftable]["recipe"] == g.craftings:
-                            truthy = True
-                            for crafting_block in g.craftings:
-                                try:
-                                    if cinfo[craftable]["recipe"][crafting_block] > g.craftings[crafting_block]:
+                # workbench
+                if g.crafting == "workbench":
+                    Window.display.blit(workbench_img, crafting_rect)
+                    x = crafting_rect.x + 30 / 2 + 25
+                    y = crafting_rect.y + 30 + 30 / 2 + 10
+                    sy = y
+                    xo = 30 + 5
+                    yo = 30 + 10
+                    for crafting_block in g.craftings:
+                        # crafting material
+                        pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
+                        Window.display.cblit(g.w.blocks[crafting_block], (x, y))
+                        write(Window.display, "midright", g.craftings[crafting_block], orbit_fonts[15], BLACK, x - 20, y)
+                        y += yo
+                        if (y - sy) / yo == 5:
+                            y = sy
+                            x += xo
+                        # recieving material
+                        enough = 0
+                        g.craft_by_what = []
+                        try:
+                            for craftable in cinfo:
+                                truthy = True
+                                for crafting_block in g.craftings:
+                                    try:
+                                        if cinfo[craftable]["recipe"][crafting_block] > g.craftings[crafting_block]:
+                                            truthy = False
+                                            break
+                                    except KeyError:
                                         truthy = False
                                         break
-                                except KeyError:
-                                    truthy = False
-                                    break
-                            if truthy:
-                                if g.player.stats["energy"]["amount"] - cinfo[craftable]["energy"] >= 0:
-                                    for recipe_block in cinfo[craftable]["recipe"]:
-                                        if g.craftings[recipe_block] >= cinfo[craftable]["recipe"][recipe_block]:
-                                            enough += 1
-                                            g.craft_by_what.append(g.craftings[recipe_block] // cinfo[craftable]["recipe"][recipe_block] * cinfo[craftable].get("amount", 1))
-                                        if enough == len(cinfo[craftable]["recipe"]):
-                                            g.craftable = craftable
-                                            raise BreakAllLoops
-                                        else:
-                                            g.craftable = None
-                    except BreakAllLoops:
-                        pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                        if craftable in g.w.blocks:
-                            Window.display.cblit(g.w.blocks[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                        elif craftable in g.w.tools:
-                            blit_center(Window.display, g.w.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
-                        g.craft_by_what = min(g.craft_by_what)
-                        write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
+                                if truthy:
+                                    if g.player.stats["energy"]["amount"] - cinfo[craftable].get("energy", float("-inf")) >= 0:
+                                        for recipe_block in cinfo[craftable]["recipe"]:
+                                            if g.craftings[recipe_block] >= cinfo[craftable]["recipe"][recipe_block]:
+                                                enough += 1
+                                                g.craft_by_what.append(g.craftings[recipe_block] // cinfo[craftable]["recipe"][recipe_block] * cinfo[craftable].get("amount", 1))
+                                            if enough == len(cinfo[craftable]["recipe"]):
+                                                g.craftable = craftable
+                                                raise BreakAllLoops
+                                            else:
+                                                g.craftable = None
+                        except BreakAllLoops:
+                            pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                            if craftable in g.w.blocks:
+                                Window.display.cblit(g.w.blocks[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                            elif craftable in g.w.tools:
+                                blit_center(Window.display, g.w.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                            g.craft_by_what = min(g.craft_by_what)
+                            write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
 
-            # anvil
-            elif g.crafting == "anvil":
-                Window.display.blit(anvil_img, crafting_rect)
-            # gun
-            elif g.crafting == "gun":
-                Window.display.blit(gun_crafter_img, crafting_rect)
-                for part, name in g.gun_parts.items():
-                    pos = gun_crafter_part_poss[part]
-                    if name is not None:
-                        Window.display.cblit(g.w.blocks[name], pos)
-                    elif part not in g.extra_gun_parts:
-                        write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
-                        #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
-                        #pygame.draw.circle(Window.display, BLACK, pos, 5)
-                        
-            # player item
-            if g.crafting == "workbench":
-                Window.display.cblit(workbench_icon, crafting_center)
+                # furnace
+                elif g.crafting == "furnace":
+                    Window.display.blit(furnace_img, crafting_rect)
+                    x = crafting_rect.x + 30 / 2 + 25
+                    y = crafting_rect.y + 30 + 30 / 2 + 10
+                    sy = y
+                    xo = 30 + 5
+                    yo = 30 + 10
+                    for burning in g.burnings:
+                        if g.fuels:
+                            pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
+                        Window.display.cblit(g.w.blocks[burning], (x, y))
+                        write(Window.display, "midright", g.burnings[burning], orbit_fonts[15], BLACK, x - 20, y)
+                        y += yo
+                        if (y - sy) / yo == 5:
+                            y = sy
+                            x += xo
+                    x, y = crafting_rect.center
+                    for fuel in g.fuels:
+                        Window.display.cblit(g.w.blocks[fuel], (x, y))
+                        write(Window.display, "midbottom", g.fuels[fuel], orbit_fonts[15], BLACK, x, y + 40)
+                            
+                # anvil
+                elif g.crafting == "anvil":
+                    Window.display.blit(anvil_img, crafting_rect)
+                    
+                # gun
+                elif g.crafting == "gun":
+                    Window.display.blit(gun_crafter_img, crafting_rect)
+                    for part, name in g.gun_parts.items():
+                        pos = gun_crafter_part_poss[part]
+                        if name is not None:
+                            Window.display.cblit(g.w.blocks[name], pos)
+                        elif part not in g.extra_gun_parts:
+                            write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
+                            #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
+                            #pygame.draw.circle(Window.display, BLACK, pos, 5)
+                            
+                # player item
+                if g.crafting == "workbench":
+                    Window.display.cblit(workbench_icon, crafting_center)
 
-            if g.player.main == "block" and g.player.block is not None:
-                if g.player.block in oinfo:
-                    item = oinfo[g.player.block]["cform"]
-                elif g.player.block in gun_blocks:
-                    item = gpure(g.player.block).upper()
-                else:
-                    item = bpure(g.player.block).upper()
-                write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
-            elif g.player.main == "tool" and g.player.tool is not None:
-                item = g.player.tool.replace("_", " ").upper()
-                write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 - 96 - 35, 90)
-            else:
-                item = None
-            if g.mod == 1:
-                if no_entries():
-                    if g.player.main == "block" and g.player.block:
-                        write(Window.display, "center", "(BACKGROUND)", orbit_fonts[15], BLACK, Window.width / 2 + 30, 105)
-            write(Window.display, "center", f"| {g.w.screen + 1} |", orbit_fonts[20], g.w.text_color, Window.width - 25, 20)
-
-            # H O T B A R --------------------------------------------------------------------------------- #
-            Window.display.cblit(tool_holders_img, (Window.width / 2 - 96 - 35, 20), "midtop")
-            Window.display.cblit(inventory_img, (Window.width / 2 + 20, 20), "midtop")
-            Window.display.cblit(pouch_img, (Window.width / 2 + 20 + 96 + 40, 20), "midtop")
-            
-            # selected tool
-            x = 258
-            y = 38
-            for index, tool in enumerate(g.player.tools):
-                if tool is not None:
-                    tool_img = g.w.tools[tool]
-                    if "_" in tool:
-                        Window.display.cblit(tool_img, (x, y))
+                if g.player.main == "block" and g.player.block is not None:
+                    if g.player.block in oinfo:
+                        item = oinfo[g.player.block]["cform"]
+                    elif g.player.block in gun_blocks:
+                        item = gpure(g.player.block).upper()
                     else:
-                        Window.display.cblit(rotozoom(scalex(tool_img, 0.4), 45, 1), (x, y))
-                    if tpure(tool) in tinfo:
-                        th = g.player.tool_healths[index]
-                        if th < 100:
-                            pygame.draw.rect(Window.display, g.bar_rgb[int(th)], (Window.width / 2 - 161, y + 23, fromperc(th, 30), 5))
-                # border if selected
-                if g.player.main == "tool":
-                    if index == g.player.tooli:
-                        Window.display.cblit(square_border_img, (x, y))
-                x += 33
+                        item = bpure(g.player.block).upper()
+                    write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
+                elif g.player.main == "tool" and g.player.tool is not None:
+                    item = g.player.tool.replace("_", " ").upper()
+                    write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 - 96 - 35, 90)
+                else:
+                    item = None
+                if g.mod == 1:
+                    if no_widgets(Entry):
+                        if g.player.main == "block" and g.player.block:
+                            write(Window.display, "center", "(BACKGROUND)", orbit_fonts[15], BLACK, Window.width / 2 + 30, 105)
+                write(Window.display, "center", f"| {g.w.screen + 1} |", orbit_fonts[20], g.w.text_color, Window.width - 25, 20)
+
+                # H O T B A R --------------------------------------------------------------------------------- #
+                Window.display.cblit(tool_holders_img, (Window.width / 2 - 96 - 35, 20), "midtop")
+                Window.display.cblit(inventory_img, (Window.width / 2 + 20, 20), "midtop")
+                Window.display.cblit(pouch_img, (Window.width / 2 + 20 + 96 + 40, 20), "midtop")
                 
-            # selected block
-            x = 359
-            y = 38
-            for index, block in enumerate(g.player.inventory):
-                if block is not None:
-                    Window.display.cblit(g.w.blocks[block], (x, y))
-                    write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], g.w.text_color, x, y + 25)
-                # border if selected
-                if g.player.main == "block":
-                    if index == g.player.blocki:
-                        Window.display.cblit(square_border_img, (x, y))
-                x += 33
-            
-            # pouch icon
-            Window.display.cblit(pouch_icon, (546 + 15, y))
-            write(Window.display, "center", g.player.pouch, orbit_fonts[15], g.w.text_color, 546 + 15, y + 25)
+                # selected tool
+                x = 258
+                y = 38
+                for index, tool in enumerate(g.player.tools):
+                    if tool is not None:
+                        tool_img = g.w.tools[tool]
+                        if "_" in tool:
+                            Window.display.cblit(tool_img, (x, y))
+                        else:
+                            Window.display.cblit(rotozoom(scalex(tool_img, 0.4), 45, 1), (x, y))
+                        if tpure(tool) in tinfo:
+                            th = g.player.tool_healths[index]
+                            if th < 100:
+                                pygame.draw.rect(Window.display, g.bar_rgb[int(th)], (Window.width / 2 - 161, y + 23, fromperc(th, 30), 5))
+                    # border if selected
+                    if g.player.main == "tool":
+                        if index == g.player.tooli:
+                            Window.display.cblit(square_border_img, (x, y))
+                    x += 33
+                    
+                # selected block
+                x = 359
+                y = 38
+                for index, block in enumerate(g.player.inventory):
+                    if block is not None:
+                        Window.display.cblit(g.w.blocks[block], (x, y))
+                        write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], g.w.text_color, x, y + 25)
+                    # border if selected
+                    if g.player.main == "block":
+                        if index == g.player.blocki:
+                            Window.display.cblit(square_border_img, (x, y))
+                    x += 33
+                
+                # pouch icon
+                Window.display.cblit(pouch_icon, (546 + 15, y))
+                write(Window.display, "center", g.player.pouch, orbit_fonts[15], g.w.text_color, 546 + 15, y + 25)
 
-            # P L A Y E R  B A R S ------------------------------------------------------------------------ #
-            # applyping regeneration
-            if g.w.mode == "adventure":
-                if g.player.stats["lives"]["amount"] + 1 <= 100:
-                    if ticks() - g.player.stats["lives"]["last_regen"] >= g.player.stats["lives"]["regen_time"]:
-                        g.player.stats["lives"]["amount"] += 1
-                        g.player.stats["lives"]["regen_time"] -= 0.2
-                        g.player.stats["lives"]["last_regen"] = ticks()
+                # P L A Y E R  B A R S ------------------------------------------------------------------------ #
+                # applyping regeneration
+                if g.w.mode == "adventure":
+                    if g.player.stats["lives"]["amount"] + 1 <= 100:
+                        if ticks() - g.player.stats["lives"]["last_regen"] >= g.player.stats["lives"]["regen_time"]:
+                            g.player.stats["lives"]["amount"] += 1
+                            g.player.stats["lives"]["regen_time"] -= 0.2
+                            g.player.stats["lives"]["last_regen"] = ticks()
 
-                # g.player food chart
-                if "image" in g.player.food_pie and "rect" in g.player.food_pie:
-                    g.player.food_pie["rect"].midbottom = (g.player.rect.centerx, g.player.rect.top - 25)
-                    Window.display.blit(g.player.food_pie["image"], g.player.food_pie["rect"])
+                    # g.player food chart
+                    if "image" in g.player.food_pie and "rect" in g.player.food_pie:
+                        g.player.food_pie["rect"].midbottom = (g.player.rect.centerx, g.player.rect.top - 25)
+                        Window.display.blit(g.player.food_pie["image"], g.player.food_pie["rect"])
 
-        # home loop
-        elif g.stage == "home":
-            Window.display.fill(DARK_BROWN)
-            write(Window.display, "center", "Blockingdom", orbit_fonts[50], BLACK, Window.width // 2, 58)
-            Window.display.blit(frame_img, (0, 0))
-            Window.display.blit(g.home_bg_img, (0, 120))
+            # home loop
+            elif g.stage == "home":
+                Window.display.fill(DARK_BROWN)
+                write(Window.display, "center", "Blockingdom", orbit_fonts[50], BLACK, Window.width // 2, 58)
+                Window.display.blit(frame_img, (0, 0))
+                Window.display.blit(g.home_bg_img, (0, 120))
 
-            all_home_sprites.draw(Window.display)
-            all_home_sprites.update()
+                all_home_sprites.draw(Window.display)
+                all_home_sprites.update()
 
-            if g.home_stage == "worlds":
-                write(Window.display, "topleft", "Worlds:", orbit_fonts[30], BLACK, 35, 125)
-                all_home_world_world_buttons.draw(Window.display)
-                all_home_world_world_buttons.update()
-                all_home_world_static_buttons.draw(Window.display)
-                all_home_world_static_buttons.update()
+                if g.home_stage == "worlds":
+                    write(Window.display, "topleft", "Worlds:", orbit_fonts[30], BLACK, 35, 125)
+                    all_home_world_world_buttons.draw(Window.display)
+                    all_home_world_world_buttons.update()
+                    all_home_world_static_buttons.draw(Window.display)
+                    all_home_world_static_buttons.update()
 
-            elif g.home_stage == "settings":
-                all_home_settings_buttons.draw(Window.display)
-                all_home_settings_buttons.update()
+                elif g.home_stage == "settings":
+                    all_home_settings_buttons.draw(Window.display)
+                    all_home_settings_buttons.update()
 
-            all_messageboxes.draw(Window.display)
-            all_messageboxes.update()
-            
-            # generating world loading bar
-            if g.loading_world:
-                pygame.draw.rect(Window.display, BLACK, (Window.width / 2 - 100, Window.height / 2 - 15, 200, 30), 3)
-                pygame.draw.rect(Window.display, LIGHT_GREEN, (Window.width / 2 - 98, Window.height / 2 - 13, g.loading_world_perc * 2 - 4, 26))
-                write(Window.display, "center", f"{int(g.loading_world_perc)}%", orbit_fonts[20], BLACK, *Window.center)
-            
-        # skin menu filling
-        if g.skin_menu:
-            # backkground (filling)
-            Window.display.cblit(g.skin_menu_surf, (Window.width / 2, Window.height / 2))
-            Window.display.cblit(g.player_model, (Window.width / 2, Window.height / 2))
-            # skins (showcase)
-            for bt in g.skins:
-                if g.skin_data(bt)["sprs"]:
-                    try:
-                        g.skin_anims[bt] += g.skin_anim_speed
-                        skin_img = g.skin_data(bt)["sprs"][int(g.skin_anims[bt])]
-                        skin_pos = g.skin_data(bt)["pos"]
-                        Window.display.blit(skin_img, (g.player_model_pos[0] + skin_pos[0] * g.skin_fppp, g.player_model_pos[1] + skin_pos[1] * g.skin_fppp))
-                    except IndexError:
-                        g.skin_anims[bt] = 0
-                        g.skin_anims[bt] += g.skin_anim_speed
-                        skin_img = g.skin_data(bt)["sprs"][int(g.skin_anims[bt])]
-                        skin_pos = g.skin_data(bt)["pos"]
-                        Window.display.blit(skin_img, (g.player_model_pos[0] + skin_pos[0] * g.skin_fppp, g.player_model_pos[1] + skin_pos[1] * g.skin_fppp))
+                all_messageboxes.draw(Window.display)
+                all_messageboxes.update()
+                
+                # generating world loading bar
+                if g.loading_world:
+                    pygame.draw.rect(Window.display, BLACK, (Window.width / 2 - 100, Window.height / 2 - 15, 200, 30), 3)
+                    pygame.draw.rect(Window.display, LIGHT_GREEN, (Window.width / 2 - 98, Window.height / 2 - 13, g.loading_world_perc * 2 - 4, 26))
+                    write(Window.display, "center", f"{int(g.loading_world_perc)}%", orbit_fonts[20], BLACK, *Window.center)
+                
+            # skin menu filling
+            if g.skin_menu:
+                # backkground (filling)
+                Window.display.cblit(g.skin_menu_surf, (Window.width / 2, Window.height / 2))
+                Window.display.cblit(g.player_model, (Window.width / 2, Window.height / 2))
+                # skins (showcase)
+                for bt in g.skins:
+                    if g.skin_data(bt)["sprs"]:
+                        try:
+                            g.skin_anims[bt] += g.skin_anim_speed
+                            skin_img = g.skin_data(bt)["sprs"][int(g.skin_anims[bt])]
+                            skin_pos = g.skin_data(bt)["pos"]
+                            Window.display.blit(skin_img, (g.player_model_pos[0] + skin_pos[0] * g.skin_fppp, g.player_model_pos[1] + skin_pos[1] * g.skin_fppp))
+                        except IndexError:
+                            g.skin_anims[bt] = 0
+                            g.skin_anims[bt] += g.skin_anim_speed
+                            skin_img = g.skin_data(bt)["sprs"][int(g.skin_anims[bt])]
+                            skin_pos = g.skin_data(bt)["pos"]
+                            Window.display.blit(skin_img, (g.player_model_pos[0] + skin_pos[0] * g.skin_fppp, g.player_model_pos[1] + skin_pos[1] * g.skin_fppp))
 
-            # buttons (arrows)
-            for button in pw.change_skin_buttons:
-                Window.display.cblit(button["surf"], button["rect"].center)
+                # buttons (arrows)
+                for button in pw.change_skin_buttons:
+                    Window.display.cblit(button["surf"], button["rect"].center)
 
-        # updating the widgets
-        updating_buttons = [button for button in iter_buttons() if not button.disabled]
-        updating_worldbuttons = [worldbutton for worldbutton in all_home_world_world_buttons if is_drawable(worldbutton)]
-        updating_settingsbuttons = [settingsbutton for settingsbutton in all_home_settings_buttons if is_drawable(settingsbutton) and not isinstance(settingsbutton, StaticOptionMenu)]
-        updating_static_buttons = [static_button for static_button in all_home_world_static_buttons if is_drawable(static_button)]
-        update_button_behavior(updating_worldbuttons + updating_buttons + updating_settingsbuttons + updating_static_buttons + [button_s, button_w])
-        draw_and_update_widgets()
+            # updating the widgets
+            updating_buttons = [button for button in iter_buttons() if not button.disabled]
+            updating_worldbuttons = [worldbutton for worldbutton in all_home_world_world_buttons if is_drawable(worldbutton)]
+            updating_settingsbuttons = [settingsbutton for settingsbutton in all_home_settings_buttons if is_drawable(settingsbutton) and not isinstance(settingsbutton, StaticOptionMenu)]
+            updating_static_buttons = [static_button for static_button in all_home_world_static_buttons if is_drawable(static_button)]
+            update_button_behavior(updating_worldbuttons + updating_buttons + updating_settingsbuttons + updating_static_buttons + [button_s, button_w])
+            draw_and_update_widgets()
 
-        # screen shake (offsetting the render)
-        if g.screen_shake > 0:
-            g.screen_shake -= 1
-            g.render_offset = (rand(-g.s_render_offset, g.s_render_offset), rand(-g.s_render_offset, g.s_render_offset))
-        else:
-            g.render_offset = (0, 0)
+            # screen shake (offsetting the render)
+            if g.screen_shake > 0:
+                g.screen_shake -= 1
+                g.render_offset = (rand(-g.s_render_offset, g.s_render_offset), rand(-g.s_render_offset, g.s_render_offset))
+            else:
+                g.render_offset = (0, 0)
 
-        # blitting the Window.display surface to the main window
-        Window.window.blit(Window.display, g.render_offset)
+            # blitting the Window.display surface to the main window
+            Window.window.blit(Window.display, g.render_offset)
 
-        # refreshing the window
-        pygame.display.update()
+            # refreshing the window
+            pygame.display.update()
 
-    MethodHandler.save("quit")
+        MethodHandler.save("quit")
 
 
 if __name__ == "__main__":

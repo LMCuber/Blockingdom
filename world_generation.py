@@ -2,7 +2,7 @@ import io
 import random
 import requests
 import PIL.Image
-from prim_data import a
+from prim_data import a, Entity, get_avatar
 from settings import *
 from pyengine.basics import *
 from pyengine.pgbasics import *
@@ -13,56 +13,9 @@ HL = 27
 VL = 20
 L = VL * HL
 
-entities = {}
-entities["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
 avatar_url = r"https://avatars.dicebear.com/api/pixel-art-neutral/:seed.svg?mood[]=:mood"
-avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
 quote_url = "https://inspirobot.me/api?generate=true"
 
-
-def get_avatar():
-    """
-    svg_path = path("tempfiles", "avatar.svg")
-    png_path = path("tempfiles", "avatar.jpg")
-    with open(svg_path, "wb") as f:
-        f.write(requests.get(avatar_url.replace(":mood", mood).replace(":seed", str(random.random()))).content)
-    svg = svg2rlg(svg_path)
-    renderPM.drawToFile(svg, png_path, fmt="JPG")
-    pg_img = cimgload(png_path)
-    pg_img = pgscale(pg_img, (30, 30))
-    os.remove(svg_path)
-    os.remove(png_path)
-    """
-    """
-    png_path = path("tempfiles", "avatar.png")
-    with open(png_path, "wb") as f:
-        f.write(requests.get(avatar_url.replace(":seed", str(random.random()))).content)
-    pil_img = PIL.Image.open(png_path).resize((10, 10), resample=PIL.Image.BILINEAR).resize((30, 30), PIL.Image.NEAREST)
-    pg_img = pil_to_pg(pil_img)
-    os.remove(png_path)
-    """
-    img = pygame.Surface((10, 10))
-    skin_color = rgb_mult(SKIN_COLOR, randf(0.4, 8))
-    hair_color = rand_rgb()
-    hair_chance = 1
-    img.fill(skin_color)
-    for y in range(img.get_height()):
-        for x in range(img.get_width()):
-            if (x, y) in avatar_map:
-                img.set_at((x, y), avatar_map[(x, y)])
-            else:
-                truthy = False
-                try:
-                    if chance(1 / hair_chance) and img.get_at((x, y - 1)) == hair_color:
-                        truthy = True
-                except IndexError:
-                    truthy = True
-                if truthy:
-                    img.set_at((x, y), hair_color)
-        hair_chance += 0.1
-    img = pgscale(img, (30, 30))
-    return img
-    
 
 def get_quote():
     img_url = requests.get(quote_url).text
@@ -144,7 +97,7 @@ def get_leaf_type(blockname):
 def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
     horindex = blockindex % HL
     verindex = blockindex // HL
-    entity_map = []
+    entities = []
     if "soil" in blockname:
         if 2 <= horindex <= HL - 3:
             if biome in bio.tree_chances:
@@ -210,8 +163,8 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                         data[screen][vine_index] = "vine"
                         vine_index += HL
                 
-                if biome == "jungle":
                     # bamboo
+                if biome == "jungle":
                     if chance(1 / 7):
                         bamboo_height = nordis(8, 2)
                         bamboo_index = blockindex - HL
@@ -223,7 +176,8 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
             if 0 <= horindex <= HL - 3:
                 # portal
                 if chance(1 / 20):
-                    entity_map.append({"sort": "portal", "images": entities["portal"], "pos": (horindex, verindex), "screen": lit_screen})
+                    e = Entity("portal", (horindex * 30, verindex * 30), lit_screen, 1, sort="portal")
+                    entities.append(e)
                
         if biome == "forest":
             # watermelons
@@ -239,10 +193,8 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                     data[screen][bi] = barrel_type  
             # npc
             if chance(1 / 50):
-                #full_name = req_to_dict(name_url.replace(":gender", choice(("male", "female"))))["name"].split()
-                #name = " ".join(full_name)
-                name = "Joe"
-                entity_map.append({"sort": "npc", "images": [get_avatar()], "pos": (horindex, verindex), "screen": lit_screen, "name": name, "script": None})
+                e = Entity(get_avatar(), (horindex * 30, verindex * 30), lit_screen, 1, name="Joe", script=None, sort="npc")
+                entities.append(e)
 
     if biome == "desert":
         if "sand" in data[screen][blockindex]:
@@ -336,4 +288,4 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                                     water_yindex += HL
                                 water_xindex += 1
 
-    return entity_map
+    return entities
