@@ -190,7 +190,7 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                 barrel_indexes = [blockindex - HL, blockindex - HL * 2]
                 barrel_type = "red_barrel_bg" if chance(1 / 5) else "blue_barrel_bg"
                 for bi in barrel_indexes:
-                    data[screen][bi] = barrel_type  
+                    data[screen][bi] = barrel_type
             # npc
             if chance(1 / 50):
                 e = Entity(get_avatar(), (horindex * 30, verindex * 30), lit_screen, 1, name="Joe", script=None, sort="npc")

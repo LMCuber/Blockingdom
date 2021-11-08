@@ -166,6 +166,7 @@ class Game:
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
         self.extra_gun_parts = ("scope", "silencer")
         self.tup_gun_parts = tuple(gun_part.lower() for gun_part in self.tup_gun_parts)
+        self.gun_parts = dict.fromkeys(self.tup_gun_parts, None)
         self.gun_attrs = {}
         self.gun_img = None
         self.gun_log = []
@@ -182,7 +183,7 @@ class Game:
             ],
             "face": [
                 {"name": None},
-                {"name": "glasses", "frames": 4, "frame_pause": 4, "pos": (0, 2)}
+                {"name": "glasses", "frames": 5, "frame_pause": 4, "pos": (0, 2)}
             ],
             "shoulder": [
                 {"name": None}
@@ -237,6 +238,8 @@ class Game:
         self.loading_world = False
         self.loading_world_perc = 0
         self.loading_world_text = None
+        # dynamic other
+        self.cannot_place_block = False
         # rendering
         self.screen_shake = 0
         self.render_offset = (0, 0)
@@ -279,7 +282,7 @@ class Game:
     def set_loading_world(self, tof):
         self.loading_world = self.events_locked = tof
         self.loading_world_perc = 0
-        
+
 
 g = Game()
 

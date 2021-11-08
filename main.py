@@ -28,27 +28,29 @@ def user_command(command):
     try:
         if command.startswith("tool"):
             args = command.split()[1:]
-            g.w.tools[args[0]]  # trying
-            g.player.tools[g.player.tooli] = args[0]
-            g.player.tool_healths[g.player.tooli] = 100
+            tool = args[0]
+            g.w.tools[tool]  # trying
+            g.player.new_tool(args[0])
         elif command.startswith("tp"):
             args = command.split()[1:]
             x, y = args[0], args[1]
-            pos = list(map(int, (x, y)))
+            pos = int(x), int(y)
             g.player.rect.center = pos
         elif command.startswith("give"):
             args = SmartList(int(arg) if arg.isdigit() else arg for arg in command.split()[1:])
             block = args[0]  # trying
             g.w.blocks[block]
-            if block in g.player.inventory:
-                g.player.inventory_amounts[g.player.inventory.index(block)] += args.get(1, 1)
-            else:
-                g.player.inventory[args.get(2, 1) - 1] = block
-                g.player.inventory_amounts[args.get(2, 1) - 1] = args.get(1, 1)
+            block = args[0]
+            amount = args.get(1, 1)
+            g.player.new_block(block, amount)
         elif command:
             raise Exception
     except Exception:
         MessageboxError(Window.display, "Invalid or unusable command", **g.def_widget_kwargs)
+        
+
+def custom_language(lang):
+    t.init(lang)
         
         
 def is_gun(name):
@@ -88,8 +90,15 @@ def is_clickable(block):
 
 
 def stop_crafting():
-    g.crafting = None
     g.craftings = {}
+    g.crafting_log = []
+    g.gun_parts = {}
+    g.gun_log = []
+    g.burnings = {}
+    g.burning_log = []
+    g.fuels = {}
+    g.fuel_log = []
+    g.crafting = None
 
 
 def is_eatable(food):
@@ -247,7 +256,7 @@ def new_world(worldcode=None):
         t.setDaemon(True)
         t.start()
 
-    ewn = Entry(Window.display, init_world_data, "Enter world name:", pos=(DPX, DPY - 30), font=orbit_fonts[20])
+    ewn = Entry(Window.display, "Enter world name:", init_world_data, pos=DPP)
 
 
 def settings():
@@ -289,7 +298,8 @@ def delete_all_worlds():
             g.w.name = None
             g.p.next_worldbutton_pos = g.p.starting_worldbutton_pos[:]
             g.p.new_world_count = 1
-        MessageboxOkCancel(Window.display, "Delete all worlds? This cannot be undone.", delete, pos=DPP, font=orbit_fonts[20])
+            
+        MessageboxOkCancel(Window.display, "Delete all worlds? This cannot be undone.", delete, **g.def_widget_kwargs)
     else:
         MessageboxError(Window.display, "You have no worlds to delete.", **g.def_widget_kwargs)
 
@@ -326,8 +336,6 @@ def init_world(type_):
 
     # dynamic surfaces
     g.bars_bg = pygame.Surface((210, len(g.player.stats.keys()) * (17 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
-    # game
-    g.gun_parts = dict.fromkeys(g.tup_gun_parts, None)
     # player
     g.player.rect.center = (500, 500)
     g.player.yvel = 0
@@ -741,7 +749,7 @@ class PlayWidgets:
         _bg = pygame.Surface(g.player_size); _bg.fill(GRAY)
         for image in g.player.images:
             image = SmartSurface.from_surface(image)
-            image.cblit(bg, [s / 2 for s in image.get_size()])
+            image.cblit(_bg, [s / 2 for s in image.get_size()])
         if not g.player.images:
             g.player.images = [pygame.Surface(g.player_size)]; g.player.images[0].fill(GRAY)
         for anim in range(longest_sprs_len):
@@ -1018,8 +1026,8 @@ class Player:
         self.tool_healths[self.empty_tooli] = 100
         self.empty_tool = name
     
-    def link_worlds():
-        pass
+    def link_worlds(self):
+        g.cannot_place_block = True
         
     def interact(self):
         pass
@@ -1101,7 +1109,7 @@ class Player:
                 self.username = username
             else:
                 self.rand_username()
-        Entry(Window.display, set_username, "Enter your new username:", pos=DPP, default_text=("random", orbit_fonts[20]))
+        Entry(Window.display, "Enter your new username:", set_username, pos=DPP, default_text=("random", orbit_fonts[20]))
 
     def movex(self, xvel):
         self.dx += xvel
@@ -1423,7 +1431,7 @@ class Block:
         elif "command-block" in self.name:
             def set_command(cmd):
                 self.cmd = cmd
-            Entry(Window.display, set_command, "Enter your command:", pos=DPP)
+            Entry(Window.display, "Enter your command:", set_command, pos=DPP)
 
 
 class Projectile(pygame.sprite.Sprite):
@@ -1822,7 +1830,7 @@ class MessageboxWorld(pygame.sprite.Sprite):
                     else:
                         MessageboxError(Window.display, "World name is invalid.", **g.def_widget_kwargs)
 
-            Entry(Window.display, rename, "Rename world to:", pos=DPP)
+            Entry(Window.display, "Rename world to:", rename, pos=DPP)
 
         elif option == "download":
             with open(path("Worlds", self.data["world"] + ".dat"), "rb") as f:
@@ -1871,7 +1879,7 @@ def main(debug):
         last_rain_partice = ticks()
         last_snow_particle = ticks()
         last_space = ticks()
-        # testing
+        # dynamic stuff
         first_music = False
         music_count = None
         # counts
@@ -1890,7 +1898,6 @@ def main(debug):
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
         print()
         while running:
-            print(g.player.inventory, g.player.inventory_amounts)
             # fps cap
             dt = g.clock.tick(g.fps_cap) / 1000 * 120
             
@@ -1981,7 +1988,7 @@ def main(debug):
                                             g.burnings[g.burning_log[-1]] -= 1
                                             if g.burnings[g.burning_log[-1]] == 0:
                                                 del g.burnings[g.burning_log[-1]]
-                                            del g.burning[-1]
+                                            del g.burning_log[-1]
                                 
                                 elif g.crafting == "gun":
                                     if event.key == K_SPACE:
@@ -1996,7 +2003,7 @@ def main(debug):
                                             g.gun_img = real_colorkey(g.gun_img, LIGHT_GRAY)
                                             g.gun_img = crop_transparent(g.gun_img)
                                             g.gun_img = scalex(g.gun_img, 0.7)
-                                            Entry(Window.display, custom_gun, "Custom gun name:", pos=DPP, input_required=True)
+                                            Entry(Window.display, "Custom gun name:", custom_gun, pos=DPP, input_required=True)
                                     
                                     elif event.key == K_BACKSPACE:
                                         g.gun_parts[g.gun_log[-1]] = None
@@ -2009,10 +2016,13 @@ def main(debug):
                                         g.player.main = "block"
 
                                 if event.key == K_c:
-                                    Entry(Window.display, user_command, "Enter your command:", pos=DPP)
+                                    Entry(Window.display, "Enter your command:", user_command, pos=DPP)
 
                                 elif event.key == K_p:
                                     g.player.cust_username()
+                                
+                                elif event.key == K_l:
+                                    Entry(Window.display, "Enter language:", custom_language, pos=DPP)
 
                                 elif event.key == K_s:
                                     if g.w.mode == "freestyle":
@@ -2150,7 +2160,7 @@ def main(debug):
                                     if no_widgets(Entry):
                                         if entity.rect.collidepoint(g.mouse):
                                             if entity.sort == "portal" and entity.is_drawable():
-                                                MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", pos=DPP)
+                                                MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", **g.def_widget_kwargs)
 
                     elif event.type == pygame.MOUSEBUTTONUP:
                         if event.button == 1:
@@ -2194,7 +2204,7 @@ def main(debug):
             if g.stage == "play":  
                 if not g.menu:
                     if g.mouses[0]:
-                        if g.clicked_when == "play":
+                        if g.clicked_when == "play" and not g.cannot_place_block:
                             if not g.menu:
                                 if g.player.main == "tool":
                                     if g.player.tool is not None:
@@ -2254,6 +2264,8 @@ def main(debug):
                                                     if block.rect.colliderect(visual.rect):
                                                         block.try_breaking("tool")
                                                         break
+                    else:
+                        g.cannot_place_block = False
 
                 # filling
                 Window.display.fill(g.w.dnc_color)
@@ -2385,7 +2397,7 @@ def main(debug):
                     yo = 30 + 10
                     for burning in g.burnings:
                         if g.fuels:
-                            pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
+                            pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_rect.center)
                         Window.display.cblit(g.w.blocks[burning], (x, y))
                         write(Window.display, "midright", g.burnings[burning], orbit_fonts[15], BLACK, x - 20, y)
                         y += yo
