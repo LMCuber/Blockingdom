@@ -8,8 +8,7 @@ import PIL.ImageEnhance
 import PIL.ImageDraw
 import PIL.ImageFilter
 from datetime import date
-from pyengine.pgbasics import *
-center_window()
+from pyengine.pgwidgets import *
 from pyengine.imports import *
 from pyengine.basics import *
 from pyengine.pilbasics import *
@@ -37,6 +36,7 @@ class Window:
     pygame.display.set_caption(f"Blockingdom {System.version}")
     window = pygame.display.set_mode((width, height))
     display = SmartSurface(size)
+    center_window()
     
     
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
@@ -74,6 +74,8 @@ gun_crafter_part_poss = {"stock": (rx + w // 2 - 32, ry + h // 2 - 9),
                          
 # bg images
 frame_img = cimgload("Images", "Background", "frame.png")
+arrow_imgs = cimgload("Images", "Spritesheets", "arrow.png", frames=11)
+shower_imgs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
 pygame.display.set_icon(cimgload("Images", "Visuals", "icon.png"))
@@ -140,12 +142,14 @@ class Game:
         self.player_model = pygame.Surface([s * self.skin_scale_mult for s in self.player_size]); self.player_model.fill(GRAY)
         self.player_model_pos = (338, 233)
         self.tool_range = 30
+        self.player_commands = {"tool", "tp", "give"}
         # in-game attributes
         self.stage = "home"
         self.home_stage = None
         self.menu = False
         self.skin_menu = False
         self.first_affection = None
+        self.opened_file = False
         # surfaces
         self.night_sky = pygame.Surface(Window.size)
         self.menu_surf = pygame.Surface(Window.size); self.menu_surf.set_alpha(100)
@@ -155,13 +159,14 @@ class Game:
         self.crafting = None
         self.craftings = {}
         self.craftable = None
-        self.craft_by_what = None  # list -> int
+        self.craft_by_what = None  # list -> int (later)
         self.crafting_log = []
         # furnace
         self.burnings = {}
-        self.burning_log = []
-        self.fuels = {}
-        self.fuel_log = []
+        self.furnace_log = []
+        self.fuels = SmartOrderedDict()
+        self.fuel_index = 0
+        self.fuel_health = None
         # gun crafter
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
         self.extra_gun_parts = ("scope", "silencer")
@@ -282,6 +287,14 @@ class Game:
     def set_loading_world(self, tof):
         self.loading_world = self.events_locked = tof
         self.loading_world_perc = 0
+    
+    def handle_opened_file(self):
+        with open("config.json") as f:
+            try:
+                print(json.load(f))
+            except json.decoder.JSONDecodeError:
+                MessageboxError(Window.display, "Invalid data in config.json", pos=DPP)
+        self.opened_file = False
 
 
 g = Game()
@@ -303,6 +316,7 @@ def is_in(elm, seq):
 
 def bpure(str_):
     ret = str_.removesuffix("_bg")
+    ret = ret.replace("-", " ")
     return ret.split("_")[1] if "_" in ret else ret
         
         

@@ -155,7 +155,7 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                 # vines
                 if biome in ("swamp", "jungle"):
                     vine_height = nordis(tree_height // 2, 2)
-                    vine_index = np.random.choice((tree_index + HL - 2,
+                    vine_index = choice((tree_index + HL - 2,
                                                 tree_index + HL - 1,
                                                 tree_index + HL + 1,
                                                 tree_index + HL + 2))

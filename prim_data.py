@@ -13,9 +13,18 @@ class Entity:
     entity_imgs = {}
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
     
-    def __init__(self, images, pos, screen, layer, anchor="bottomleft", *args, **kwargs):
+    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", *args, **kwargs):
         self.anim = 0
-        self.images = [SmartSurface.from_surface(image) for image in images] if isinstance(images, list) else [SmartSurface.from_surface(img) for img in Entity.entity_imgs[images]]
+        if isinstance(img_data, list):
+            iter_ = img_data
+        elif isinstance(img_data, pygame.Surface):
+            iter_ = [img_data]
+        elif isinstance(img_data, str):
+            if img_data in Entity.entity_imgs:
+                iter_ = Entity.entity_imgs[img_data]
+            else:
+                iter_ = SmartSurface.from_string(img_data)
+        self.images = [SmartSurface.from_surface(img) for img in iter_]
         self.image = self.images[int(self.anim)]
         self.rect = self.image.get_rect()
         setattr(self.rect, anchor, [p for p in pos])
@@ -39,9 +48,10 @@ class Entity:
     def animate(self):
         self.anim += g.p.anim_fps
         try:
-            self.image = self.images[int(self.anim)]
+           self.images[int(self.anim)]
         except IndexError:
             self.anim = 0
+        finally:
             self.image = self.images[int(self.anim)]
    
 
@@ -174,6 +184,13 @@ def load_blocks():
     for name, color in [(oi, oinfo[oi]["color"]) for oi in oinfo]:
         if name != "stone":
             a.assets["blocks"][name] = swap_palette(a.assets["blocks"]["base-ore"], BLACK, color)
+            a.assets["blocks"][f"{name}-ingot"] = pygame.Surface((30, 30), pygame.SRCALPHA)
+            ingot_keys = ("blocks", f"{name}-ingot")
+            ingot_img = ndget(a.assets, ingot_keys)
+            pygame.draw.polygon(ingot_img, color, ((0, 11), (22, 3), (30, 11), (8, 19)))
+            pygame.draw.polygon(ingot_img, rgb_mult(color, 0.9), ((0, 11), (8, 19), (8, 27), (0, 19)))
+            pygame.draw.polygon(ingot_img, rgb_mult(color, 0.8), ((8, 19), (30, 11), (30, 19), (8, 27)))
+            a.assets[ingot_keys[0]][ingot_keys[1]] = pil2pg(pil_pixelate(pg2pil(ndget(a.assets, ingot_keys)), (10, 10)))
     # deleting unneceserry blocks that have been modified anyway
     del a.assets["blocks"]["soil"]
     del a.assets["blocks"]["leaf"]
@@ -284,7 +301,6 @@ dif_drop_blocks = {"coconut": {"block": "coconut-piece", "amount": 2},
 fall_damage_blocks = {"hay": 10}
 gun_blocks = []
 burnable_blocks = []
-fuel_blocks = ["coal"]
 
 finfo = {
     "apple":
@@ -293,6 +309,10 @@ finfo = {
         {"amounts": {"thirst": 4, "hunger": 4}, "speed": 1},
     "watermelon":
         {"amounts": {"thirst": 6, "hunger": 5}, "speed": 0.8}
+}
+
+fuinfo = {
+    "coal": {"index": 0.02, "sub": 0.1}
 }
 
 # loading assets
@@ -313,7 +333,7 @@ cinfo = {
 for tool in a.assets["tools"]:
     o, n = tool.split("_")
     if n == "axe":
-        cinfo[tool] = {"recipe": {norm_ore(o): 2, "stick": 1}, "energy": 8}
+        cinfo[tool] = {"recipe": {f"{norm_ore(o)}-ingot": 2, "stick": 1}, "energy": 8}
 
 c = 2
 for ore in oinfo:

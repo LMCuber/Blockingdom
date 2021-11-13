@@ -24,19 +24,19 @@ root.withdraw()
 
 
 # N O R M A L  F U N C T I O N S ---------------------------------------------------------------------- #
-def user_command(command):
+def player_command(command):
+    abs_args = command.split()
+    args = abs_args[1:]
     try:
-        if command.startswith("tool"):
-            args = command.split()[1:]
+        if command.startswith("tool "):
             tool = args[0]
             g.w.tools[tool]  # trying
             g.player.new_tool(args[0])
-        elif command.startswith("tp"):
-            args = command.split()[1:]
+        elif command.startswith("tp "):
             x, y = args[0], args[1]
             pos = int(x), int(y)
             g.player.rect.center = pos
-        elif command.startswith("give"):
+        elif command.startswith("give "):
             args = SmartList(int(arg) if arg.isdigit() else arg for arg in command.split()[1:])
             block = args[0]  # trying
             g.w.blocks[block]
@@ -46,11 +46,16 @@ def user_command(command):
         elif command:
             raise Exception
     except Exception:
-        MessageboxError(Window.display, "Invalid or unusable command", **g.def_widget_kwargs)
+        try:
+            text = f"Did you mean '{correct(abs_args[0], g.player_commands)[0]}'?"
+        except IndexError:
+            text = "Invalid or unusable command"
+        finally:
+            MessageboxError(Window.display, text, **g.def_widget_kwargs)
         
 
 def custom_language(lang):
-    t.init(lang)
+    g.w.language = lang
         
         
 def is_gun(name):
@@ -90,14 +95,15 @@ def is_clickable(block):
 
 
 def stop_crafting():
+    """
     g.craftings = {}
     g.crafting_log = []
     g.gun_parts = {}
     g.gun_log = []
     g.burnings = {}
-    g.burning_log = []
+    g.furnace_log = []
     g.fuels = {}
-    g.fuel_log = []
+    """
     g.crafting = None
 
 
@@ -229,7 +235,7 @@ def new_world(worldcode=None):
                                 wn = f"New_World_{g.p.new_world_count}"
                                 g.p.new_world_count += 1
                             g.w = World()
-                            generate_world(biome="jungle")
+                            generate_world(biome="industry")
                             group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                             g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                             g.w.mode = game_mode
@@ -306,14 +312,14 @@ def delete_all_worlds():
 
 def cr_block(name, screen=-1, index=None):
     g.w.data[screen].insert(index if index is not None else len(g.w.data[screen]), name)
-
+    
 
 def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["water", "furnace", "workbench", "glass", None]
-            g.player.inventory_amounts = [1, 1, 1, 1, None]
+            g.player.inventory = ["iron-ingot", "workbench", "stick", None, None]
+            g.player.inventory_amounts = [10, 1, 1, None, None]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -548,6 +554,7 @@ class World:
         self.name = None
         # game settings
         self.show_hitboxes = False
+        self.language = "english"
         # day-night cycle
         self.hound_round = False
         self.hound_round_chance = 20
@@ -648,9 +655,10 @@ class PlayWidgets:
             Slider(Window.display, "Animation", range(21), int(g.p.anim_fps * g.fps_cap), height=60, **_menu_widget_kwargs),
             Slider(Window.display, "Volume", range(101), int(g.p.volume * 100), height=60, **_menu_widget_kwargs),
             ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
-            Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
+            Button(Window.display, "Specs", self.show_specs_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
+            Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs)
         ]
-        _y = 140
+        _y = 130
         for mw in self.menu_widgets:
             mw.set_pos((DPX, _y), "midtop")
             if isinstance(mw, Slider):
@@ -678,7 +686,7 @@ class PlayWidgets:
             self.change_skin_buttons[-1]["mask"] = pygame.mask.from_surface(self.change_skin_buttons[-1]["surf"])
         sx = 135
         x = sx
-        y = 135
+        y = 50
         for num, button in enumerate(self.change_skin_buttons):
             button["rect"] = button["surf"].get_rect(center=(x, y))
             if num == 3:
@@ -788,6 +796,11 @@ class PlayWidgets:
             g.ckeys["p left"] = K_LEFT
             g.ckeys["p down"] = K_DOWN
             g.ckeys["p right"] = K_RIGHT
+        
+    @staticmethod
+    def show_specs_command():
+        g.opened_file = True
+        os.system("notepad config.json")
 
     @staticmethod
     def save_and_quit_command():
@@ -932,15 +945,7 @@ class Player:
     @property
     def angle(self):
         return revnum(degrees(two_pos_to_angle(self.rect.center, g.mouse)))
-
-    @property
-    def lives(self):
-        return self.stats["lives"]["amount"]
-    
-    @lives.setter
-    def lives(self, value):
-        self.stats["lives"]["amount"] = value
-
+        
     @property
     def item(self):
         return self.inventory[self.indexes[self.main]]
@@ -1015,12 +1020,52 @@ class Player:
     @amount.setter
     def amount(self, value):
         self.inventory_amounts[self.indexes[self.main]] = value
-            
+   
     def new_block(self, name, amount):
         if name in self.inventory:
             self.inventory_amounts[self.inventory.index(name)] += amount
         else:
             self.empty_block = name, amount
+            
+    @property
+    def lives(self):
+        return self.stats["lives"]["amount"]
+    
+    @lives.setter
+    def lives(self, value):
+        self.stats["lives"]["amount"] = value
+    
+    @property
+    def hunger(self):
+        return self.stats["hunger"]["amount"]
+    
+    @hunger.setter
+    def hunger(self, value):
+        self.stats["hunger"]["amount"] = value
+    
+    @property
+    def thirst(self):
+        return self.stats["thirst"]["amount"]
+   
+    @thirst.setter
+    def thirst(self, value):
+        self.stats["thirst"]["amount"] = value
+    
+    @property
+    def energy(self):
+        return self.stats["energy"]["amount"]
+    
+    @energy.setter
+    def energy(self, value):
+        self.stats["energy"]["amount"] = value
+    
+    @property
+    def oxygen(self):
+        return self.stats["o2"]["amount"]
+    
+    @oxygen.setter
+    def oxygen(self, value):
+        self.stats["o2"]["amount"] = value
     
     def new_tool(self, name):
         self.tool_healths[self.empty_tooli] = 100
@@ -1038,7 +1083,8 @@ class Player:
         for widget in pw.death_screen_widgets:
             widget.enable()
 
-    def use_up_inv(self, index, amount=1):
+    def use_up_inv(self, index=None, amount=1):
+        index = index if index is not None else self.blocki
         self.inventory_amounts[index] -= amount
         if self.inventory_amounts[index] == 0:
             self.inventory[index] = None
@@ -1262,9 +1308,10 @@ class Player:
     def animate(self):
         self.anim += g.p.anim_fps
         try:
-            self.image = self.images[int(self.anim)]
+           self.images[int(self.anim)]
         except IndexError:
             self.anim = 0
+        finally:
             self.image = self.images[int(self.anim)]
 
 
@@ -1882,13 +1929,12 @@ def main(debug):
         # dynamic stuff
         first_music = False
         music_count = None
+        # static stuff
+        t = GoogletransTranslator()
         # counts
         g.stage = "home"
-        # really start
-        #atexit.register(MethodHandler.save, "quit")  # in case of a fatal bug / crash the game autosaves
-        if platform.system() == "Windows":
-            # windows signals
-            pass
+        # end signals
+        pass
         # loop
         running = True
         print()
@@ -1897,12 +1943,16 @@ def main(debug):
         print(f"Loaded in: {loading_time}s")
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
         print()
+        
         while running:
             # fps cap
             dt = g.clock.tick(g.fps_cap) / 1000 * 120
+            t.init(g.w.language)
             
             # global dynamic variables
             g.p.anim_fps = pw.anim_fps.value / g.fps_cap
+            if g.opened_file:
+                g.handle_opened_file()
 
             # music
             if g.stage == "play":
@@ -1945,6 +1995,7 @@ def main(debug):
                                             else:
                                                 g.craftings[g.player.block] = 1 if g.mod != K_CTRL else g.player.amount
                                                 g.crafting_log.append(g.player.block)
+                                            g.player.use_up_inv()
 
                                     elif event.key == K_ENTER:
                                          if g.craftable is not None:
@@ -1960,35 +2011,41 @@ def main(debug):
                                                     stop_crafting()
 
                                     elif event.key == K_BACKSPACE:
-                                        if g.crafting_log:
-                                            g.craftings[g.crafting_log[-1]] -= 1
-                                            if g.craftings[g.crafting_log[-1]] == 0:
-                                                del g.craftings[g.crafting_log[-1]]
-                                            del g.crafting_log[-1]
+                                        pass
                                             
                                 elif g.crafting == "furnace":
                                     if event.key == K_SPACE:
                                         if g.player.block is not None:
-                                            if g.player.block not in fuel_blocks:
+                                            if g.player.block not in fuinfo:
                                                 if g.player.block in g.burnings:
                                                     if g.player.amount - g.burnings[g.player.block] > 0:
                                                         g.burnings[g.player.block] += 1 if g.mod != K_CTRL else g.player.amount - g.craftings[g.player.block]
                                                 else:
                                                     g.burnings[g.player.block] = 1 if g.mod != K_CTRL else g.player.amount
-                                                g.burning_log.append(g.player.block)
+                                                g.furnace_log.append(g.player.block)
                                             else:
                                                 if g.player.block in g.fuels:
-                                                    g.fuels[g.player.block] += 1 if g.mod != K_CTRL else g.player.amount - g.craftings[g.player.block]
+                                                    if g.player.amount - g.fuels[g.player.block] > 0:
+                                                        g.fuels[g.player.block] += 1 if g.mod != K_CTRL else g.player.amount - g.craftings[g.player.block]
                                                 else:
                                                     g.fuels[g.player.block] = 1 if g.mod != K_CTRL else g.player.amount
-                                                g.fuel_log.append(g.player.block)
+                                                g.furnace_log.append(g.player.block)
+                                            if not g.fuels:
+                                                g.fuel_health = 100
+                                            g.player.use_up_inv()
                                                 
                                     elif event.key == K_BACKSPACE:
-                                        if g.burning_log:
-                                            g.burnings[g.burning_log[-1]] -= 1
-                                            if g.burnings[g.burning_log[-1]] == 0:
-                                                del g.burnings[g.burning_log[-1]]
-                                            del g.burning_log[-1]
+                                        if g.furnace_log:
+                                            g.player.new_block(g.furnace_log[-1], 1)
+                                            if g.furnace_log[-1] not in fuinfo:
+                                                g.burnings[g.furnace_log[-1]] -= 1
+                                                if g.burnings[g.furnace_log[-1]] == 0:
+                                                    del g.burnings[g.furnace_log[-1]]
+                                            else:
+                                                g.fuels[g.furnace_log[-1]] -= 1
+                                                if g.fuels[g.furnace_log[-1]] == 0:
+                                                    g.fuels.delval(g.furnace_log[-1])
+                                            del g.furnace_log[-1]
                                 
                                 elif g.crafting == "gun":
                                     if event.key == K_SPACE:
@@ -2006,8 +2063,7 @@ def main(debug):
                                             Entry(Window.display, "Custom gun name:", custom_gun, pos=DPP, input_required=True)
                                     
                                     elif event.key == K_BACKSPACE:
-                                        g.gun_parts[g.gun_log[-1]] = None
-                                        del g.gun_log[-1]
+                                        pass
                                     
                                 elif event.key == K_SPACE:
                                     if g.player.main == "block":
@@ -2016,7 +2072,7 @@ def main(debug):
                                         g.player.main = "block"
 
                                 if event.key == K_c:
-                                    Entry(Window.display, "Enter your command:", user_command, pos=DPP)
+                                    Entry(Window.display, "Enter your command:", player_command, pos=DPP)
 
                                 elif event.key == K_p:
                                     g.player.cust_username()
@@ -2406,8 +2462,26 @@ def main(debug):
                             x += xo
                     x, y = crafting_rect.center
                     for fuel in g.fuels:
+                        if g.burnings:
+                            g.fuel_index += fuinfo[fuel]["index"] * (g.player.oxygen / 100)
+                            g.fuel_health -= fuinfo[fuel]["sub"]
                         Window.display.cblit(g.w.blocks[fuel], (x, y))
                         write(Window.display, "midbottom", g.fuels[fuel], orbit_fonts[15], BLACK, x, y + 40)
+                    if g.burnings:
+                        try:
+                            arrow_imgs[int(g.fuel_index)]
+                        except IndexError:
+                            g.fuel_index = 0
+                        finally:
+                            Window.display.cblit(arrow_imgs[int(g.fuel_index)], (x, y + 55))
+                        try:
+                            _surf = shower_imgs[int(8 - g.fuel_health / 12.5)]
+                        except IndexError:
+                            g.fuel_health = 100
+                            _surf = shower_imgs[0]
+                            g.fuels.delindex(0)
+                        finally:
+                            Window.display.cblit(_surf, (x + 25, y))
                             
                 # anvil
                 elif g.crafting == "anvil":
@@ -2436,7 +2510,7 @@ def main(debug):
                         item = gpure(g.player.block).upper()
                     else:
                         item = bpure(g.player.block).upper()
-                    write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
+                    write(Window.display, "center", t | item, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
                 elif g.player.main == "tool" and g.player.tool is not None:
                     item = g.player.tool.replace("_", " ").upper()
                     write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 - 96 - 35, 90)
