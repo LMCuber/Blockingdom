@@ -53,6 +53,10 @@ def player_command(command):
         finally:
             MessageboxError(Window.display, text, **g.def_widget_kwargs)
             
+            
+def is_smither(tool):
+    return tool.split("_")[1] == "hammer"
+            
 
 def toggle_main():
     if g.player.main == "block":
@@ -242,7 +246,7 @@ def new_world(worldcode=None):
                                 wn = f"New_World_{g.p.new_world_count}"
                                 g.p.new_world_count += 1
                             g.w = World()
-                            generate_world(biome=biome)
+                            generate_world(biome="jungle")
                             group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                             g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                             g.w.mode = game_mode
@@ -325,8 +329,8 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["anvil", "iron-ingot", "stick", None, None]
-            g.player.inventory_amounts = [1, 2, 1, None, None]
+            g.player.inventory = ["anvil", "iron-ingot", "stick", "workbench", None]
+            g.player.inventory_amounts = [1, 2, 1, 1, None]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -505,7 +509,7 @@ def is_home_worlds():
 
 
 # N O N - G R A P H I C A L  C L A S S E S ------------------------------------------------------------ #
-class MethodHandler:
+class ExitHandler:
     @staticmethod
     def save(stage):
         # home bg image
@@ -541,6 +545,16 @@ class MethodHandler:
         # cleanup attributes
         g.w.screen = None
         g.w.name = None
+        g.craftings = {}
+        g.burnings = {}
+        g.furnace_log = []
+        g.fuels = {}
+        g.smithings = {}
+        g.smither = None
+        g.anvil_log = []
+        g.crafting_log = []
+        g.gun_parts = {}
+        g.gun_log = []
         # final
         if stage == "quit":
             g.stop()
@@ -715,7 +729,7 @@ class PlayWidgets:
                     for data in g.player.stats.values():
                         if data:
                             pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
-                            pygame.draw.rect(Window.display, g.bar_rgb[int(data["amount"] - 1 * (100 / 99))], (*[p + 2 for p in (x, y)], fromperc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
+                            pygame.draw.rect(Window.display, g.bar_rgb[int((data["amount"] - 1) * (99 / 100))], (*[p + 2 for p in (x, y)], fromperc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
                             Window.display.blit(g.w.icons[data["icon"]], (x - 22, y - 3))
                             write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], g.w.text_color, x + bar_outline_width + 8, y + 3)
                         y += 20
@@ -813,7 +827,7 @@ class PlayWidgets:
     def save_and_quit_command():
         destroy_widgets()
         empty_group(all_drops)
-        MethodHandler.save("home")
+        ExitHandler.save("home")
         g.stage = "home"
         g.menu = False
 
@@ -1143,7 +1157,7 @@ class Player:
     def drops(self):
         for drop in all_drops:
             if drop.rect.colliderect(self.rect):
-                if None in g.player.inventory:
+                if None in g.player.inventory or drop.name in g.player.inventory:
                     self.new_block(drop.name, drop.drop_amount)
                     drop.kill()
                     pitch_shift(pickup_sound).play()
@@ -2007,10 +2021,10 @@ def main(debug):
                                             g.player.use_up_inv()
 
                                     elif event.key == K_ENTER:
-                                         if g.craftable is not None:
-                                            if g.player.stats["xp"]["amount"] >= cinfo[craftable].get("xp", 0):
-                                                if g.player.stats["energy"]["amount"] - cinfo[craftable].get("energy", 0) >= 0:
-                                                    g.player.stats["energy"]["amount"] -= cinfo[craftable].get("energy", 0)
+                                        if g.craftable is not None:
+                                            if g.player.stats["xp"]["amount"] >= cinfo[g.craftable].get("xp", 0):
+                                                if g.player.stats["energy"]["amount"] - cinfo[g.craftable].get("energy", 0) >= 0:
+                                                    g.player.stats["energy"]["amount"] -= cinfo[g.craftable].get("energy", 0)
                                                     if craftable in g.w.blocks:
                                                         g.player.new_block(g.craftable, g.craft_by_what)
                                                     else:
@@ -2019,11 +2033,12 @@ def main(debug):
 
                                     elif event.key == K_BACKSPACE:
                                         if g.crafting_log:
-                                            g.craftings[g.crafting_log[-1]] -= 1
-                                            if g.craftings[g.crafting_log[-1]] == 0:
-                                                del g.craftings[g.crafting_log[-1]]
-                                            g.player.new_block(g.crafting_log[-1])
-                                            del g.crafting_log[-1]
+                                            if None in g.player.inventory:
+                                                g.craftings[g.crafting_log[-1]] -= 1
+                                                if g.craftings[g.crafting_log[-1]] == 0:
+                                                    del g.craftings[g.crafting_log[-1]]
+                                                g.player.new_block(g.crafting_log[-1])
+                                                del g.crafting_log[-1]
                                             
                                 elif g.crafting == "furnace":
                                     if event.key == K_SPACE:
@@ -2048,32 +2063,56 @@ def main(debug):
                                                 
                                     elif event.key == K_BACKSPACE:
                                         if g.furnace_log:
-                                            g.player.new_block(g.furnace_log[-1], 1)
-                                            if g.furnace_log[-1] not in fuinfo:
-                                                g.burnings[g.furnace_log[-1]] -= 1
-                                                if g.burnings[g.furnace_log[-1]] == 0:
-                                                    del g.burnings[g.furnace_log[-1]]
-                                            else:
-                                                g.fuels[g.furnace_log[-1]] -= 1
-                                                if g.fuels[g.furnace_log[-1]] == 0:
-                                                    g.fuels.delval(g.furnace_log[-1])
-                                            del g.furnace_log[-1]
+                                            if None in g.player.inventory:
+                                                g.player.new_block(g.furnace_log[-1], 1)
+                                                if g.furnace_log[-1] not in fuinfo:
+                                                    g.burnings[g.furnace_log[-1]] -= 1
+                                                    if g.burnings[g.furnace_log[-1]] == 0:
+                                                        del g.burnings[g.furnace_log[-1]]
+                                                else:
+                                                    g.fuels[g.furnace_log[-1]] -= 1
+                                                    if g.fuels[g.furnace_log[-1]] == 0:
+                                                        g.fuels.delval(g.furnace_log[-1])
+                                                del g.furnace_log[-1]
                                     
                                 elif g.crafting == "anvil":
                                     if event.key == K_SPACE:
                                         if g.player.main == "tool":
                                             if g.player.tool is not None:
-                                                if g.player.tool.split("_")[1] == "hammer":
+                                                if is_smither(g.player.tool):
                                                     g.smither = g.player.tool
+                                                    g.anvil_log.append(g.player.tool)
                                         elif g.player.main == "block":
-                                            print(1)
                                             if g.player.block is not None:
                                                 if g.player.block not in g.smithings:
                                                     g.smithings[g.player.block] = 1
                                                 else:
                                                     g.smithings[g.player.block] += 1
                                                 g.player.use_up_inv()
+                                                g.anvil_log.append(g.player.block)
                                     
+                                    elif event.key == K_BACKSPACE:
+                                        if g.anvil_log:
+                                            if not is_smither(g.anvil_log):
+                                                if None in g.player.inventory:
+                                                    g.player.new_block(g.anvil_log[-1])
+                                                    del g.anvil_log[-1]
+                                            else:
+                                                if None in g.player.tools:
+                                                    g.player.empty_tool = g.anvil_log[-1]
+                                                    del g.anvil_log[-1]
+                                    
+                                    elif event.key == K_ENTER:
+                                         if g.smithable is not None:
+                                            if g.player.stats["xp"]["amount"] >= ainfo[g.smithable].get("xp", 0):
+                                                if g.player.stats["energy"]["amount"] - ainfo[g.smithable].get("energy", 0) >= 0:
+                                                    g.player.stats["energy"]["amount"] -= ainfo[g.smithable].get("energy", 0)
+                                                    if smithable in g.w.blocks:
+                                                        g.player.new_block(g.smithable, g.craft_by_what)
+                                                    else:
+                                                        g.player.new_tool(g.smithable)
+
+                                                
                                 elif g.crafting == "gun":
                                     if event.key == K_SPACE:
                                         if g.player.block in gun_blocks: 
@@ -2509,20 +2548,59 @@ def main(debug):
                             
                 # anvil
                 elif g.crafting == "anvil":
-                    Window.display.blit(anvil_img, crafting_rect)
-                
                     x = crafting_rect.x + 30 / 2 + 25
                     y = crafting_rect.y + 30 + 30 / 2 + 10
                     sy = y
                     xo = 30 + 5
                     yo = 30 + 10
-                    for smithable in g.smithings:
-                        Window.display.cblit(g.w.blocks[smithable], (x, y))
-                        write(Window.display, "midright", g.smithings[smithable], orbit_fonts[15], BLACK, x - 20, y)
-                    
+                    Window.display.blit(anvil_img, crafting_rect)                
+                    for smithing in g.smithings:
+                        # anvil material
+                        if g.smither is not None:
+                            pygame.draw.aaline(Window.display, BLACK, (x + 30 / 2, y), crafting_center)
+                        Window.display.cblit(g.w.blocks[smithing], (x, y))
+                        write(Window.display, "midright", g.smithings[smithing], orbit_fonts[15], BLACK, x - 20, y)
+                        y += yo
+                        if (y - sy) / yo == 5:
+                            y = sy
+                            x += xo
+                        # recieving material
+                        enough = 0
+                        g.craft_by_what = []
+                        try:
+                            for smithable in ainfo:
+                                truthy = True
+                                for recipe_block in g.smithings:
+                                    try:
+                                        if ainfo[smithable]["recipe"][recipe_block] > g.smithings[recipe_block]:
+                                            truthy = False
+                                            break
+                                    except KeyError:
+                                        truthy = False
+                                        break
+                                if truthy:
+                                    if g.player.stats["energy"]["amount"] - ainfo[smithable].get("energy", float("-inf")) >= 0:
+                                        for recipe_block in ainfo[smithable]["recipe"]:
+                                            if g.craftings.get(recipe_block, float("-inf")) >= ainfo[smithable]["recipe"][recipe_block]:
+                                                enough += 1
+                                                g.craft_by_what.append(g.craftings[recipe_block] // ainfo[smithable]["recipe"][recipe_block] * cinfo[craftable].get("amount", 1))
+                                            if enough == len(ainfo[smithable]["recipe"]):
+                                                g.smithable = smithable
+                                                raise BreakAllLoops
+                                            else:
+                                                g.smithable = None
+                        except BreakAllLoops:
+                            pygame.draw.aaline(Window.display, BLACK, crafting_center, (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                            if smithable in g.w.blocks:
+                                Window.display.cblit(g.w.blocks[smithable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                            elif smithable in g.w.tools:
+                                Window.display.cblit(g.w.tools[smithable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
+                            g.craft_by_what = min(g.craft_by_what)
+                            write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
+                    # smither
                     if g.smither is not None:
-                        Window.display.cblit(g.w.tools[g.smither], crafting_rect.center)
-                    
+                        Window.display.cblit(g.w.tools[g.smither], crafting_center)
+                        
                 # gun
                 elif g.crafting == "gun":
                     Window.display.blit(gun_crafter_img, crafting_rect)
@@ -2576,7 +2654,7 @@ def main(debug):
                         if tpure(tool) in tinfo:
                             th = g.player.tool_healths[index]
                             if th < 100:
-                                pygame.draw.rect(Window.display, g.bar_rgb[int(th) * (100 / 99)], (x - 14, y + 23, fromperc(th, 30), 5))
+                                pygame.draw.rect(Window.display, g.bar_rgb[int(th * (99 / 100))], (x - 14, y + 23, fromperc(th, 30), 5))
                     # border if selected
                     if g.player.main == "tool":
                         if index == g.player.tooli:
@@ -2689,7 +2767,7 @@ def main(debug):
             # refreshing the window
             pygame.display.update()
 
-        MethodHandler.save("quit")
+        ExitHandler.save("quit")
 
 
 if __name__ == "__main__":
