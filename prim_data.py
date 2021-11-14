@@ -191,6 +191,7 @@ def load_blocks():
             pygame.draw.polygon(ingot_img, rgb_mult(color, 0.9), ((0, 11), (8, 19), (8, 27), (0, 19)))
             pygame.draw.polygon(ingot_img, rgb_mult(color, 0.8), ((8, 19), (30, 11), (30, 19), (8, 27)))
             a.assets[ingot_keys[0]][ingot_keys[1]] = pil2pg(pil_pixelate(pg2pil(ndget(a.assets, ingot_keys)), (10, 10)))
+            unplacable_blocks.append(ingot_keys[-1])
     # deleting unneceserry blocks that have been modified anyway
     del a.assets["blocks"]["soil"]
     del a.assets["blocks"]["leaf"]
@@ -315,13 +316,6 @@ fuinfo = {
     "coal": {"index": 0.02, "sub": 0.1}
 }
 
-# loading assets
-load_blocks()
-load_tools() 
-load_guns()
-load_icons()
-load_asset_sizes()
-
 # crafting info
 cinfo = {
     "wooden-planks": {"recipe": {"wood": 1}, "amount": 2, "energy": 5},
@@ -329,11 +323,6 @@ cinfo = {
     "anvil": {"recipe": {"stone": 1}, "energy": 10},
     "portal-generator": {"recipe": {"water": 1}}
 }
-
-for tool in a.assets["tools"]:
-    o, n = tool.split("_")
-    if n == "axe":
-        cinfo[tool] = {"recipe": {f"{norm_ore(o)}-ingot": 2, "stick": 1}, "energy": 8}
 
 c = 2
 for ore in oinfo:
@@ -346,4 +335,20 @@ ginfo = {
     "scope": {"prototype": (GREEN + (150,), True)}
 }
 
+ainfo = {}
+
 unplacable_blocks = [*gun_blocks]
+
+# loading assets
+load_blocks()
+load_tools() 
+load_guns()
+load_icons()
+load_asset_sizes()
+
+# initializations after asset loading
+for tool in a.assets["tools"]:
+    o, n = tool.split("_")
+    if n == "axe":
+        o = norm_ore(o) + ("-ingot" if o != "wood" else "")
+        ainfo[tool] = {"recipe": {o: 2, "stick": 1}, "energy": 8}

@@ -167,6 +167,10 @@ class Game:
         self.fuels = SmartOrderedDict()
         self.fuel_index = 0
         self.fuel_health = None
+        # anvil
+        self.smithings = {}
+        self.smithing_log = []
+        self.smither = None
         # gun crafter
         self.tup_gun_parts = os.listdir(path("Images", "Guns"))
         self.extra_gun_parts = ("scope", "silencer")
