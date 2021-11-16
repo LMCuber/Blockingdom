@@ -41,7 +41,7 @@ class Window:
     
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
 cimgload = partial(imgload, scale=3)
-# visual things
+# backgrounds
 inventory_img = cimgload("Images", "Background", "inventory.png")
 tool_holders_img = cimgload("Images", "Background", "tool_holders.png")
 square_border_img = cimgload("Images", "Background", "square_border.png")
@@ -49,6 +49,15 @@ pouch_img = cimgload("Images", "Background", "pouch.png")
 pouch_icon = cimgload("Images", "Background", "pouch_icon.png")
 player_hit_chart = cimgload("Images", "Background", "player_hit_chart.png")
 lock = cimgload("Images", "Player_Skins", "lock.png")
+frame_img = cimgload("Images", "Background", "frame.png")
+                         
+# visuals
+arrow_sprs = cimgload("Images", "Spritesheets", "arrow.png", frames=11)
+shower_sprs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
+right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
+death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
+pygame.display.set_icon(cimgload("Images", "Visuals", "icon.png"))
+chest_template = cimgload("Images", "Visuals", "chest_template.png")
 
 # surfaces
 workbench_img = imgload("Images", "Surfaces", "workbench.png")
@@ -57,9 +66,10 @@ workbench_icon = pygame.transform.scale(_wbi, [s // 2 for s in _wbi.get_size()])
 furnace_img = imgload("Images", "Surfaces", "furnace.png")
 anvil_img = imgload("Images", "Surfaces", "anvil.png")
 gun_crafter_img = imgload("Images", "Surfaces", "gun_crafter.png")
-# crafting constants
+# crafting and midblit constants
 crafting_center = (Window.width / 2, Window.height / 2 + 15)
 crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
+chest_rect = chest_template.get_rect(center=Window.center)
 w, h = gun_crafter_img.get_size()
 rx, ry = 205, 195
 crafting_abs_pos = (rx, ry + 30)
@@ -71,15 +81,6 @@ gun_crafter_part_poss = {"stock": (rx + w // 2 - 32, ry + h // 2 - 9),
                          "silencer": (rx + w // 2 + 50, ry + h // 2 - 14),
                          "grip": (rx + w // 2 - 6, ry + h // 2),
                          "magazine": (rx + w // 2 + 19, ry + h // 2 + 3)}
-                         
-# bg images
-frame_img = cimgload("Images", "Background", "frame.png")
-chest_template = cimgload("Images", "Background", "chest_template.png")
-arrow_sprs = cimgload("Images", "Spritesheets", "arrow.png", frames=11)
-shower_sprs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
-right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
-death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
-pygame.display.set_icon(cimgload("Images", "Visuals", "icon.png"))
 
 # F O N T S -------------------------------------------------------------------------------------------- #
 # a maximum of two (normal + italic) of them is used; the other ones are experimental
@@ -158,6 +159,7 @@ class Game:
         self.skin_menu_rect = self.skin_menu_surf.get_rect(center=[s / 2 for s in Window.display.get_size()])
         # crafting
         self.midblit = None
+        self.chest = None
         self.craftings = {}
         self.craftable = None
         self.craft_by_what = None  # list -> int (later)
@@ -222,7 +224,7 @@ class Game:
         self.clicked_when = None
         self.typing = False
         self.worldbutton_pos_ydt = 40
-        self.max_worldbutton_poss = [45, 180 + 7 * self.worldbutton_pos_ydt]
+        self.max_worldbutton_pos = [45, 180 + 6 * self.worldbutton_pos_ydt]
         # static attributes
         self.color_codes = {"b": BLACK, "w": WHITE, "g": GREEN, "u": WATER_BLUE, "y": YELLOW}
         self.ttypes = [("Data Files", "*.dat")]

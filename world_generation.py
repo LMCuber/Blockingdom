@@ -94,7 +94,7 @@ def get_leaf_type(blockname):
         return "f_leaf_bg"
 
 
-def world_generation(data, metadata, screen, biome, blockindex, blockname, lit_screen):
+def world_generation(data, metadata, screen, layer, biome, blockindex, blockname, lit_screen):
     horindex = blockindex % HL
     verindex = blockindex // HL
     entities = []
@@ -205,23 +205,23 @@ def world_generation(data, metadata, screen, biome, blockindex, blockname, lit_s
                     for i in range(cactus_height):
                         data[screen][cactus_index] = "cactus_bg"
                         cactus_index -= HL
-                elif chance(1 / 5):
+                if chance(1 / 5):
                     upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
                             data[screen][blockindex - 29], data[screen][blockindex - 26],
                             data[screen][blockindex - 25]]
                     nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
                             data[screen][blockindex + 1], data[screen][blockindex + 2]]
-                    if upp_blocks.count("air") == len(upp_blocks) and nei_blocks.count("sand") == len(nei_blocks):
-                        data[screen][blockindex - HL]  = "chest_bg"
-                        data[screen][blockindex - 28]  = "sand_bg"
-                        data[screen][blockindex - 29]  = "sand"
-                        data[screen][blockindex - 26]  = "sand_bg"
-                        data[screen][blockindex - 25]  = "sand"
-                        data[screen][blockindex - 54]  = "sand_bg"
-                        data[screen][blockindex - 55]  = "sand"
-                        data[screen][blockindex - 53]  = "sand"
-                        data[screen][blockindex - 81]  = "sand"
-                    metadata[screen][blockindex - HL] = {"chest": []}
+                    #if upp_blocks.count("air") == len(upp_blocks) and nei_blocks.count("sand") == len(nei_blocks):
+                    data[screen][blockindex - HL]  = "chest_bg"
+                    data[screen][blockindex - 28]  = "sand_bg"
+                    data[screen][blockindex - 29]  = "sand"
+                    data[screen][blockindex - 26]  = "sand_bg"
+                    data[screen][blockindex - 25]  = "sand"
+                    data[screen][blockindex - 54]  = "sand_bg"
+                    data[screen][blockindex - 55]  = "sand"
+                    data[screen][blockindex - 53]  = "sand"
+                    data[screen][blockindex - 81]  = "sand"
+                    metadata[lit_screen][layer * L + blockindex - HL] = {"chest": {"f_soil": 2, "portal-generator": 1}}
 
     elif biome == "beach":
         if "sand" in data[screen][blockindex] and "air" in data[screen][blockindex - HL]:

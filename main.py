@@ -107,7 +107,7 @@ def is_clickable(block):
         pass
 
 
-def stop_crafting():
+def stop_midblit():
     """
     g.craftings = {}
     g.crafting_log = []
@@ -227,55 +227,54 @@ def new_world(worldcode=None):
             
     _glob = Global()
 
-    #@pgloading(g, "g", "loading_world_perc", globals() | locals())
     def create():
         wn = _glob.world_name
         g.set_loading_world(True)
         game_mode = "adventure"  # switching game mode
-        if g.p.next_worldbutton_pos[1] < g.max_worldbutton_poss[1]:
-            if wn is not None:
-                if wn not in g.p.world_names:
-                    g.w.screen = 0
-                    if _glob.world_code is None:
-                        try:
-                            open(path("tempfiles", wn + ".txt"), "w").close()
-                            os.remove(path("tempfiles", wn + ".txt"))
-                        except InvalidFilenameError:
-                            MessageboxError(Window.display, "Invalid world name", pos=DPP)
-                        else:
-                            biome = choice(list(bio.blocks.keys()))
-                            if not wn:
-                                wn = f"New_World_{g.p.new_world_count}"
-                                g.p.new_world_count += 1
-                            g.w = World()
-                            generate_world(biome="desert")
-                            group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
-                            g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
-                            g.w.mode = game_mode
-                            destroy_widgets()
-                            g.menu = False
-                            g.w.name = wn
-                            g.p.world_names.append(wn)
-                            init_world("new")
+        if wn is not None:
+            if wn not in g.p.world_names:
+                g.w.screen = 0
+                if _glob.world_code is None:
+                    try:
+                        open(path("tempfiles", wn + ".txt"), "w").close()
+                        os.remove(path("tempfiles", wn + ".txt"))
+                    except InvalidFilenameError:
+                        MessageboxError(Window.display, "Invalid world name", pos=DPP)
                     else:
-                        generate_world(_glob.world_code)
+                        biome = choice(list(bio.blocks.keys()))
+                        if not wn:
+                            wn = f"New_World_{g.p.new_world_count}"
+                            g.p.new_world_count += 1
+                        g.w = World()
+                        generate_world(biome="desert")
+                        group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
+                        g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
+                        g.w.mode = game_mode
+                        destroy_widgets()
+                        g.menu = False
+                        g.w.name = wn
+                        g.p.world_names.append(wn)
+                        init_world("new")
                 else:
-                    MessageboxError(Window.display, "A world with the same name already exists.", **g.def_widget_kwargs)
-                    g.set_loading_world(False)
-        else:
-            MessageboxError(Window.display, "You have too many worlds. Delete a world to create another one.", **g.def_widget_kwargs)
-            g.set_loading_world(False)
+                    generate_world(_glob.world_code)
+            else:
+                MessageboxError(Window.display, "A world with the same name already exists.", **g.def_widget_kwargs)
+                g.set_loading_world(False)
         destroy_ewn()
 
     _cr_world_dt = 100 / len(inspect.getsourcelines(create)[0])
     create = scatter(create, f"g.loading_world_perc += {_cr_world_dt}", globals(), locals())
-    
+
     def start_generating():
         t = Thread(target=create)
         t.setDaemon(True)
         t.start()
 
-    ewn = Entry(Window.display, "Enter world name:", init_world_data, pos=DPP)
+    if g.p.next_worldbutton_pos[1] < g.max_worldbutton_pos[1]:
+        ewn = Entry(Window.display, "Enter world name:", init_world_data, pos=DPP)
+    else:
+        MessageboxError(Window.display, "You have too many worlds. Delete a world to create another one.", **g.def_widget_kwargs)
+        g.set_loading_world(False)
 
 
 def settings():
@@ -367,6 +366,7 @@ def generate_world(worldcode=None, biome=None, screens=5):
     # world data (non-gui)
     if worldcode is None:
         g.w.data.clear()
+        g.w.metadata.clear()
         g.w.biome_names.clear()
         for _ in range(screens):
             generate_screen(biome)
@@ -418,7 +418,9 @@ def generate_world(worldcode=None, biome=None, screens=5):
 
 def generate_screen(biome=None):
     g.w.data.append(SmartList())
+    g.w.metadata.append(3 * L * [{}])
     screen = -1
+    layer = 1
     biome_name = choice(list(bio.blocks.keys())) if biome is None else biome
     g.w.biome_names.append(biome_name)
     biome_pack = bio.blocks[g.w.biome_names[-1]] + ("stone",)
@@ -462,9 +464,8 @@ def generate_screen(biome=None):
                 noise_index -= HL
             g.w.data[screen][noise_index] = biome_pack[0]
             noise_num += 1
-    g.w.metadata = [[{}] * HL * VL * 3] * 5
     for blockindex, blockname in enumerate(g.w.data[screen]):
-        entities = world_generation(g.w.data, g.w.metadata, screen, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1)
+        entities = world_generation(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1)
         g.w.entities.extend(entities)
     # sky
     for _ in range(L):
@@ -1524,7 +1525,7 @@ class Block:
             for block in all_blocks:
                 if block.layer_index != self.layer_index and block.layer_index in exloded_indexes and block.name == "dynamite":
                     block.function()
-                elif block.layer_index in exloded_indexes:
+                elif block.layer_index in exlofded_indexes:
                     block.name = "air"
                     block.image = g.w.blocks["air"].copy()
                     update_block_states()
@@ -1536,6 +1537,7 @@ class Block:
         
         elif non_bg(self.name) == "chest":
             g.midblit = "chest"
+            g.chest = g.w.metadata[g.w.screen][self.abs_index]["chest"]
             
 
 class Projectile(pygame.sprite.Sprite):
@@ -2000,7 +2002,6 @@ def main(debug):
         print(f"Loaded in: {loading_time}s")
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
         print()
-        
         while running:
             # fps cap
             dt = g.clock.tick(g.fps_cap) / 1000 * 120
@@ -2065,7 +2066,7 @@ def main(debug):
                                                         g.player.new_block(g.craftable, g.craft_by_what)
                                                     else:
                                                         g.player.new_tool(g.craftable)
-                                                    stop_crafting()
+                                                    stop_midblit()
 
                                     elif event.key == K_BACKSPACE:
                                         if g.crafting_log:
@@ -2199,7 +2200,7 @@ def main(debug):
                                     if not g.midblit:
                                         settings()
                                     else:
-                                        stop_crafting()
+                                        stop_midblit()
 
                                 elif event.key == K_ENTER:
                                     for messagebox in all_messageboxes:
@@ -2262,8 +2263,12 @@ def main(debug):
                                         break
 
                             if g.clicked_when == "play":
-                                if not crafting_rect.collidepoint(g.mouse):
-                                    stop_crafting()
+                                if g.midblit is not None:
+                                    if g.midblit == "chest":
+                                        if not chest_rect.collidepoint(g.mouse):
+                                            stop_midblit()
+                                    elif not crafting_rect.collidepoint(g.mouse):
+                                            stop_midblit()
 
                                 if not g.skin_menu_rect.collidepoint(g.mouse):
                                     g.skin_menu = False
@@ -2328,7 +2333,7 @@ def main(debug):
 
                     if g.stage == "home":
                         for spr in all_home_sprites.sprites() + all_home_world_world_buttons.sprites() + all_home_world_static_buttons.sprites() + all_home_settings_buttons.sprites():
-                            with suppress(AttributeError, TypeError):
+                            if hasattr(spr, "process_event") and callable(spr.process_event):
                                 spr.process_event(event)
 
             # play loop
@@ -2630,7 +2635,18 @@ def main(debug):
                 
                 # chest
                 elif g.midblit == "chest":
-                    Window.display.cblit(chest_template, crafting_rect)
+                    Window.display.blit(chest_template, chest_rect)
+                    ogx, ogy = 324, 182
+                    x, y = ogx, ogy
+                    row = 0
+                    for name, amount in g.chest.items():
+                        Window.display.blit(g.w.blocks[name], (x, y))
+                        write(Window.display, "center", amount, orbit_fonts[12])
+                        x += 33
+                        if row == 4:
+                            x = ogx
+                            y += 48
+                        row += 1
                             
                 if g.player.main == "block" and g.player.block is not None:
                     if g.player.block in ore_blocks:
