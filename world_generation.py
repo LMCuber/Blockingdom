@@ -94,7 +94,7 @@ def get_leaf_type(blockname):
         return "f_leaf_bg"
 
 
-def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
+def world_generation(data, metadata, screen, biome, blockindex, blockname, lit_screen):
     horindex = blockindex % HL
     verindex = blockindex // HL
     entities = []
@@ -221,6 +221,7 @@ def world_modifications(data, screen, biome, blockindex, blockname, lit_screen):
                         data[screen][blockindex - 55]  = "sand"
                         data[screen][blockindex - 53]  = "sand"
                         data[screen][blockindex - 81]  = "sand"
+                    metadata[screen][blockindex - HL] = {"chest": []}
 
     elif biome == "beach":
         if "sand" in data[screen][blockindex] and "air" in data[screen][blockindex - HL]:

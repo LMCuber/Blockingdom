@@ -1,10 +1,7 @@
-# S T A R T ------------------------------------------------------------------------------------------- #
-import time
-start = time.time()
-
 # I M P O R T S --------------------------------------------------------------------------------------- #
 import atexit
 import string
+import time
 import pickle
 import json
 import threading
@@ -43,6 +40,11 @@ def player_command(command):
             block = args[0]
             amount = args.get(1, 1)
             g.player.new_block(block, amount)
+        elif command.startswith("recipe "):
+            if args[0] in cinfo:
+                MessageboxError(Window.display, str(cinfo[args[0]]["recipe"]), **g.def_widget_kwargs)
+            else:
+                MessageboxError(Window.display, "Invalid recipable block name", **g.def_widget_kwargs)
         elif command:
             raise Exception
     except Exception:
@@ -78,7 +80,7 @@ def custom_gun(name):
         g.w.tools[name] = SmartSurface.from_surface(g.gun_img.copy())
         g.player.empty_tool = name
         g.gun_attrs[name] = g.gun_parts
-        g.crafting = None
+        g.midblit = None
     else:
         MessageboxError(Window.display, "Name collides")
 
@@ -115,7 +117,7 @@ def stop_crafting():
     g.furnace_log = []
     g.fuels = {}
     """
-    g.crafting = None
+    g.midblit = None
 
 
 def is_eatable(food):
@@ -246,7 +248,7 @@ def new_world(worldcode=None):
                                 wn = f"New_World_{g.p.new_world_count}"
                                 g.p.new_world_count += 1
                             g.w = World()
-                            generate_world(biome="jungle")
+                            generate_world(biome="desert")
                             group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                             g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                             g.w.mode = game_mode
@@ -460,8 +462,9 @@ def generate_screen(biome=None):
                 noise_index -= HL
             g.w.data[screen][noise_index] = biome_pack[0]
             noise_num += 1
+    g.w.metadata = [[{}] * HL * VL * 3] * 5
     for blockindex, blockname in enumerate(g.w.data[screen]):
-        entities = world_modifications(g.w.data, screen, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1)
+        entities = world_generation(g.w.data, g.w.metadata, screen, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1)
         g.w.entities.extend(entities)
     # sky
     for _ in range(L):
@@ -566,6 +569,7 @@ class World:
     def __init__(self):
         # world-generation / world data related data
         self.data = SmartList()
+        self.metadata = SmartList()
         self.entities = []
         self.mode = None
         self.screen = 1
@@ -1483,7 +1487,35 @@ class Block:
         #self.image = rotate(self.image, rand(0, 360))
 
     def function(self):
-        if "dynamite" in self.name:
+        if non_bg(self.name) == "workbench":
+            g.midblit = "workbench"
+            g.player.main = "block"
+            
+        elif non_bg(self.name) == "furnace":
+            g.midblit = "furnace"
+            g.player.main = "block"
+            
+        elif non_bg(self.name) == "anvil":
+            g.midblit = "anvil"
+            g.player.main = "block"
+            
+        elif non_bg(self.name) == "gun-crafter":
+            g.midblit = "gun"
+            g.player.main = "block"
+            
+        elif non_bg(self.name) == "water":
+            if g.player.block == "bucket":
+                g.w.data[g.w.screen][block.abs_index] = "air"
+                g.player.new_block("water", 1)
+                block.utilize()
+                
+        elif non_bg(self.name) == "portal-generator":
+            pos = [roundn(p, 30) for p in g.player.rect.center]
+            g.w.entities.append(Entity("portal", pos, g.w.screen, 1))
+            block.name = "air"
+            block.utilize()
+            
+        elif non_bg(self.name) == "dynamite":
             exloded_indexes = [
                                 self.layer_index - 28, self.layer_index - HL, self.layer_index - 26,
                                 self.layer_index - 1,  self.layer_index,      self.layer_index + 1,
@@ -1496,11 +1528,15 @@ class Block:
                     block.name = "air"
                     block.image = g.w.blocks["air"].copy()
                     update_block_states()
-        elif "command-block" in self.name:
+                    
+        elif non_bg(self.name) == "command-block":
             def set_command(cmd):
                 self.cmd = cmd
             Entry(Window.display, "Enter your command:", set_command, pos=DPP)
-
+        
+        elif non_bg(self.name) == "chest":
+            g.midblit = "chest"
+            
 
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, pos, size, mouse, speed, pierce=False):
@@ -1920,7 +1956,7 @@ button_cnw = StaticButton("Create New World", (45, Window.height - 160), all_hom
 button_lw = StaticButton("Load World", (45, Window.height - 120), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", size="world", command=pw.button_lw_command, visible_when=pw.is_worlds_worlds)
 button_daw = StaticButton("Delete All Worlds", (45, Window.height - 80), all_home_world_static_buttons, LIGHT_BROWN, text_color=RED, anchor="topleft", size="world", command=pw.button_daw_command, visible_when=pw.is_worlds_worlds)
 toggle_sd = StaticToggleButton(("name", "data"), (175, 131), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", command=pw.toggle_sd_command, visible_when=pw.is_worlds_worlds)
-button_c = StaticButton("Cursor", (35, 130), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", icon="cursor", command=cust_cursor, visible_when=pw.is_worlds_static)
+button_c = StaticButton("Credits", (35, 130), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", icon="cursor", command=cust_cursor, visible_when=pw.is_worlds_static)
 button_kb = StaticButton("Key Bindings", (35, 170), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
 button_tp = StaticButton("Custom Textures", (35, 210), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
 button_l = StaticOptionMenu(g.common_languages, "EN", (35, 250), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
@@ -1959,7 +1995,7 @@ def main(debug):
         # loop
         running = True
         print()
-        loading_time = round(time.time() - start, 2)
+        loading_time = round(time.perf_counter(), 2)
         g.p.loading_times.append(loading_time)
         print(f"Loaded in: {loading_time}s")
         print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
@@ -2009,7 +2045,7 @@ def main(debug):
                                 if event.key == pygame.K_TAB:
                                     toggle_main()
                                 
-                                if g.crafting == "workbench":
+                                if g.midblit == "workbench":
                                     if event.key == K_SPACE:
                                         if g.player.block is not None:
                                             if g.player.block in g.craftings:
@@ -2040,7 +2076,7 @@ def main(debug):
                                                 g.player.new_block(g.crafting_log[-1])
                                                 del g.crafting_log[-1]
                                             
-                                elif g.crafting == "furnace":
+                                elif g.midblit == "furnace":
                                     if event.key == K_SPACE:
                                         if g.player.block is not None:
                                             if g.player.block not in fuinfo:
@@ -2075,7 +2111,7 @@ def main(debug):
                                                         g.fuels.delval(g.furnace_log[-1])
                                                 del g.furnace_log[-1]
                                     
-                                elif g.crafting == "anvil":
+                                elif g.midblit == "anvil":
                                     if event.key == K_SPACE:
                                         if g.player.main == "tool":
                                             if g.player.tool is not None:
@@ -2113,7 +2149,7 @@ def main(debug):
                                                         g.player.new_tool(g.smithable)
 
                                                 
-                                elif g.crafting == "gun":
+                                elif g.midblit == "gun":
                                     if event.key == K_SPACE:
                                         if g.player.block in gun_blocks: 
                                             g.gun_parts[g.player.block.split("_")[1]] = g.player.block
@@ -2160,7 +2196,7 @@ def main(debug):
                                         last_space = ticks()
 
                                 elif event.key == K_ESCAPE:
-                                    if not g.crafting:
+                                    if not g.midblit:
                                         settings()
                                     else:
                                         stop_crafting()
@@ -2249,31 +2285,7 @@ def main(debug):
                                 for block in all_blocks:
                                     if block.rect.collidepoint(g.mouse):
                                         if not hov.faulty:
-                                            if non_bg(block.name) == "workbench":
-                                                g.crafting = "workbench"
-                                                g.player.main = "block"
-                                                break
-                                            elif non_bg(block.name) == "furnace":
-                                                g.crafting = "furnace"
-                                                g.player.main = "block"
-                                            elif non_bg(block.name) == "anvil":
-                                                g.crafting = "anvil"
-                                                g.player.main = "block"
-                                                break
-                                            elif non_bg(block.name) == "gun-crafter":
-                                                g.crafting = "gun"
-                                                g.player.main = "block"
-                                                break
-                                            elif non_bg(block.name) == "water":
-                                                if g.player.block == "bucket":
-                                                    g.w.data[g.w.screen][block.abs_index] = "air"
-                                                    g.player.new_block("water", 1)
-                                                    block.utilize()
-                                            elif non_bg(block.name) == "portal-generator":
-                                                pos = [roundn(p, 30) for p in g.player.rect.center]
-                                                g.w.entities.append(Entity("portal", pos, g.w.screen, 1))
-                                                block.name = "air"
-                                                block.utilize()
+                                            block.function()
                                                 
                                 for entity in g.w.entities:
                                     if no_widgets(Entry):
@@ -2456,7 +2468,7 @@ def main(debug):
                 write(Window.display, "center", g.player.username, orbit_fonts[12], g.w.text_color, g.player.rect.centerx, g.player.rect.centery - 30)
 
                 # workbench
-                if g.crafting == "workbench":
+                if g.midblit == "workbench":
                     Window.display.blit(workbench_img, crafting_rect)
                     x = crafting_rect.x + 30 / 2 + 25
                     y = crafting_rect.y + 30 + 30 / 2 + 10
@@ -2505,9 +2517,12 @@ def main(debug):
                                 Window.display.cblit(g.w.tools[craftable], (crafting_center[0] + crafting_rect.width / 4, crafting_center[1]))
                             g.craft_by_what = min(g.craft_by_what)
                             write(Window.display, "midbottom", g.craft_by_what, orbit_fonts[15], BLACK, crafting_center[0] + crafting_rect.width / 4, crafting_center[1] + 40)
+                    # arrow
+                    if g.midblit == "workbench":
+                        Window.display.cblit(workbench_icon, crafting_center)
 
                 # furnace
-                elif g.crafting == "furnace":
+                elif g.midblit == "furnace":
                     Window.display.blit(furnace_img, crafting_rect)
                     x = crafting_rect.x + 30 / 2 + 25
                     y = crafting_rect.y + 30 + 30 / 2 + 10
@@ -2532,22 +2547,22 @@ def main(debug):
                         write(Window.display, "midbottom", g.fuels[fuel], orbit_fonts[15], BLACK, x, y + 40)
                     if g.burnings:
                         try:
-                            arrow_imgs[int(g.fuel_index)]
+                            arrow_sprs[int(g.fuel_index)]
                         except IndexError:
                             g.fuel_index = 0
                         finally:
-                            Window.display.cblit(arrow_imgs[int(g.fuel_index)], (x, y + 55))
+                            Window.display.cblit(arrow_sprs[int(g.fuel_index)], (x, y + 55))
                         try:
-                            _surf = shower_imgs[int(8 - g.fuel_health / 12.5)]
+                            _surf = shower_sprs[int(8 - g.fuel_health / 12.5)]
                         except IndexError:
                             g.fuel_health = 100
-                            _surf = shower_imgs[0]
+                            _surf = shower_sprs[0]
                             g.fuels.delindex(0)
                         finally:
                             Window.display.cblit(_surf, (x + 25, y))
                             
                 # anvil
-                elif g.crafting == "anvil":
+                elif g.midblit == "anvil":
                     x = crafting_rect.x + 30 / 2 + 25
                     y = crafting_rect.y + 30 + 30 / 2 + 10
                     sy = y
@@ -2601,8 +2616,8 @@ def main(debug):
                     if g.smither is not None:
                         Window.display.cblit(g.w.tools[g.smither], crafting_center)
                         
-                # gun
-                elif g.crafting == "gun":
+                # gun crafter
+                elif g.midblit == "gun":
                     Window.display.blit(gun_crafter_img, crafting_rect)
                     for part, name in g.gun_parts.items():
                         pos = gun_crafter_part_poss[part]
@@ -2612,11 +2627,11 @@ def main(debug):
                             write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
                             #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
                             #pygame.draw.circle(Window.display, BLACK, pos, 5)
+                
+                # chest
+                elif g.midblit == "chest":
+                    Window.display.cblit(chest_template, crafting_rect)
                             
-                # player item
-                if g.crafting == "workbench":
-                    Window.display.cblit(workbench_icon, crafting_center)
-
                 if g.player.main == "block" and g.player.block is not None:
                     if g.player.block in ore_blocks:
                         item = oinfo[g.player.block]["cform"]

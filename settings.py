@@ -74,8 +74,9 @@ gun_crafter_part_poss = {"stock": (rx + w // 2 - 32, ry + h // 2 - 9),
                          
 # bg images
 frame_img = cimgload("Images", "Background", "frame.png")
-arrow_imgs = cimgload("Images", "Spritesheets", "arrow.png", frames=11)
-shower_imgs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
+chest_template = cimgload("Images", "Background", "chest_template.png")
+arrow_sprs = cimgload("Images", "Spritesheets", "arrow.png", frames=11)
+shower_sprs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
 pygame.display.set_icon(cimgload("Images", "Visuals", "icon.png"))
@@ -156,7 +157,7 @@ class Game:
         self.skin_menu_surf = pygame.Surface((Window.width / 11 * 9, Window.height / 11 * 9)); self.skin_menu_surf.fill(LIGHT_GRAY)
         self.skin_menu_rect = self.skin_menu_surf.get_rect(center=[s / 2 for s in Window.display.get_size()])
         # crafting
-        self.crafting = None
+        self.midblit = None
         self.craftings = {}
         self.craftable = None
         self.craft_by_what = None  # list -> int (later)
