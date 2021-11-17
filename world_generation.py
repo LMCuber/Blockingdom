@@ -221,7 +221,9 @@ def world_generation(data, metadata, screen, layer, biome, blockindex, blockname
                     data[screen][blockindex - 55]  = "sand"
                     data[screen][blockindex - 53]  = "sand"
                     data[screen][blockindex - 81]  = "sand"
-                    metadata[lit_screen][layer * L + blockindex - HL] = {"chest": {"f_soil": 2, "portal-generator": 1}}
+                    chest_inventory = ["dynamite"] * 11
+                    chest_amounts = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                    metadata[lit_screen][layer * L + blockindex - HL]["chest"] = list(zip(chest_inventory, chest_amounts))
 
     elif biome == "beach":
         if "sand" in data[screen][blockindex] and "air" in data[screen][blockindex - HL]:

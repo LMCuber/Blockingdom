@@ -70,6 +70,19 @@ gun_crafter_img = imgload("Images", "Surfaces", "gun_crafter.png")
 crafting_center = (Window.width / 2, Window.height / 2 + 15)
 crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
 chest_rect = chest_template.get_rect(center=Window.center)
+chest_rects = []
+chest_indexes = {}
+chest_rect_start = [p + 3 for p in chest_rect.topleft]
+chest_sx, chest_sy = chest_rect_start
+_sx, _sy = chest_sx, chest_sy
+i = 0
+for y in range(5):
+    for x in range(5):
+        _x = x * 33 + _sx
+        _y = y * 51 + _sy
+        chest_rects.append(pygame.Rect(_x, _y, 30, 30))
+        chest_indexes[_x, _y] = i
+        i += 1
 w, h = gun_crafter_img.get_size()
 rx, ry = 205, 195
 crafting_abs_pos = (rx, ry + 30)
@@ -160,6 +173,7 @@ class Game:
         # crafting
         self.midblit = None
         self.chest = None
+        self.chest_pos = chest_rect.topleft
         self.craftings = {}
         self.craftable = None
         self.craft_by_what = None  # list -> int (later)

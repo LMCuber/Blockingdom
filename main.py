@@ -118,6 +118,7 @@ def stop_midblit():
     g.fuels = {}
     """
     g.midblit = None
+    g.cannot_place_block = True
 
 
 def is_eatable(food):
@@ -680,8 +681,8 @@ class PlayWidgets:
             Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
             Slider(Window.display, "Animation", range(21), int(g.p.anim_fps * g.fps_cap), height=60, **_menu_widget_kwargs),
             Slider(Window.display, "Volume", range(101), int(g.p.volume * 100), height=60, **_menu_widget_kwargs),
-            ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
-            Button(Window.display, "Specs", self.show_specs_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
+            #ToggleButton(Window.display, ("WASD", "ZQSD", "Arrow Keys"), command=self.change_movement_command, **_menu_widget_kwargs),
+            Button(Window.display, "Config", self.show_config_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
             Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs)
         ]
         _y = 130
@@ -824,7 +825,7 @@ class PlayWidgets:
             g.ckeys["p right"] = K_RIGHT
         
     @staticmethod
-    def show_specs_command():
+    def show_config_command():
         g.opened_file = True
         os.system("notepad config.json")
 
@@ -2148,7 +2149,6 @@ def main(debug):
                                                         g.player.new_block(g.smithable, g.craft_by_what)
                                                     else:
                                                         g.player.new_tool(g.smithable)
-
                                                 
                                 elif g.midblit == "gun":
                                     if event.key == K_SPACE:
@@ -2167,6 +2167,10 @@ def main(debug):
                                     
                                     elif event.key == K_BACKSPACE:
                                         pass
+                                
+                                elif g.midblit == "chest":
+                                    if event.key == K_SPACE:
+                                        chest_index = chest_indexes[tuple(p + 3 for p in g.chest_pos)]
                                     
                                 elif event.key in (K_SPACE, K_TAB):
                                     toggle_main()
@@ -2267,6 +2271,10 @@ def main(debug):
                                     if g.midblit == "chest":
                                         if not chest_rect.collidepoint(g.mouse):
                                             stop_midblit()
+                                        else:
+                                            for rect in chest_rects:
+                                                if rect.collidepoint(g.mouse):
+                                                    g.chest_pos = [p - 3 for p in rect.topleft]
                                     elif not crafting_rect.collidepoint(g.mouse):
                                             stop_midblit()
 
@@ -2549,7 +2557,7 @@ def main(debug):
                             g.fuel_index += fuinfo[fuel]["index"] * (g.player.oxygen / 100)
                             g.fuel_health -= fuinfo[fuel]["sub"]
                         Window.display.cblit(g.w.blocks[fuel], (x, y))
-                        write(Window.display, "midbottom", g.fuels[fuel], orbit_fonts[15], BLACK, x, y + 40)
+                        write(Window.display, "midbottom", g.fuels[fuel], orbit_fonts[15], BLACK, x, y + 41)
                     if g.burnings:
                         try:
                             arrow_sprs[int(g.fuel_index)]
@@ -2636,17 +2644,19 @@ def main(debug):
                 # chest
                 elif g.midblit == "chest":
                     Window.display.blit(chest_template, chest_rect)
-                    ogx, ogy = 324, 182
+                    ogx, ogy = chest_rect_start
                     x, y = ogx, ogy
                     row = 0
-                    for name, amount in g.chest.items():
+                    for name, amount in g.chest:
                         Window.display.blit(g.w.blocks[name], (x, y))
-                        write(Window.display, "center", amount, orbit_fonts[12])
+                        write(Window.display, "center", amount, orbit_fonts[15], BLACK, x + 14, y + 39)
                         x += 33
                         if row == 4:
                             x = ogx
-                            y += 48
+                            y += 51
+                            row = -1
                         row += 1
+                    Window.display.blit(square_border_img, g.chest_pos)
                             
                 if g.player.main == "block" and g.player.block is not None:
                     if g.player.block in ore_blocks:
@@ -2698,7 +2708,7 @@ def main(debug):
                 for index, block in enumerate(g.player.inventory):
                     if block is not None:
                         Window.display.cblit(g.w.blocks[block], (x, y))
-                        write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], g.w.text_color, x, y + 25)
+                        write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], g.w.text_color, x, y + 24)
                     # border if selected
                     if g.player.main == "block":
                         if index == g.player.blocki:
