@@ -138,12 +138,13 @@ a = A()
 def load_blocks():
     _bsprs = cimgload("Images", "Spritesheets", "blocks.png")
     block_list = [
-        ["air",     "bucket",  "apple",    "bamboo",        "cactus",        "watermelon",       "rock"     ],
-        ["chest",   "    ",    "coconut",  "coconut-piece", "command-block", "wood",             "bush"     ],
-        ["       ", "dirt",    "dynamite", "fire",          "      ",        "watermelon-piece", "grass1"   ],
-        ["hay",     "    ",    "leaf",     "       ",       "sand",          "workbench",        "grass2"   ],
-        ["snow",    "soil",    "stone",    "vine",          "wooden-planks", "a_wooden-planks",  "stick"    ],
-        ["anvil",   "furnace", "p_soil",   "blue_barrel",   "red_barrel",    "gun-crafter",       "base-ore"]
+        ["air",        "bucket",      "apple",     "bamboo",        "cactus",        "watermelon",       "rock"     ],
+        ["chest",      "    ",        "coconut",   "coconut-piece", "command-block", "wood",             "bush"     ],
+        ["       ",    "dirt",        "dynamite",  "fire",          "      ",        "watermelon-piece", "grass1"   ],
+        ["hay",        "    ",        "leaf",      "       ",       "sand",          "workbench",        "grass2"   ],
+        ["snow",       "soil",        "stone",     "vine",          "wooden-planks", "a_wooden-planks",  "stick"    ],
+        ["anvil",      "furnace",     "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",       "base-ore"],
+        ["blackstone", "closed-core", "base-core", "lava"]
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
@@ -352,3 +353,4 @@ for tool in a.assets["tools"]:
     if n == "axe":
         o = norm_ore(o) + ("-ingot" if o != "wood" else "")
         ainfo[tool] = {"recipe": {o: 2, "stick": 1}, "energy": 8}
+block_names = list(a.assets["blocks"].keys())

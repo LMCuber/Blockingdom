@@ -419,7 +419,7 @@ def generate_world(worldcode=None, biome=None, screens=5):
 
 def generate_screen(biome=None):
     g.w.data.append(SmartList())
-    g.w.metadata.append(3 * L * [{}])
+    g.w.metadata.append([{} for _ in range(3 * L)])
     screen = -1
     layer = 1
     biome_name = choice(list(bio.blocks.keys())) if biome is None else biome
@@ -466,7 +466,7 @@ def generate_screen(biome=None):
             g.w.data[screen][noise_index] = biome_pack[0]
             noise_num += 1
     for blockindex, blockname in enumerate(g.w.data[screen]):
-        entities = world_generation(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1)
+        entities = world_modifications(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1, block_names)
         g.w.entities.extend(entities)
     # sky
     for _ in range(L):
@@ -1053,6 +1053,10 @@ class Player:
             self.inventory_amounts[self.inventory.index(name)] += amount
         else:
             self.empty_block = name, amount
+        
+    def new_empty_block(self, name, amount=1):
+        if name not in self.inventory:
+            self.new_block(name, amount)
             
     @property
     def lives(self):
@@ -1369,7 +1373,7 @@ class Visual:
                 self.image = self.og_img.copy()
                 if "_" in g.player.tool:
                     self.rect = self.image.get_rect()
-                    self.image, self.rect = rot_center(flip(self.og_img, True, False if 90 > g.player.angle > -90 else True), self.angle, *g.player.rect.center)
+                    self.image, self.rect = rot_center(flip(self.og_img, True, False if 90 > g.player.angle > -90 else True), self.angle + 270, *g.player.rect.center)
                     self.rect.center = g.mouse
                     if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
                         self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
@@ -1518,15 +1522,15 @@ class Block:
             block.utilize()
             
         elif non_bg(self.name) == "dynamite":
-            exloded_indexes = [
+            exploded_indexes = [
                                 self.layer_index - 28, self.layer_index - HL, self.layer_index - 26,
                                 self.layer_index - 1,  self.layer_index,      self.layer_index + 1,
                                 self.layer_index + 26, self.layer_index + HL, self.layer_index + 28
                               ]
             for block in all_blocks:
-                if block.layer_index != self.layer_index and block.layer_index in exloded_indexes and block.name == "dynamite":
+                if block.layer_index != self.layer_index and block.layer_index in exploded_indexes and block.name == "dynamite":
                     block.function()
-                elif block.layer_index in exlofded_indexes:
+                elif block.layer_index in exploded_indexes:
                     block.name = "air"
                     block.image = g.w.blocks["air"].copy()
                     update_block_states()
@@ -2171,6 +2175,11 @@ def main(debug):
                                 elif g.midblit == "chest":
                                     if event.key == K_SPACE:
                                         chest_index = chest_indexes[tuple(p + 3 for p in g.chest_pos)]
+                                        if g.chest[chest_index] != (None, None):
+                                            g.chest[chest_index][1] -= 1
+                                            g.player.new_empty_block(g.chest[chest_index][0])
+                                            if g.chest[chest_index][1] == 0:
+                                                g.chest[chest_index] = (None, None)
                                     
                                 elif event.key in (K_SPACE, K_TAB):
                                     toggle_main()
@@ -2648,8 +2657,9 @@ def main(debug):
                     x, y = ogx, ogy
                     row = 0
                     for name, amount in g.chest:
-                        Window.display.blit(g.w.blocks[name], (x, y))
-                        write(Window.display, "center", amount, orbit_fonts[15], BLACK, x + 14, y + 39)
+                        if name is not None:
+                            write(Window.display, "center", amount, orbit_fonts[15], BLACK, x + 14, y + 39)
+                            Window.display.blit(g.w.blocks[name], (x, y))
                         x += 33
                         if row == 4:
                             x = ogx

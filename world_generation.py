@@ -94,7 +94,7 @@ def get_leaf_type(blockname):
         return "f_leaf_bg"
 
 
-def world_generation(data, metadata, screen, layer, biome, blockindex, blockname, lit_screen):
+def world_modifications(data, metadata, screen, layer, biome, blockindex, blockname, lit_screen, block_names):
     horindex = blockindex % HL
     verindex = blockindex // HL
     entities = []
@@ -221,8 +221,11 @@ def world_generation(data, metadata, screen, layer, biome, blockindex, blockname
                     data[screen][blockindex - 55]  = "sand"
                     data[screen][blockindex - 53]  = "sand"
                     data[screen][blockindex - 81]  = "sand"
-                    chest_inventory = ["dynamite"] * 11
-                    chest_amounts = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                    chest_inventory = []
+                    chest_amounts = []
+                    for _ in range(nordis(5, 2)):
+                        chest_inventory.append(choice(block_names))
+                        chest_amounts.append(nordis(2, 1) + 1)
                     metadata[lit_screen][layer * L + blockindex - HL]["chest"] = list(zip(chest_inventory, chest_amounts))
 
     elif biome == "beach":
