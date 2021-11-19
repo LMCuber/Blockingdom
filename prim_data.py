@@ -10,20 +10,28 @@ avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromk
 
 # C L A S S E S ---------------------------------------------------------------------------------------- #
 class Entity:
+    # init
     entity_imgs = {}
+    # active
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
+    entity_imgs["camel"] = img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2))
     
-    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", *args, **kwargs):
+    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", **kwargs):
         self.anim = 0
         if isinstance(img_data, list):
             iter_ = img_data
         elif isinstance(img_data, pygame.Surface):
             iter_ = [img_data]
         elif isinstance(img_data, str):
+            print(img_data)
             if img_data in Entity.entity_imgs:
-                iter_ = Entity.entity_imgs[img_data]
+                imgs = Entity.entity_imgs[img_data]
+                if isinstance(imgs, list):
+                    iter_ = imgs
+                elif isinstance(imgs, pygame.Surface):
+                    iter_ = [imgs]
             else:
-                iter_ = SmartSurface.from_string(img_data)
+                iter_ = [SmartSurface.from_string(img_data)]
         self.images = [SmartSurface.from_surface(img) for img in iter_]
         self.image = self.images[int(self.anim)]
         self.rect = self.image.get_rect()
@@ -112,6 +120,13 @@ def cfilter(image, alpha, size, color=BLACK, colorkey=BLACK):
     final_surf.blit(surf, (0, 0))
     final_surf.set_colorkey(colorkey)
     return final_surf
+    
+    
+def ipure(str_):
+    if str_ in a.assets["blocks"]:
+        return bpure(str_)
+    elif str_ in tinfo:
+        return tpure(str_)
 
 
 def tpure(tool):
@@ -139,11 +154,11 @@ def load_blocks():
     _bsprs = cimgload("Images", "Spritesheets", "blocks.png")
     block_list = [
         ["air",        "bucket",      "apple",     "bamboo",        "cactus",        "watermelon",       "rock"     ],
-        ["chest",      "    ",        "coconut",   "coconut-piece", "command-block", "wood",             "bush"     ],
-        ["       ",    "dirt",        "dynamite",  "fire",          "      ",        "watermelon-piece", "grass1"   ],
-        ["hay",        "    ",        "leaf",      "       ",       "sand",          "workbench",        "grass2"   ],
+        ["chest",       None,         "coconut",   "coconut-piece", "command-block", "wood",             "bush"     ],
+        [None,         "dirt",        "dynamite",  "fire",           None,           "watermelon-piece", "grass1"   ],
+        ["hay",         None,         "leaf",       None,           "sand",          "workbench",        "grass2"   ],
         ["snow",       "soil",        "stone",     "vine",          "wooden-planks", "a_wooden-planks",  "stick"    ],
-        ["anvil",      "furnace",     "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",       "base-ore"],
+        ["anvil",      "furnace",     "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore"],
         ["blackstone", "closed-core", "base-core", "lava"]
     ]
     for y, layer in enumerate(block_list):
@@ -353,4 +368,4 @@ for tool in a.assets["tools"]:
     if n == "axe":
         o = norm_ore(o) + ("-ingot" if o != "wood" else "")
         ainfo[tool] = {"recipe": {o: 2, "stick": 1}, "energy": 8}
-block_names = list(a.assets["blocks"].keys())
+chest_blocks = [block for block in a.assets["blocks"] if block is not None]

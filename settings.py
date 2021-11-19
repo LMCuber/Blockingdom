@@ -301,6 +301,18 @@ class Game:
     @property
     def str_mod(self):
         return "_bg" if self.mod == 1 else ""
+    
+    @property
+    def chest_index(self):
+        return chest_indexes[tuple(p + 3 for p in self.chest_pos)]
+    
+    @property
+    def chest_name(self):
+        return self.chest[self.chest_index]
+        
+    @chest_name.setter
+    def chest_name(self, value):
+        self.chest[self.chest_index] = value
         
     def skin_data(self, bt):
         return self.skins[bt][self.skin_indexes[bt]]

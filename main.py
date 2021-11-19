@@ -141,9 +141,9 @@ def cust_cursor():
         g.cursor_index = 0
 
 
-def apply(elm, thing, default):
-    if is_in(elm, thing):
-        return thing[bpure(elm)]
+def apply(elm, seq, default):
+    if is_in(elm, seq):
+        return seq[ipure(elm)]
     else:
         return default
 
@@ -328,6 +328,7 @@ def cr_block(name, screen=-1, index=None):
     
 
 def init_world(type_):
+    # player inventory and stats
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
@@ -466,7 +467,7 @@ def generate_screen(biome=None):
             g.w.data[screen][noise_index] = biome_pack[0]
             noise_num += 1
     for blockindex, blockname in enumerate(g.w.data[screen]):
-        entities = world_modifications(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1, block_names)
+        entities = world_modifications(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1, chest_blocks, Window)
         g.w.entities.extend(entities)
     # sky
     for _ in range(L):
@@ -1055,7 +1056,7 @@ class Player:
             self.empty_block = name, amount
         
     def new_empty_block(self, name, amount=1):
-        if name not in self.inventory:
+        if None in self.inventory:
             self.new_block(name, amount)
             
     @property
@@ -1175,7 +1176,7 @@ class Player:
                         drop.rect.center = [pos + random.randint(-1, 1) for pos in drop.og_pos]
 
     def rand_username(self):
-        self.username = f"Player{rand(0, 9)}{rand(0, 9)}"
+        self.username = f"Player{rand(2, 456)}"
 
     def cust_username(self):
         def set_username(ans):
@@ -1272,7 +1273,7 @@ class Player:
             utilize_blocks()
 
     def gain_ground(self):
-        while any(ground_cols := [self.rect.colliderect(block.rect) and block.name not in walk_through_blocks for block in all_blocks]):
+        while any(self.rect.colliderect(block.rect) and block.name not in walk_through_blocks for block in all_blocks):
             self.rect.y -= 1
 
     def off_screen(self):
@@ -1443,6 +1444,8 @@ class Block:
 
     def try_breaking(self, type_="normal"):
         drops = []
+        drop_pos_eval = "[p + rand(-5, 5) for p in self.rect.center]"
+        drop_pos = eval(drop_pos_eval)
         if type_ == "normal":
             if non_bg(self.name) not in ore_blocks:
                 breaking_time = apply(self.name, block_breaking_times, 500)
@@ -1450,9 +1453,9 @@ class Block:
                     self.broken += 1
                     if self.broken >= 5:
                         if is_in(self.name, dif_drop_blocks):
-                            drops.append(Drop(dif_drop_blocks[non_bg(self.name)]["block"], self.rect.centerx + rand(-5, 5), self.rect.centery + rand(-5, 5), self.name))
+                            drops.append(Drop(dif_drop_blocks[non_bg(self.name)]["block"], drop_pos))
                         else:
-                            drops.append(Drop(non_bg(self.name), self.rect.centerx + rand(-5, 5), self.rect.centery + rand(-5, 5), self.name))
+                            drops.append(Drop(non_bg(self.name), drop_pos))
                     self.last_break = ticks()
 
         elif type_ == "tool":
@@ -1464,15 +1467,20 @@ class Block:
             if self.broken >= 5:
                 # block itself
                 if is_in(self.name, dif_drop_blocks):
-                    drops.append(Drop(dif_drop.blocks[non_bg(self.name)]["block"], self.rect.centerx + rand(-5, 5), self.rect.centery + rand(-5, 5), self.name))
+                    drops.append(Drop(dif_drop.blocks[non_bg(self.name)]["block"], drop_pos, self.name))
                 else:
-                    drops.append(Drop(non_bg(self.name), self.rect.centerx + rand(-5, 5), self.rect.centery + rand(-5, 5), self.name))
+                    drops.append(Drop(non_bg(self.name), drop_pos))
                 g.player.tool_healths[g.player.tooli] -= (11 - oinfo[g.player.tool.split("_")[0]]["moh"]) / 8
-                # extra drops
-                if "leaf" in self.name and chance(1 / 20):
-                    drops.append(Drop("apple", self.rect.centerx + rand(-5, 5), self.rect.centery + rand(-5, 5), self.name))
 
         if self.broken >= 5:
+            # extra drops
+            if bpure(self.name) == "leaf" and chance(1 / 20):
+                drops.append(Drop("apple", drop_pos))
+            elif bpure(self.name) == "chest":
+                for name, amount in g.w.metadata[g.w.screen][self.abs_index]["chest"]:
+                    drops.append(Drop(name, drop_pos, amount))
+                    drop_pos = eval(drop_pos_eval)
+            # final
             g.player.broken_blocks[non_bg(self.name)] += 1
             data = g.w.data[g.w.screen]
             self.name = "air"
@@ -1583,15 +1591,20 @@ class Projectile(pygame.sprite.Sprite):
 
 
 class Drop(pygame.sprite.Sprite):
-    def __init__(self, name, x, y, prev):
+    def __init__(self, name, pos, extra=None):
         pygame.sprite.Sprite.__init__(self)
         self.name = name
-        self.drop_amount = apply(prev, dif_drop_blocks, 1)
+        if extra is None:
+            self.drop_amount = 1
+        elif isinstance(extra, str):
+            self.drop_amount = dif_drop_blocks[ipure(extra)]
+        elif isinstance(extra, int):
+            self.drop_amount = extra
         self.image = g.w.blocks[self.name].copy()
         self.width = self.image.get_width()
         self.height = self.image.get_height()
         self.image = scale(self.image, (self.width // 3, self.height // 3))
-        self.rect = self.image.get_rect(center=(x, y))
+        self.rect = self.image.get_rect(center=pos)
         self.og_pos = self.rect.center
 
 
@@ -2174,12 +2187,11 @@ def main(debug):
                                 
                                 elif g.midblit == "chest":
                                     if event.key == K_SPACE:
-                                        chest_index = chest_indexes[tuple(p + 3 for p in g.chest_pos)]
-                                        if g.chest[chest_index] != (None, None):
-                                            g.chest[chest_index][1] -= 1
-                                            g.player.new_empty_block(g.chest[chest_index][0])
-                                            if g.chest[chest_index][1] == 0:
-                                                g.chest[chest_index] = (None, None)
+                                        if g.chest_name != (None, None):
+                                            g.chest_name[1] -= 1
+                                            g.player.new_empty_block(g.chest_name[0])
+                                            if g.chest_name[1] == 0:
+                                                g.chest_name = (None, None)
                                     
                                 elif event.key in (K_SPACE, K_TAB):
                                     toggle_main()
@@ -2396,6 +2408,9 @@ def main(debug):
                                                                 block.image = g.w.blocks[non_bg(block.name)].copy()
                                                                 if "_bg" in block.name:
                                                                     block.image = img_mult(block.image, 0.8)
+                                                                # metadata
+                                                                if non_bg(block.name) == "chest":
+                                                                    g.w.metadata[g.w.screen][block.abs_index]["chest"] = {}
                                                 elif stmt:
                                                     if g.first_affection is None:
                                                         g.first_affection = "break"
@@ -2667,6 +2682,10 @@ def main(debug):
                             row = -1
                         row += 1
                     Window.display.blit(square_border_img, g.chest_pos)
+                    for rect in chest_rects:
+                        if rect.collidepoint(g.mouse):
+                            with suppress(IndexError):
+                                write(Window.display, "center", ipure(g.chest[chest_indexes[rect.topleft]][0]), orbit_fonts[15], BLACK, crafting_rect.centerx, 150)
                             
                 if g.player.main == "block" and g.player.block is not None:
                     if g.player.block in ore_blocks:

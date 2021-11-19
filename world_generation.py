@@ -17,6 +17,15 @@ avatar_url = r"https://avatars.dicebear.com/api/pixel-art-neutral/:seed.svg?mood
 quote_url = "https://inspirobot.me/api?generate=true"
 
 
+def get_chest_insides(block_names):
+    chest_inventory = []
+    chest_amounts = []
+    for _ in range(nordis(5, 2)):
+        chest_inventory.append(choice(block_names))
+        chest_amounts.append(nordis(2, 1) + 1)
+    return [list(x) for x in zip(chest_inventory, chest_amounts)]
+
+
 def get_quote():
     img_url = requests.get(quote_url).text
     img_io = requests.get(img_url).content
@@ -94,9 +103,11 @@ def get_leaf_type(blockname):
         return "f_leaf_bg"
 
 
-def world_modifications(data, metadata, screen, layer, biome, blockindex, blockname, lit_screen, block_names):
+def world_modifications(data, metadata, screen, layer, biome, blockindex, blockname, abs_screen, block_names, Window):
     horindex = blockindex % HL
     verindex = blockindex // HL
+    block_pos = (horindex * 30, verindex * 30)
+    block_x, block_y = block_pos
     entities = []
     if "soil" in blockname:
         if 2 <= horindex <= HL - 3:
@@ -176,7 +187,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
             if 0 <= horindex <= HL - 3:
                 # portal
                 if chance(1 / 20):
-                    e = Entity("portal", (horindex * 30, verindex * 30), lit_screen, 1, sort="portal")
+                    e = Entity("portal", block_pos, abs_screen, 1, sort="portal")
                     entities.append(e)
                
         if biome == "forest":
@@ -193,40 +204,43 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                     data[screen][bi] = barrel_type
             # npc
             if chance(1 / 50):
-                e = Entity(get_avatar(), (horindex * 30, verindex * 30), lit_screen, 1, name="Joe", script=None, sort="npc")
+                e = Entity(get_avatar(), (horindex * 30, verindex * 30), abs_screen, 1, name="Joe", script=None, sort="npc")
                 entities.append(e)
 
     if biome == "desert":
-        if "sand" in data[screen][blockindex]:
+        if "sand" in data[screen][blockindex]:         
             if data[screen][blockindex - HL] == "air":
+                # camels
+                if chance(1 / 50):
+                    camel = Entity("camel", block_pos, abs_screen, 1, "bottomleft", sort="passive")
+                    entities.append(camel)
+                    
+                # cacti
                 if chance(1 / 20):
                     cactus_height = nordis(4, 2)
                     cactus_index = blockindex - HL
                     for i in range(cactus_height):
                         data[screen][cactus_index] = "cactus_bg"
                         cactus_index -= HL
+                 
+                # temples
                 if chance(1 / 5):
                     upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
                             data[screen][blockindex - 29], data[screen][blockindex - 26],
                             data[screen][blockindex - 25]]
                     nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
                             data[screen][blockindex + 1], data[screen][blockindex + 2]]
-                    #if upp_blocks.count("air") == len(upp_blocks) and nei_blocks.count("sand") == len(nei_blocks):
-                    data[screen][blockindex - HL]  = "chest_bg"
-                    data[screen][blockindex - 28]  = "sand_bg"
-                    data[screen][blockindex - 29]  = "sand"
-                    data[screen][blockindex - 26]  = "sand_bg"
-                    data[screen][blockindex - 25]  = "sand"
-                    data[screen][blockindex - 54]  = "sand_bg"
-                    data[screen][blockindex - 55]  = "sand"
-                    data[screen][blockindex - 53]  = "sand"
-                    data[screen][blockindex - 81]  = "sand"
-                    chest_inventory = []
-                    chest_amounts = []
-                    for _ in range(nordis(5, 2)):
-                        chest_inventory.append(choice(block_names))
-                        chest_amounts.append(nordis(2, 1) + 1)
-                    metadata[lit_screen][layer * L + blockindex - HL]["chest"] = list(zip(chest_inventory, chest_amounts))
+                    if upp_blocks.count("air") == len(upp_blocks) and nei_blocks.count("sand") == len(nei_blocks):
+                        data[screen][blockindex - HL]  = "chest_bg"
+                        data[screen][blockindex - 28]  = "sand_bg"
+                        data[screen][blockindex - 29]  = "sand"
+                        data[screen][blockindex - 26]  = "sand_bg"
+                        data[screen][blockindex - 25]  = "sand"
+                        data[screen][blockindex - 54]  = "sand_bg"
+                        data[screen][blockindex - 55]  = "sand"
+                        data[screen][blockindex - 53]  = "sand"
+                        data[screen][blockindex - 81]  = "sand"
+                        metadata[screen][layer * L + blockindex - HL]["chest"] = get_chest_insides(block_names)
 
     elif biome == "beach":
         if "sand" in data[screen][blockindex] and "air" in data[screen][blockindex - HL]:
