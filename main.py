@@ -55,6 +55,12 @@ def player_command(command):
         finally:
             MessageboxError(Window.display, text, **g.def_widget_kwargs)
             
+
+def update_entities():
+    for entity in g.w.entities:
+        if entity.type == "camel":
+            pass # TODO: camel A+
+            
             
 def is_smither(tool):
     return tool.split("_")[1] == "hammer"
@@ -1105,9 +1111,6 @@ class Player:
     
     def link_worlds(self):
         g.cannot_place_block = True
-        
-    def interact(self):
-        pass
 
     def die(self, cause):
         self.dead = True
