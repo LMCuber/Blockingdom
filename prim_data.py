@@ -16,7 +16,7 @@ class Entity:
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
     entity_imgs["camel"] = img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2))
     
-    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", **kwargs):
+    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", smart_vector=False, **kwargs):
         self.anim = 0
         if isinstance(img_data, list):
             iter_ = img_data
@@ -33,20 +33,50 @@ class Entity:
                 iter_ = [SmartSurface.from_string(img_data)]
         self.images = [SmartSurface.from_surface(img) for img in iter_]
         self.image = self.images[int(self.anim)]
-        self.rect = self.image.get_rect()
-        setattr(self.rect, anchor, [p for p in pos])
+        self.smart_vector = smart_vector
+        if not smart_vector:
+            self._rect = self.image.get_rect(topleft=(x, y))
+            setattr(self.rect, anchor, pos)
+        else:
+            self.x, self.y = pos
         self.screen = screen
         self.layer = layer
         self.sizes = [image.get_size() for image in self.images]
         for k, v in kwargs.items():
             setattr(self, k, v)
+        
+    @property
+    def rect(self):
+        if not self.smart_vector:
+            return self._rect
+        else:
+            return self.image.get_rect(topleft=(self.x, self.y))
+    
+    @property
+    def right(self):
+        return self.x + self.image.get_width()
+        
+    @right.setter
+    def right(self, value):
+        self.x = value - self.image.get_width()
+        
+    @property
+    def bottom(self):
+        return self.y + self.image.get_height()
+    
+    @bottom.setter
+    def bottom(self, value):
+        self.y = value - self.image.get_height()
             
     def update(self):
         self.animate()
         self.draw()
 
     def draw(self):
-        Window.display.blit(self.image, self.rect)
+        if not self.smart_vector:
+            Window.display.blit(self.image, self.rect)
+        else:
+            Window.display.blit(self.image, (self.x, self.y))
 
     def animate(self):
         self.anim += g.p.anim_fps
@@ -118,7 +148,7 @@ def cfilter(image, alpha, size, color=BLACK, colorkey=BLACK):
     
     
 def ipure(str_):
-    if bpure(str)_ in a.assets["blocks"]:
+    if bpure(str_) in a.assets["blocks"]:
         return bpure(str_)
     elif tpure(str_) in tinfo:
         return tpure(str_)
@@ -352,7 +382,7 @@ unplacable_blocks = [*gun_blocks]
 
 # loading assets
 load_blocks()
-load_tools() 
+load_tools()
 load_guns()
 load_icons()
 load_asset_sizes()

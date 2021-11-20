@@ -58,21 +58,23 @@ def player_command(command):
 
 def update_entity(entity):
     if entity.sort == "camel":
-        entity.rect.x += 1
-        pass
+        if entity.rect.collidepoint(g.mouse):
+            print(entity.x, entity.y)
+        # TODO: get enemy index and do shit with that index
     
-    if entity.rect.right <= 0:
-        entity.rect.left = Window.width
-        entity.screen -= 1
-    elif entity.rect.left >= Window.width:
-        entity.rect.right = 0
-        entity.screen += 1
-    elif entity.rect.bottom <= 0:
-        entity.rect.top = Window.height
-        entity.layer -= 1
-    elif entity.rect.top >= Window.height:
-        entity.rect.bottom = 0
-        entity.layer += 1
+    if entity.smart_vector:
+        if entity.right <= 0:
+            entity.x = Window.width
+            entity.screen -= 1
+        elif entity.x >= Window.width:
+            entity.right = 0
+            entity.screen += 1
+        elif entity.bottom <= 0:
+            entity.y = Window.height
+            entity.layer -= 1
+        elif entity.y >= Window.height:
+            entity.bottom = 0
+            entity.layer += 1
             
             
 def is_smither(tool):
@@ -435,12 +437,7 @@ def generate_world(worldcode=None, biome=None, screens=5):
             xx = -30
     else:
         utilize_blocks()
-    # mobs gain ground
-    for entity in g.w.entities:
-        if entity.parent == "passive":
-            while any(entity.rect.colliderect(block.rect) and bpure(block.name) not in walk_through_blocks and not block.name.endswith("_bg") for block in all_blocks):
-                entity.rect.y -= 1
-
+        
 
 def generate_screen(biome=None):
     g.w.data.append(SmartList())
@@ -461,13 +458,13 @@ def generate_screen(biome=None):
         if 512 < blockindex < 540:
             noise_index = blockindex
             noise_height = nse[noise_num]
-            # uneven height
-            noise_height % 2
+            g.w.metadata[screen][blockindex]["height"] = noise_height
             if noise_height % 2 == 1:
+                # uneven height
                 ground_height = (noise_height - 1) // 2
                 stone_height = (noise_height - 1) // 2
-            # even height
             else:
+                # even height
                 ground_height = noise_height // 2 - 1
                 stone_height = noise_height // 2
             # variate stone (so that it is not the same as the ground, which makes it look ugly)
@@ -480,8 +477,8 @@ def generate_screen(biome=None):
                 if stone_height != 1:
                     ground_height += 1
                     stone_height -= 1
-            if stone_height < 1:
-                stone_height = 1
+            ground_height, stone_height = abs(ground_height), abs(stone_height)
+            # generate ground and stone
             for _ in range(stone_height):
                 g.w.data[screen][noise_index] = chanced(biome_pack[2])
                 noise_index -= HL
@@ -698,10 +695,10 @@ class PlayWidgets:
         _def_menu_widget_height = 31
         _menu_widget_kwargs = {"anchor": "center", "template": "menu widget", "font": orbit_fonts[15]}
         self.menu_widgets = [
-            Checkbox(Window.display, "Show Stats", self.show_stats_command, checked=True, exit_command=self.checkb_sf_exit_command, **_menu_widget_kwargs),
-            Checkbox(Window.display, "Show FPS", self.show_fps_command, **_menu_widget_kwargs),
-            Checkbox(Window.display, "Show Time", self.show_time_command, **_menu_widget_kwargs),
-            Checkbox(Window.display, "Show Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
+            Checkbox(Window.display, "Stats", self.show_stats_command, checked=True, exit_command=self.checkb_sf_exit_command, **_menu_widget_kwargs),
+            Checkbox(Window.display, "FPS", self.show_fps_command, **_menu_widget_kwargs),
+            Checkbox(Window.display, "Time", self.show_time_command, **_menu_widget_kwargs),
+            Checkbox(Window.display, "Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Fog", self.fog_command, pos=(DPX, DPY), **_menu_widget_kwargs),
             Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
             Slider(Window.display, "Animation", range(21), int(g.p.anim_fps * g.fps_cap), height=60, **_menu_widget_kwargs),
@@ -1682,44 +1679,7 @@ class BreakingBlockParticle(pygame.sprite.Sprite):
         self.rect.y += self.yvel
         if ticks() - self.start_time >= 200:
             self.kill()
-
-
-class Mob:
-    def __init__(self, mobtype):
-        self.image = pygame.Surface((50, 50))
-        self.image.fill((0, 100, 0))
-        self.rect = self.image.get_rect()
-        self.rect.x = 100
-        self.rect.bottom = Window.height - 3 * 30
-        self.screen = 0
-        self.mob_type = mobtype
-
-        self.mob_poss = {"bird": (Window.width / 2, 100)}
-        self.rect.center = self.mob_poss[self.mob_type]
-
-    def bird(self):
-        self.rect.x += rand(2, 2)
-
-    def draw(self):
-        Window.display.blit(self.image, self.rect)
-
-    def function(self):
-        getattr(self, self.mob_type)()
-        if self.screen == g.w.screen:
-            self.draw()
-        if self.rect.left >= Window.width:
-            if self.screen < len(g.w.data) - 1:
-                self.screen += 1
-            else:
-                self.screen = 0
-            self.rect.right = 0
-        elif self.rect.right < 0:
-            if self.screen > 0:
-                self.screen -= 1
-            else:
-                self.screen = len(g.w.data) - 1
-            self.rect.left = Window.width
-
+            
 
 class WorldButton(pygame.sprite.Sprite):
     def __init__(self, data, pos, text_color=BLACK, colorkey=None):
@@ -2490,12 +2450,6 @@ def main(debug):
                             pygame.draw.rect(Window.display, GREEN, block.rect, 1)
                             pygame.draw.rect(Window.display, GREEN, g.player.rect, 1)
 
-                # entities
-                for entity in g.w.entities:
-                    if g.w.screen == entity.screen and g.w.layer == entity.layer:
-                        entity.update()
-                    update_entity(entity)
-
                 # death sreen
                 if g.player.dead:
                     Window.display.blit(death_screen, (0, 0))
@@ -2506,10 +2460,16 @@ def main(debug):
                 # projectiles
                 all_projectiles.function()
 
-                # foregorund sprites (so also the player)
+                # foregorund sprites (also the player)
                 g.player.function()
                 all_foreground_sprites.draw(Window.display)
                 all_foreground_sprites.update()
+                
+                # entities
+                for entity in g.w.entities:
+                    if g.w.screen == entity.screen and g.w.layer == entity.layer:
+                        entity.update()
+                    update_entity(entity)
 
                 # visual tool and block
                 visual.function()
