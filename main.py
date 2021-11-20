@@ -56,10 +56,23 @@ def player_command(command):
             MessageboxError(Window.display, text, **g.def_widget_kwargs)
             
 
-def update_entities():
-    for entity in g.w.entities:
-        if entity.type == "camel":
-            pass # TODO: camel A+
+def update_entity(entity):
+    if entity.sort == "camel":
+        entity.rect.x += 1
+        pass
+    
+    if entity.rect.right <= 0:
+        entity.rect.left = Window.width
+        entity.screen -= 1
+    elif entity.rect.left >= Window.width:
+        entity.rect.right = 0
+        entity.screen += 1
+    elif entity.rect.bottom <= 0:
+        entity.rect.top = Window.height
+        entity.layer -= 1
+    elif entity.rect.top >= Window.height:
+        entity.rect.bottom = 0
+        entity.layer += 1
             
             
 def is_smither(tool):
@@ -422,6 +435,11 @@ def generate_world(worldcode=None, biome=None, screens=5):
             xx = -30
     else:
         utilize_blocks()
+    # mobs gain ground
+    for entity in g.w.entities:
+        if entity.parent == "passive":
+            while any(entity.rect.colliderect(block.rect) and bpure(block.name) not in walk_through_blocks and not block.name.endswith("_bg") for block in all_blocks):
+                entity.rect.y -= 1
 
 
 def generate_screen(biome=None):
@@ -966,7 +984,6 @@ class Player:
         self.drops()
         self.update_fall_effect()
         self.animate()
-        self.interact()
         self.update_effects()
          
     def draw(self):
@@ -1274,9 +1291,12 @@ class Player:
 
         if self.rect.bottom < 0:
             utilize_blocks()
+        
+    def camel_move(self):
+        pass # lol
 
     def gain_ground(self):
-        while any(self.rect.colliderect(block.rect) and block.name not in walk_through_blocks for block in all_blocks):
+        while any(self.rect.colliderect(block.rect) and bpure(block.name) not in walk_through_blocks and not block.name.endswith("_bg") for block in all_blocks):
             self.rect.y -= 1
 
     def off_screen(self):
@@ -2472,7 +2492,9 @@ def main(debug):
 
                 # entities
                 for entity in g.w.entities:
-                    entity.update()
+                    if g.w.screen == entity.screen and g.w.layer == entity.layer:
+                        entity.update()
+                    update_entity(entity)
 
                 # death sreen
                 if g.player.dead:

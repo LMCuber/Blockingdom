@@ -23,7 +23,6 @@ class Entity:
         elif isinstance(img_data, pygame.Surface):
             iter_ = [img_data]
         elif isinstance(img_data, str):
-            print(img_data)
             if img_data in Entity.entity_imgs:
                 imgs = Entity.entity_imgs[img_data]
                 if isinstance(imgs, list):
@@ -41,14 +40,10 @@ class Entity:
         self.sizes = [image.get_size() for image in self.images]
         for k, v in kwargs.items():
             setattr(self, k, v)
-
-    def is_drawable(self):
-        return g.w.screen == self.screen and g.w.layer == self.layer
-
+            
     def update(self):
-        if self.is_drawable():
-            self.animate()
-            self.draw()
+        self.animate()
+        self.draw()
 
     def draw(self):
         Window.display.blit(self.image, self.rect)
@@ -123,9 +118,9 @@ def cfilter(image, alpha, size, color=BLACK, colorkey=BLACK):
     
     
 def ipure(str_):
-    if str_ in a.assets["blocks"]:
+    if bpure(str)_ in a.assets["blocks"]:
         return bpure(str_)
-    elif str_ in tinfo:
+    elif tpure(str_) in tinfo:
         return tpure(str_)
 
 

@@ -212,7 +212,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
             if data[screen][blockindex - HL] == "air":
                 # camels
                 if chance(1 / 50):
-                    camel = Entity("camel", block_pos, abs_screen, 1, "bottomleft", sort="passive")
+                    camel = Entity("camel", block_pos, abs_screen, 1, "bottomleft", sort="camel", parent="passive")
                     entities.append(camel)
                     
                 # cacti
