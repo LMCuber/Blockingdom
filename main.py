@@ -57,11 +57,10 @@ def player_command(command):
             
 
 def update_entity(entity):
-    if entity.sort == "camel":
-        if entity.rect.collidepoint(g.mouse):
-            print(entity.x, entity.y)
-        # TODO: get enemy index and do shit with that index
-    
+    if "camel" in entity.traits:
+        #entity.x += 0.4
+        pass
+                        
     if entity.smart_vector:
         if entity.right <= 0:
             entity.x = Window.width
@@ -383,6 +382,12 @@ def init_world(type_):
     # Go!
     g.stage = "play"
     g.set_loading_world(False)
+    # mobs gain ground
+    for entity in g.w.entities:
+        if "mob" in entity.traits:
+            for blockindex, blockname in enumerate(g.w.data[entity.screen]):
+                horindex, verindex = blockindex % HL, blockindex % VL
+                pygame.draw.rect(Window.display, GREEN, (horindex * 30, verindex * 30, 30, 30), 2)
 
 
 def generate_world(worldcode=None, biome=None, screens=5):
@@ -437,7 +442,7 @@ def generate_world(worldcode=None, biome=None, screens=5):
             xx = -30
     else:
         utilize_blocks()
-        
+            
 
 def generate_screen(biome=None):
     g.w.data.append(SmartList())
@@ -451,14 +456,14 @@ def generate_screen(biome=None):
     for _ in range(L):
         cr_block("air")
     # noise generation
-    nse = g.noise.linear(bio.heights.get(biome, 4), HL, bio.flatnesses.get(biome, 0))
+    noise = g.noise.linear(bio.heights.get(biome, 4), HL, bio.flatnesses.get(biome, 0))
     # biome (ground)
-    noise_num = 0
     for blockindex, blockname in enumerate(g.w.data[screen]):
+        noise_num = blockindex % HL
+        g.w.metadata[screen][layer * L + blockindex]["height"] = noise[noise_num]
         if 512 < blockindex < 540:
             noise_index = blockindex
-            noise_height = nse[noise_num]
-            g.w.metadata[screen][blockindex]["height"] = noise_height
+            noise_height = noise[noise_num]
             if noise_height % 2 == 1:
                 # uneven height
                 ground_height = (noise_height - 1) // 2
@@ -486,7 +491,6 @@ def generate_screen(biome=None):
                 g.w.data[screen][noise_index] = biome_pack[1]
                 noise_index -= HL
             g.w.data[screen][noise_index] = biome_pack[0]
-            noise_num += 1
     for blockindex, blockname in enumerate(g.w.data[screen]):
         entities = world_modifications(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1, chest_blocks, Window)
         g.w.entities.extend(entities)
@@ -596,7 +600,7 @@ class World:
         self.metadata = SmartList()
         self.entities = []
         self.mode = None
-        self.screen = 1
+        self.screen = 0
         self.layer = 1
         self.biome_names = []
         self.prev_screen = self.data
@@ -950,7 +954,7 @@ class Player:
         self.invisible = False
         self.skin = None
         self.stats = {}
-        self.moving_mode = "adventure"
+        self.moving_mode = ["adventure"]
         self.def_food_pie = {"counter": -90}
         self.food_pie = self.def_food_pie.copy()
         self.achievements = {"steps taken": 0, "steps counting": 0}
@@ -974,7 +978,7 @@ class Player:
         self.dx = 0
         self.dy = 0
         if no_widgets(Entry):
-            getattr(self, self.moving_mode + "_move")()
+            getattr(self, self.moving_mode[0] + "_move")(*self.moving_mode[1:])
         self.update_move()
         self.external_gravity()
         self.off_screen()
@@ -1289,8 +1293,9 @@ class Player:
         if self.rect.bottom < 0:
             utilize_blocks()
         
-    def camel_move(self):
-        pass # lol
+    def camel_move(self, camel):
+        self.rect.centerx = camel.centerx - 10
+        self.rect.centery = camel.centery - 25
 
     def gain_ground(self):
         while any(self.rect.colliderect(block.rect) and bpure(block.name) not in walk_through_blocks and not block.name.endswith("_bg") for block in all_blocks):
@@ -1319,29 +1324,20 @@ class Player:
             empty_group(all_drops)
             utilize_blocks()
             self.gain_ground()
-
+        
         elif self.rect.top > Window.height:
-            save_screen(g.loading_world)
-            self.rect.top = 1
-            self.dy = 0
-            self.yvel = 0
-            g.w.layer += 1
-            if g.w.layer > 2:
-                g.player.die("fell into the void")
-            else:
-                empty_group(all_drops)
+            if g.w.layer <= 1:
+                g.w.layer += 1
+                self.rect.bottom = 1
                 utilize_blocks()
-                self.gain_ground()
-
-        elif self.rect.bottom < 0:
-            save_screen(g.loading_world)
-            self.rect.top = Window.height - 1
-            g.w.layer -= 1
-            if g.w.layer < 0:
-                g.w.layer = 0
-            empty_group(all_drops)
-            utilize_blocks()
-            self.gain_ground()
+            else:
+                g.player.die("Fell into the void")
+        
+        elif self.rect.botom < 0:
+            if g.w.layer >= 1:
+                g.w.layer -= 1
+                self.rect.top = Window.height - 1
+                utilize_blocks()
 
     def update_move(self):
         self.rect.x += self.dx
@@ -2041,7 +2037,7 @@ def main(debug):
                 if not g.events_locked:
                     process_widget_events(event, g.mouse)
                     
-                    if event.type == pygame.KEYDOWN:
+                    if event.type == KEYDOWN:                    
                         if g.stage == "play":
                             if no_widgets(Entry):
                                 if event.key == pygame.K_TAB:
@@ -2191,10 +2187,10 @@ def main(debug):
                                 elif event.key == K_s:
                                     if g.w.mode == "freestyle":
                                         if ticks() - last_space <= 200:
-                                            if g.player.moving_mode == "freestyle":
-                                                g.player.moving_mode = "adventure"
-                                            elif g.player.moving_mode == "adventure":
-                                                g.player.moving_mode = "freestyle"
+                                            if g.player.moving_mode == ["freestyle"]:
+                                                g.player.moving_mode = ["adventure"]
+                                            elif g.player.moving_mode == ["adventure"]:
+                                                g.player.moving_mode = ["freestyle"]
                                         else:
                                             for block in all_blocks:
                                                 if is_in(block.name, functionable_blocks):
@@ -2307,8 +2303,10 @@ def main(debug):
                                 for entity in g.w.entities:
                                     if no_widgets(Entry):
                                         if entity.rect.collidepoint(g.mouse):
-                                            if entity.sort == "portal" and entity.is_drawable():
+                                            if "portal" in entity.traits and entity.is_drawable():
                                                 MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", **g.def_widget_kwargs)
+                                            elif "camel" in entity.traits:
+                                                g.player.moving_mode = ["camel", entity]
 
                     elif event.type == pygame.MOUSEBUTTONUP:
                         if event.button == 1:

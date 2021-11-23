@@ -14,9 +14,10 @@ class Entity:
     entity_imgs = {}
     # active
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
-    entity_imgs["camel"] = img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2))
+    entity_imgs["camel1"] = img_mult(cimgload("Images", "Mobs", "camel1.png"), randf(0.8, 1.2))
+    #entity_imgs["camel2"] = img_mult(cimgload("Images", "Mobs", "camel2.png"), randf(0.8, 1.2))
     
-    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", smart_vector=False, **kwargs):
+    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", traits=None, smart_vector=False, **kwargs):
         self.anim = 0
         if isinstance(img_data, list):
             iter_ = img_data
@@ -34,6 +35,7 @@ class Entity:
         self.images = [SmartSurface.from_surface(img) for img in iter_]
         self.image = self.images[int(self.anim)]
         self.smart_vector = smart_vector
+        self.traits = traits if traits is not None else []
         if not smart_vector:
             self._rect = self.image.get_rect(topleft=(x, y))
             setattr(self.rect, anchor, pos)
@@ -61,12 +63,28 @@ class Entity:
         self.x = value - self.image.get_width()
         
     @property
+    def centerx(self):
+        return self.x + self.image.get_width() / 2
+    
+    @centerx.setter
+    def centerx(self, value):
+        self.x = value - self.image.get_width() / 2
+        
+    @property
     def bottom(self):
         return self.y + self.image.get_height()
     
     @bottom.setter
     def bottom(self, value):
         self.y = value - self.image.get_height()
+    
+    @property
+    def centery(self):
+        return self.y + self.image.get_height() / 2
+    
+    @centery.setter
+    def centery(self, value):
+        self.y = value - self.image.get_height() / 2
             
     def update(self):
         self.animate()

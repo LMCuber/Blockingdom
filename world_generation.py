@@ -187,7 +187,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
             if 0 <= horindex <= HL - 3:
                 # portal
                 if chance(1 / 20):
-                    e = Entity("portal", block_pos, abs_screen, 1, sort="portal")
+                    e = Entity("portal", block_pos, abs_screen, 1, traits=["portal"])
                     entities.append(e)
                
         if biome == "forest":
@@ -204,7 +204,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                     data[screen][bi] = barrel_type
             # npc
             if chance(1 / 50):
-                e = Entity(get_avatar(), (horindex * 30, verindex * 30), abs_screen, 1, name="Joe", script=None, sort="npc")
+                e = Entity(get_avatar(), (horindex * 30, verindex * 30), abs_screen, 1, name="Joe", script=None, traits=["npc"])
                 entities.append(e)
 
     if biome == "desert":
@@ -212,7 +212,8 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
             if data[screen][blockindex - HL] == "air":
                 # camels
                 if chance(1 / 50):
-                    camel = Entity("camel", block_pos, abs_screen, 1, "bottomleft", sort="camel", parent="passive", smart_vector=True)
+                    name = choice(("camel1", "camel1"))
+                    camel = Entity(name, block_pos, abs_screen, 1, "bottomleft", traits=["camel", "mob", "passive"], smart_vector=True, index=blockindex)
                     entities.append(camel)
                     
                 # cacti
@@ -225,11 +226,14 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                  
                 # temples
                 if chance(1 / 5):
-                    upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
-                            data[screen][blockindex - 29], data[screen][blockindex - 26],
-                            data[screen][blockindex - 25]]
-                    nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
-                            data[screen][blockindex + 1], data[screen][blockindex + 2]]
+                    try:
+                        upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
+                                data[screen][blockindex - 29], data[screen][blockindex - 26],
+                                data[screen][blockindex - 25]]
+                        nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
+                                data[screen][blockindex + 1], data[screen][blockindex + 2]]
+                    except IndexError:
+                        upp_blocks, nei_blocks = [], []
                     if upp_blocks.count("air") == len(upp_blocks) and nei_blocks.count("sand") == len(nei_blocks):
                         data[screen][blockindex - HL]  = "chest_bg"
                         data[screen][blockindex - 28]  = "sand_bg"
@@ -284,28 +288,33 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
     if blockname == bio.blocks[biome][0]:
         if data[screen][blockindex - HL] == "air":
             if 2 <= horindex <= HL - 1:
-                if data[screen][blockindex - 1] == "air" or data[screen][blockindex + 1] == "air":
-                    if biome in bio.water_chances:
-                        water_chance = chance(1 / bio.water_chances[biome])
-                    else:
-                        water_chance = 0
-                    if water_chance:
-                        # check whether water can flow horizontally
-                        check_xindex = blockindex
-                        faulty = True
-                        for i in range(HL - horindex - 1):
-                            check_xindex += 1
-                            if data[screen][check_xindex] != "air":
-                                faulty = False
-                                break
-                        if not faulty:
-                            water_xindex = blockindex + 1
-                            while data[screen][water_xindex] == "air":
-                                data[screen][water_xindex] = "water"
-                                water_yindex = water_xindex + HL
-                                while data[screen][water_yindex] == "air":
-                                    data[screen][water_yindex] = "water"
-                                    water_yindex += HL
-                                water_xindex += 1
+                try:
+                    stmt = data[screen][blockindex - 1] == "air" or data[screen][blockindex + 1] == "air"
+                except IndexError:
+                    stmt = False
+                finally:
+                    if stmt:
+                        if biome in bio.water_chances:
+                            water_chance = chance(1 / bio.water_chances[biome])
+                        else:
+                            water_chance = 0
+                        if water_chance:
+                            # check whether water can flow horizontally
+                            check_xindex = blockindex
+                            faulty = True
+                            for i in range(HL - horindex - 1):
+                                check_xindex += 1
+                                if data[screen][check_xindex] != "air":
+                                    faulty = False
+                                    break
+                            if not faulty:
+                                water_xindex = blockindex + 1
+                                while data[screen][water_xindex] == "air":
+                                    data[screen][water_xindex] = "water"
+                                    water_yindex = water_xindex + HL
+                                    while data[screen][water_yindex] == "air":
+                                        data[screen][water_yindex] = "water"
+                                        water_yindex += HL
+                                    water_xindex += 1
 
     return entities
