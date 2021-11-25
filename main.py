@@ -56,24 +56,35 @@ def player_command(command):
             MessageboxError(Window.display, text, **g.def_widget_kwargs)
             
 
+def ipure(str_):
+    if non_bg(str_) in g.w.blocks:
+        return bpure(str_)
+    elif tpure(str_) in tinfo:
+        return tpure(str_)
+
+
 def update_entity(entity):
-    if "camel" in entity.traits:
-        #entity.x += 0.4
+    try:
+        g.w.data[entity.screen]
+    except IndexError:
         pass
-                        
-    if entity.smart_vector:
-        if entity.right <= 0:
-            entity.x = Window.width
-            entity.screen -= 1
-        elif entity.x >= Window.width:
-            entity.right = 0
-            entity.screen += 1
-        elif entity.bottom <= 0:
-            entity.y = Window.height
-            entity.layer -= 1
-        elif entity.y >= Window.height:
-            entity.bottom = 0
-            entity.layer += 1
+    else:      
+        if "camel" in entity.traits:
+            entity.movex(0.1)
+
+        if entity.smart_vector:
+            if entity.right <= 0:
+                entity.x = Window.width
+                entity.screen -= 1
+            elif entity.x >= Window.width:
+                entity.right = 0
+                entity.screen += 1
+            elif entity.bottom <= 0:
+                entity.y = Window.height
+                entity.layer -= 1
+            elif entity.y >= Window.height:
+                entity.bottom = 0
+                entity.layer += 1
             
             
 def is_smither(tool):
@@ -153,12 +164,6 @@ def is_eatable(food):
     else:
         eat = False
     return eat
-
-
-def cust_cursor():
-    g.cursor_index += 1
-    if g.cursor_index == len(g.cursors):
-        g.cursor_index = 0
 
 
 def apply(elm, seq, default):
@@ -382,13 +387,19 @@ def init_world(type_):
     # Go!
     g.stage = "play"
     g.set_loading_world(False)
-    # mobs gain ground
-    for entity in g.w.entities:
-        if "mob" in entity.traits:
-            for blockindex, blockname in enumerate(g.w.data[entity.screen]):
-                horindex, verindex = blockindex % HL, blockindex % VL
-                pygame.draw.rect(Window.display, GREEN, (horindex * 30, verindex * 30, 30, 30), 2)
-
+    
+    
+def entity_screen(entity):
+    ret = []
+    for blockindex, blockname in enumerate(g.w.data[entity.screen]):
+        if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
+            if entity.layer * L < blockindex < entity.layer * L * 2:
+                horindex = blockindex % HL
+                verindex = (blockindex % L) // HL
+                _x, _y = horindex * 30, verindex * 30
+                _rect = pygame.Rect(_x, _y, 30, 30)
+                check_rects.append(_rect)
+                
 
 def generate_world(worldcode=None, biome=None, screens=5):
     # world data (non-gui)
@@ -442,6 +453,20 @@ def generate_world(worldcode=None, biome=None, screens=5):
             xx = -30
     else:
         utilize_blocks()
+    # mobs gain ground
+    for entity in g.w.entities:
+        if "mob" in entity.traits:
+            check_rects = []
+            for blockindex, blockname in enumerate(g.w.data[entity.screen]):
+                if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
+                    if entity.layer * L < blockindex < entity.layer * L * 2:
+                        horindex = blockindex % HL
+                        verindex = (blockindex % L) // HL
+                        _x, _y = horindex * 30, verindex * 30
+                        _rect = pygame.Rect(_x, _y, 30, 30)
+                        check_rects.append(_rect)
+            while any(entity.rect.colliderect(check_rect) for check_rect in check_rects):
+                entity.y -= 1
             
 
 def generate_screen(biome=None):
@@ -521,10 +546,13 @@ def save_screen(daemonic):
 
 # S T A T I C  O B J E C T  F U N C T I O N S  -------------------------------------------------------  #
 def is_drawable(obj):
-    if not hasattr(obj, "visible_when") or obj.visible_when is None or (callable(obj.visible_when) and obj.visible_when()):
-        return True
+    if isinstance(obj, Entity):
+        return g.w.screen == obj.screen and g.w.layer == obj.layer
     else:
-        return False
+        if not hasattr(obj, "visible_when") or obj.visible_when is None or (callable(obj.visible_when) and obj.visible_when()):
+            return True
+        else:
+            return False
 
 
 def is_home():
@@ -853,7 +881,7 @@ class PlayWidgets:
     @staticmethod
     def show_config_command():
         g.opened_file = True
-        os.system("notepad config.json")
+        notepadopen("config.json")
 
     @staticmethod
     def save_and_quit_command():
@@ -870,7 +898,7 @@ class PlayWidgets:
 
     @staticmethod
     def is_worlds_static():
-        return g.stage == "home" and g.home_stage == "static"
+        return g.stage == "home" and g.home_stage == "settings"
 
     @staticmethod
     def is_home():
@@ -897,6 +925,11 @@ class PlayWidgets:
     def button_daw_command():
         if not all_messageboxes:
             delete_all_worlds()
+        
+    @staticmethod
+    def button_c_command():
+        g.opened_file = True
+        notepadopen("CREDITS.txt")
 
     @staticmethod
     def toggle_sd_command():
@@ -954,7 +987,9 @@ class Player:
         self.invisible = False
         self.skin = None
         self.stats = {}
-        self.moving_mode = ["adventure"]
+        
+        self.set_moving_mode("adventure")
+        
         self.def_food_pie = {"counter": -90}
         self.food_pie = self.def_food_pie.copy()
         self.achievements = {"steps taken": 0, "steps counting": 0}
@@ -1123,6 +1158,11 @@ class Player:
     def oxygen(self, value):
         self.stats["o2"]["amount"] = value
     
+    def set_moving_mode(self, name, *args):
+        self.moving_mode = [name, *args]
+        if name in ("adventure", "freestyle"):
+            self.last_moving_mode = [name, *args]
+    
     def new_tool(self, name):
         self.tool_healths[self.empty_tooli] = 100
         self.empty_tool = name
@@ -1241,13 +1281,12 @@ class Player:
                 self.in_air = True
 
         # xvel
+        self.still = True
         if g.keys[g.ckeys["p left"]]:
             self.movex(-self.adv_xvel)
-        elif g.keys[g.ckeys["p right"]]:
+        if g.keys[g.ckeys["p right"]]:
             self.movex(self.adv_xvel)
-        else:
-            self.still = True
-
+            
         # yvel
         self.yvel += self.gravity
         self.dy += self.yvel
@@ -1295,7 +1334,7 @@ class Player:
         
     def camel_move(self, camel):
         self.rect.centerx = camel.centerx - 10
-        self.rect.centery = camel.centery - 25
+        self.rect.centery = camel.centery - 35
 
     def gain_ground(self):
         while any(self.rect.colliderect(block.rect) and bpure(block.name) not in walk_through_blocks and not block.name.endswith("_bg") for block in all_blocks):
@@ -1333,7 +1372,7 @@ class Player:
             else:
                 g.player.die("Fell into the void")
         
-        elif self.rect.botom < 0:
+        elif self.rect.bottom < 0:
             if g.w.layer >= 1:
                 g.w.layer -= 1
                 self.rect.top = Window.height - 1
@@ -1418,7 +1457,7 @@ class Visual:
                                     pygame.draw.rect(Window.display, GREEN, block.rect, 1)
                                     break
                     pygame.gfxdraw.line(Window.display, *start_pos, *end_pos, color)
-  
+
 
 class Block:
     def __init__(self, x, y, index):
@@ -1427,9 +1466,7 @@ class Block:
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
-
         self.broken = 0
-        self.last_break = ticks()
         self.light = 1
 
     @property
@@ -1465,14 +1502,14 @@ class Block:
         if type_ == "normal":
             if non_bg(self.name) not in ore_blocks:
                 breaking_time = apply(self.name, block_breaking_times, 500)
-                if ticks() - self.last_break >= breaking_time:
+                if ticks() - g.last_break >= breaking_time:
                     self.broken += 1
                     if self.broken >= 5:
                         if is_in(self.name, dif_drop_blocks):
                             drops.append(Drop(dif_drop_blocks[non_bg(self.name)]["block"], drop_pos))
                         else:
                             drops.append(Drop(non_bg(self.name), drop_pos))
-                    self.last_break = ticks()
+                    g.last_break = ticks()
 
         elif type_ == "tool":
             if get_tinfo(g.player.tool, self.name):
@@ -1955,10 +1992,7 @@ button_cnw = StaticButton("Create New World", (45, Window.height - 160), all_hom
 button_lw = StaticButton("Load World", (45, Window.height - 120), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", size="world", command=pw.button_lw_command, visible_when=pw.is_worlds_worlds)
 button_daw = StaticButton("Delete All Worlds", (45, Window.height - 80), all_home_world_static_buttons, LIGHT_BROWN, text_color=RED, anchor="topleft", size="world", command=pw.button_daw_command, visible_when=pw.is_worlds_worlds)
 toggle_sd = StaticToggleButton(("name", "data"), (175, 131), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", command=pw.toggle_sd_command, visible_when=pw.is_worlds_worlds)
-button_c = StaticButton("Credits", (35, 130), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", icon="cursor", command=cust_cursor, visible_when=pw.is_worlds_static)
-button_kb = StaticButton("Key Bindings", (35, 170), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
-button_tp = StaticButton("Custom Textures", (35, 210), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
-button_l = StaticOptionMenu(g.common_languages, "EN", (35, 250), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
+button_c = StaticButton("Credits", (35, 130), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", command=pw.button_c_command, visible_when=pw.is_worlds_static)
 button_s = StaticButton("Settings", (580, 150), all_home_sprites, GRAY, icon="settings", command=pw.set_home_stage_settings, visible_when=pw.is_home)
 button_w = StaticButton("Worlds", (580, 190), all_home_sprites, GRAY, command=pw.set_home_stage_worlds, visible_when=pw.is_home)
 
@@ -2006,8 +2040,6 @@ def main(debug):
             
             # global dynamic variables
             g.p.anim_fps = pw.anim_fps.value / g.fps_cap
-            if g.opened_file:
-                g.handle_opened_file()
 
             # music
             if g.stage == "play":
@@ -2022,8 +2054,11 @@ def main(debug):
                 else:
                     music_count = float("-inf")
                 if ticks() - music_count >= 5000:
-                    pygame.mixer.music.load(path("Audio", "Music", "Background", random.choice(os.listdir(path("Audio", "Music", "Background")))))
+                    while (music_name := random.choice(os.listdir(path("Audio", "Music", "Background")))) == g.last_music:
+                        do_nothing()
+                    pygame.mixer.music.load(path("Audio", "Music", "Background", music_name))
                     pygame.mixer.music.play()
+                    g.last_music = music_name
                     if first_music:
                         first_music = False
 
@@ -2188,9 +2223,9 @@ def main(debug):
                                     if g.w.mode == "freestyle":
                                         if ticks() - last_space <= 200:
                                             if g.player.moving_mode == ["freestyle"]:
-                                                g.player.moving_mode = ["adventure"]
+                                                g.player.set_moving_mode("adventure")
                                             elif g.player.moving_mode == ["adventure"]:
-                                                g.player.moving_mode = ["freestyle"]
+                                                g.player.set_moving_mode("freestyle")
                                         else:
                                             for block in all_blocks:
                                                 if is_in(block.name, functionable_blocks):
@@ -2259,12 +2294,13 @@ def main(debug):
                                     Thread(target=messagebox.zoom, args=["out"]).start()
                                     break
 
-                            if not all_messageboxes:
-                                for button in all_home_world_world_buttons:
-                                    if button.rect.collidepoint(g.mouse):
-                                        mb = MessageboxWorld(button.data)
-                                        group(mb, all_messageboxes)
-                                        break
+                            if g.home_stage == "worlds":
+                                if not all_messageboxes:
+                                    for button in all_home_world_world_buttons:
+                                        if button.rect.collidepoint(g.mouse):
+                                            mb = MessageboxWorld(button.data)
+                                            group(mb, all_messageboxes)
+                                            break
 
                             if g.clicked_when == "play":
                                 if g.midblit is not None:
@@ -2303,10 +2339,14 @@ def main(debug):
                                 for entity in g.w.entities:
                                     if no_widgets(Entry):
                                         if entity.rect.collidepoint(g.mouse):
-                                            if "portal" in entity.traits and entity.is_drawable():
-                                                MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", **g.def_widget_kwargs)
-                                            elif "camel" in entity.traits:
-                                                g.player.moving_mode = ["camel", entity]
+                                            if is_drawable(entity):
+                                                if "portal" in entity.traits and entity.is_drawable():
+                                                    MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", **g.def_widget_kwargs)
+                                                elif "camel" in entity.traits:
+                                                    if g.player.moving_mode[0] != "camel":
+                                                        g.player.set_moving_mode("camel", entity)
+                                                    else:
+                                                        g.player.set_moving_mode(g.player.last_moving_mode[0])
 
                     elif event.type == pygame.MOUSEBUTTONUP:
                         if event.button == 1:
@@ -2465,7 +2505,7 @@ def main(debug):
                 
                 # entities
                 for entity in g.w.entities:
-                    if g.w.screen == entity.screen and g.w.layer == entity.layer:
+                    if is_drawable(entity):
                         entity.update()
                     update_entity(entity)
 
@@ -2804,7 +2844,7 @@ def main(debug):
             updating_worldbuttons = [worldbutton for worldbutton in all_home_world_world_buttons if is_drawable(worldbutton)]
             updating_settingsbuttons = [settingsbutton for settingsbutton in all_home_settings_buttons if is_drawable(settingsbutton) and not isinstance(settingsbutton, StaticOptionMenu)]
             updating_static_buttons = [static_button for static_button in all_home_world_static_buttons if is_drawable(static_button)]
-            update_button_behavior(updating_worldbuttons + updating_buttons + updating_settingsbuttons + updating_static_buttons + [button_s, button_w])
+            update_button_behavior(updating_worldbuttons + updating_buttons + updating_settingsbuttons + updating_static_buttons + [button_s, button_w, button_c])
             draw_and_update_widgets()
 
             # screen shake (offsetting the render)

@@ -165,6 +165,8 @@ class Game:
         self.skin_menu = False
         self.first_affection = None
         self.opened_file = False
+        self.last_break = ticks()
+        self.last_music = None
         # surfaces
         self.night_sky = pygame.Surface(Window.size)
         self.menu_surf = pygame.Surface(Window.size); self.menu_surf.set_alpha(100)
@@ -320,14 +322,6 @@ class Game:
     def set_loading_world(self, tof):
         self.loading_world = self.events_locked = tof
         self.loading_world_perc = 0
-    
-    def handle_opened_file(self):
-        with open("config.json") as f:
-            try:
-                print(json.load(f))
-            except json.decoder.JSONDecodeError:
-                MessageboxError(Window.display, "Invalid data in config.json", pos=DPP)
-        self.opened_file = False
 
 
 g = Game()

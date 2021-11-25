@@ -104,8 +104,7 @@ def get_leaf_type(blockname):
 
 
 def world_modifications(data, metadata, screen, layer, biome, blockindex, blockname, abs_screen, block_names, Window):
-    horindex = blockindex % HL
-    verindex = blockindex // HL
+    horindex, verindex = blockindex % HL, blockindex // HL
     block_pos = (horindex * 30, verindex * 30)
     block_x, block_y = block_pos
     entities = []
@@ -212,7 +211,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
             if data[screen][blockindex - HL] == "air":
                 # camels
                 if chance(1 / 50):
-                    name = choice(("camel1", "camel1"))
+                    name = choice(("camel", "fluff_camel"))
                     camel = Entity(name, block_pos, abs_screen, 1, "bottomleft", traits=["camel", "mob", "passive"], smart_vector=True, index=blockindex)
                     entities.append(camel)
                     
@@ -226,15 +225,12 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                  
                 # temples
                 if chance(1 / 5):
-                    try:
-                        upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
-                                data[screen][blockindex - 29], data[screen][blockindex - 26],
-                                data[screen][blockindex - 25]]
-                        nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
-                                data[screen][blockindex + 1], data[screen][blockindex + 2]]
-                    except IndexError:
-                        upp_blocks, nei_blocks = [], []
-                    if upp_blocks.count("air") == len(upp_blocks) and nei_blocks.count("sand") == len(nei_blocks):
+                    upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
+                            data[screen][blockindex - 29], data[screen][blockindex - 26],
+                            data[screen][blockindex - 25]]
+                    nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
+                            data[screen][blockindex + 1], data[screen][blockindex + 2]]
+                    if True:
                         data[screen][blockindex - HL]  = "chest_bg"
                         data[screen][blockindex - 28]  = "sand_bg"
                         data[screen][blockindex - 29]  = "sand"

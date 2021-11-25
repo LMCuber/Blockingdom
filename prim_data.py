@@ -14,8 +14,8 @@ class Entity:
     entity_imgs = {}
     # active
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
-    entity_imgs["camel1"] = img_mult(cimgload("Images", "Mobs", "camel1.png"), randf(0.8, 1.2))
-    #entity_imgs["camel2"] = img_mult(cimgload("Images", "Mobs", "camel2.png"), randf(0.8, 1.2))
+    entity_imgs["camel"] = img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2))
+    entity_imgs["fluff_camel"] = cimgload("Images", "Mobs", "fluff_camel.png", frames=4)
     
     def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", traits=None, smart_vector=False, **kwargs):
         self.anim = 0
@@ -41,11 +41,16 @@ class Entity:
             setattr(self.rect, anchor, pos)
         else:
             self.x, self.y = pos
+            self.dx = 0
         self.screen = screen
         self.layer = layer
         self.sizes = [image.get_size() for image in self.images]
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def update(self):
+        self.animate()
+        self.draw()
         
     @property
     def rect(self):
@@ -85,10 +90,13 @@ class Entity:
     @centery.setter
     def centery(self, value):
         self.y = value - self.image.get_height() / 2
-            
-    def update(self):
-        self.animate()
-        self.draw()
+        
+    def movex(self, amount):
+        self.x += amount
+        self.dx += amount
+        if self.dx >= 30:
+            self.dx = 0
+            self.index += 1
 
     def draw(self):
         if not self.smart_vector:
@@ -163,13 +171,6 @@ def cfilter(image, alpha, size, color=BLACK, colorkey=BLACK):
     final_surf.blit(surf, (0, 0))
     final_surf.set_colorkey(colorkey)
     return final_surf
-    
-    
-def ipure(str_):
-    if bpure(str_) in a.assets["blocks"]:
-        return bpure(str_)
-    elif tpure(str_) in tinfo:
-        return tpure(str_)
 
 
 def tpure(tool):
@@ -396,7 +397,7 @@ ginfo = {
 
 ainfo = {}
 
-unplacable_blocks = [*gun_blocks]
+unplacable_blocks = [*gun_blocks, "bucket"]
 
 # loading assets
 load_blocks()
