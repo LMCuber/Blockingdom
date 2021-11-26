@@ -224,13 +224,11 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                         cactus_index -= HL
                  
                 # temples
-                if chance(1 / 5):
-                    upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - 28],
-                            data[screen][blockindex - 29], data[screen][blockindex - 26],
-                            data[screen][blockindex - 25]]
-                    nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
-                            data[screen][blockindex + 1], data[screen][blockindex + 2]]
-                    if True:
+                if chance(1 / 10):
+                    upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - HL - 1],
+                            data[screen][blockindex - HL - 2], data[screen][blockindex - HL + 1],
+                            data[screen][blockindex - HL + 2]]
+                    if upp_blocks.count("air") == len(upp_blocks):
                         data[screen][blockindex - HL]  = "chest_bg"
                         data[screen][blockindex - 28]  = "sand_bg"
                         data[screen][blockindex - 29]  = "sand"

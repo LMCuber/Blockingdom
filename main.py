@@ -336,7 +336,7 @@ def delete_all_worlds():
             for file_ in os.listdir("Worlds"):
                 os.remove(path("Worlds", file_))
                 open("variables.dat", "w").close()
-                open("buttons.dat", "w").close()
+                open("worldbuttons.dat", "w").close()
             empty_group(all_home_world_world_buttons)
             g.p.world_names.clear()
             g.w.name = None
@@ -389,8 +389,8 @@ def init_world(type_):
     g.set_loading_world(False)
     
     
-def entity_screen(entity):
-    ret = []
+def entity_screen_rects(entity):
+    rects = []
     for blockindex, blockname in enumerate(g.w.data[entity.screen]):
         if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
             if entity.layer * L < blockindex < entity.layer * L * 2:
@@ -398,7 +398,8 @@ def entity_screen(entity):
                 verindex = (blockindex % L) // HL
                 _x, _y = horindex * 30, verindex * 30
                 _rect = pygame.Rect(_x, _y, 30, 30)
-                check_rects.append(_rect)
+                rects.append(_rect)
+    return rects
                 
 
 def generate_world(worldcode=None, biome=None, screens=5):
@@ -456,15 +457,7 @@ def generate_world(worldcode=None, biome=None, screens=5):
     # mobs gain ground
     for entity in g.w.entities:
         if "mob" in entity.traits:
-            check_rects = []
-            for blockindex, blockname in enumerate(g.w.data[entity.screen]):
-                if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
-                    if entity.layer * L < blockindex < entity.layer * L * 2:
-                        horindex = blockindex % HL
-                        verindex = (blockindex % L) // HL
-                        _x, _y = horindex * 30, verindex * 30
-                        _rect = pygame.Rect(_x, _y, 30, 30)
-                        check_rects.append(_rect)
+            check_rects = entity_screen_rects(entity)
             while any(entity.rect.colliderect(check_rect) for check_rect in check_rects):
                 entity.y -= 1
             
@@ -593,11 +586,16 @@ class ExitHandler:
         if toggle_sd.cycles[toggle_sd.cycle] == "data":
             for button in all_home_world_world_buttons:
                 update_button_data(button)
-        # save world buttons
-        with open("buttons.dat", "wb") as f:
+        # save world buttons (pickle)
+        with open("worldbuttons.dat", "wb") as f:
             if all_home_world_world_buttons:
                 button_attrs = [button.data for button in all_home_world_world_buttons]
                 pickle.dump(button_attrs, f)
+        # save world buttons (json? testing)
+        with open("worldbuttons.json", "w") as f:
+            if all_home_world_world_buttons:
+                button_attrs = [button.data for button in all_home_world_world_buttons]
+                button_attrs = [{k: v if not k.endswith("_obj") else vars(v) for k, v in attr.items()} for attr in button_attrs]
         # save data
         with open("variables.dat", "wb") as f:
             pickle.dump(g.p, f)
@@ -1998,8 +1996,8 @@ button_w = StaticButton("Worlds", (580, 190), all_home_sprites, GRAY, command=pw
 
 # L O A D I N G  T H E  G A M E ----------------------------------------------------------------------- #
 # load buttons
-if os.path.getsize("buttons.dat") > 0:
-    with open("buttons.dat", "rb") as f:
+if os.path.getsize("worldbuttons.dat") > 0:
+    with open("worldbuttons.dat", "rb") as f:
         attrs = pickle.load(f)
         for attr in attrs:
             group(WorldButton(attr, attr["pos"]), all_home_world_world_buttons)
