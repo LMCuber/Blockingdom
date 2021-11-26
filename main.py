@@ -2815,7 +2815,7 @@ def main(debug):
                 
             # skin menu filling
             if g.skin_menu:
-                # backkground (filling)
+                # background (filling)
                 Window.display.cblit(g.skin_menu_surf, (Window.width / 2, Window.height / 2))
                 Window.display.cblit(g.player_model, (Window.width / 2, Window.height / 2))
                 # skins (showcase)
