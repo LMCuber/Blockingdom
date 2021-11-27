@@ -580,8 +580,8 @@ class ExitHandler:
         for button in all_home_world_world_buttons:
             if button.data["world"] == g.w.name:
                 g.player.width, g.player.height = g.player.image.get_size()
-                button.data["player_obj"] = deepcopy(g.player)
-                button.data["world_obj"] = deepcopy(g.w)
+                button.data["player_obj"] = g.player
+                button.data["world_obj"] = g.w
                 break
         if toggle_sd.cycles[toggle_sd.cycle] == "data":
             for button in all_home_world_world_buttons:
@@ -591,12 +591,14 @@ class ExitHandler:
             if all_home_world_world_buttons:
                 button_attrs = [button.data for button in all_home_world_world_buttons]
                 pickle.dump(button_attrs, f)
+        """
         # save world buttons (json? testing)
         with open("worldbuttons.json", "w") as f:
             if all_home_world_world_buttons:
                 button_attrs = [button.data for button in all_home_world_world_buttons]
                 button_attrs = [{k: v if not k.endswith("_obj") else vars(v) for k, v in attr.items()} for attr in button_attrs]
-        # save data
+        """
+        # save play (global variable) data
         with open("variables.dat", "wb") as f:
             pickle.dump(g.p, f)
         # cleanup attributes

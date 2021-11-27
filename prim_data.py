@@ -184,13 +184,25 @@ WOOD_BROWN = (87, 44, 0)
 DARK_WOOD_BROWN = (80, 40, 0)
 
 
-class A:
+class _Assets:
     def __init__(self):
         self.assets = {"blocks": {}, "tools": {}, "icons": {}}
-        self.asset_sizes = {}
+        self.sizes = {}
+    
+    @property
+    def blocks(self):
+        return self.assets["blocks"]
+    
+    @property
+    def tools(self):
+        return self.assets["tools"]
+    
+    @property
+    def icons(self):
+        return self.assets["icons"]
     
     
-a = A()
+a = _Assets()
 
 
 # images
@@ -207,19 +219,19 @@ def load_blocks():
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
-            a.assets["blocks"][block] = _bsprs.subsurface(x * 30, y * 30, 30, 30)
+            a.blocks[block] = _bsprs.subsurface(x * 30, y * 30, 30, 30)
     # special one-line blocks
-    a.assets["blocks"]["f_soil"] = a.assets["blocks"]["soil"].copy()
-    a.assets["blocks"]["sw_soil"] = cfilter(a.assets["blocks"]["soil"].copy(), 150, (30, 12))
-    a.assets["blocks"]["sv_soil"] = cfilter(a.assets["blocks"]["soil"].copy(), 150, (30, 12), (68, 95, 35))
-    a.assets["blocks"]["sv_wood"] = img_mult(a.assets["blocks"]["wood"].copy(), 1.2)
-    a.assets["blocks"]["f_leaf"] = a.assets["blocks"]["leaf"].copy()
-    a.assets["blocks"]["sw_leaf"] = cfilter(a.assets["blocks"]["leaf"].copy(), 150, (30, 30))
-    a.assets["blocks"]["sk_leaf"] = cfilter(a.assets["blocks"]["leaf"].copy(), 150, (30, 30), PINK)
-    a.assets["blocks"]["water"] = pygame.Surface((30, 30), pygame.SRCALPHA); a.assets["blocks"]["water"].fill((17, 130, 177)); a.assets["blocks"]["water"].set_alpha(180)
-    a.assets["blocks"]["glass"] = pygame.Surface((30, 30), pygame.SRCALPHA); a.assets["blocks"]["glass"].fill(WHITE, (0, 0, 30, 2)); a.assets["blocks"]["glass"].fill(WHITE, (28, 0, 2, 30)); a.assets["blocks"]["glass"].fill(WHITE, (0, 28, 30, 2)); a.assets["blocks"]["glass"].fill(WHITE, (0, 0, 2, 30))
+    a.blocks["f_soil"] = a.blocks["soil"].copy()
+    a.blocks["sw_soil"] = cfilter(a.blocks["soil"].copy(), 150, (30, 12))
+    a.blocks["sv_soil"] = cfilter(a.blocks["soil"].copy(), 150, (30, 12), (68, 95, 35))
+    a.blocks["sv_wood"] = img_mult(a.blocks["wood"].copy(), 1.2)
+    a.blocks["f_leaf"] = a.blocks["leaf"].copy()
+    a.blocks["sw_leaf"] = cfilter(a.blocks["leaf"].copy(), 150, (30, 30))
+    a.blocks["sk_leaf"] = cfilter(a.blocks["leaf"].copy(), 150, (30, 30), PINK)
+    a.blocks["water"] = pygame.Surface((30, 30), pygame.SRCALPHA); a.blocks["water"].fill((17, 130, 177)); a.blocks["water"].set_alpha(180)
+    a.blocks["glass"] = pygame.Surface((30, 30), pygame.SRCALPHA); a.blocks["glass"].fill(WHITE, (0, 0, 30, 2)); a.blocks["glass"].fill(WHITE, (28, 0, 2, 30)); a.blocks["glass"].fill(WHITE, (0, 28, 30, 2)); a.blocks["glass"].fill(WHITE, (0, 0, 2, 30))
     # spike plant
-    a.assets["blocks"]["spike-plant"] = pygame.Surface((30, 30), pygame.SRCALPHA)
+    a.blocks["spike-plant"] = pygame.Surface((30, 30), pygame.SRCALPHA)
     for i in range(3):
         _x = nordis(15, 3)
         _y = 30
@@ -230,21 +242,21 @@ def load_blocks():
             elif _x > 27:
                 _x = 27
             _y -= 3
-            pygame.draw.rect(a.assets["blocks"]["spike-plant"], rgb_mult(GREEN, randf(0.6, 1.4)), (_x, _y, 3, 3))
-    pygame.draw.rect(a.assets["blocks"]["spike-plant"], rgb_mult(YELLOW, randf(0.6, 1.4)), (_x, _y, 3, 3))
+            pygame.draw.rect(a.blocks["spike-plant"], rgb_mult(GREEN, randf(0.6, 1.4)), (_x, _y, 3, 3))
+    pygame.draw.rect(a.blocks["spike-plant"], rgb_mult(YELLOW, randf(0.6, 1.4)), (_x, _y, 3, 3))
     # portal generator
-    a.assets["blocks"]["portal-generator"] = pygame.Surface((30, 30), pygame.SRCALPHA)
+    a.blocks["portal-generator"] = pygame.Surface((30, 30), pygame.SRCALPHA)
     for y in range(10):
         for x in range(10):
-            surf = a.assets["blocks"]["portal-generator"]
+            surf = a.blocks["portal-generator"]
             color = [rand(0, 255) for _ in range(3)]
             rect = (x * 3, y * 3, 3, 3)
             pygame.draw.rect(surf, color, rect)
     # ores
     for name, color in [(oi, oinfo[oi]["color"]) for oi in oinfo]:
         if name != "stone":
-            a.assets["blocks"][name] = swap_palette(a.assets["blocks"]["base-ore"], BLACK, color)
-            a.assets["blocks"][f"{name}-ingot"] = pygame.Surface((30, 30), pygame.SRCALPHA)
+            a.blocks[name] = swap_palette(a.blocks["base-ore"], BLACK, color)
+            a.blocks[f"{name}-ingot"] = pygame.Surface((30, 30), pygame.SRCALPHA)
             ingot_keys = ("blocks", f"{name}-ingot")
             ingot_img = ndget(a.assets, ingot_keys)
             pygame.draw.polygon(ingot_img, color, ((0, 11), (22, 3), (30, 11), (8, 19)))
@@ -253,8 +265,8 @@ def load_blocks():
             a.assets[ingot_keys[0]][ingot_keys[1]] = pil2pg(pil_pixelate(pg2pil(ndget(a.assets, ingot_keys)), (10, 10)))
             unplacable_blocks.append(ingot_keys[-1])
     # deleting unneceserry blocks that have been modified anyway
-    del a.assets["blocks"]["soil"]
-    del a.assets["blocks"]["leaf"]
+    del a.blocks["soil"]
+    del a.blocks["leaf"]
 
 
 def load_tools():
@@ -270,35 +282,35 @@ def load_tools():
         for x, tool in enumerate(layer):
             tl = _tsprs.subsurface(x * 30, y * 30, 30, 30)
             for name, color in tool_rarity_colors.items():
-                a.assets["tools"][f"{name}_{tool}"] = swap_palette(tl, STONE_GRAY if tool not in whole_tools else WOOD_BROWN, color)
-    a.og_tools = {k: v.copy() for k, v in a.assets["tools"].items()}
+                a.tools[f"{name}_{tool}"] = swap_palette(tl, STONE_GRAY if tool not in whole_tools else WOOD_BROWN, color)
+    a.og_tools = {k: v.copy() for k, v in a.tools.items()}
 
 
 def load_guns():
     for gun_part in g.tup_gun_parts:
         for gun_filename in os.listdir(path("Images", "Guns", gun_part)):
             gun_name = splitext(gun_filename)[0]
-            a.assets["blocks"][f"{gun_name}_{gun_part}"] = cimgload("Images", "Guns", gun_part, gun_filename)
+            a.blocks[f"{gun_name}_{gun_part}"] = cimgload("Images", "Guns", gun_part, gun_filename)
             gun_blocks.append(f"{gun_name}_{gun_part}")
-    a.og_blocks = {k: v.copy() for k, v in a.assets["blocks"].items()}
+    a.og_blocks = {k: v.copy() for k, v in a.blocks.items()}
             
             
 def load_icons():
-    a.assets["icons"] = {}
+    a.icons = {}
     icon_sprs = cimgload("Images", "Spritesheets", "icons.png")
     icon_list = [
         ["lives", "hunger", "thirst", "energy", "o2", "xp"]
     ]
     for y, layer in enumerate(icon_list):
         for x, tool in enumerate(layer):
-            a.assets["icons"][tool] = icon_sprs.subsurface(x * 15, y * 15, 15, 15)
-    a.og_icons = {k: v.copy() for k, v in a.assets["icons"].items()}
+            a.icons[tool] = icon_sprs.subsurface(x * 15, y * 15, 15, 15)
+    a.og_icons = {k: v.copy() for k, v in a.icons.items()}
 
 
-def load_asset_sizes():
+def load_sizes():
     for atype, dict_ in a.assets.items():
         for name, img in dict_.items():
-            a.asset_sizes[name] = img.get_size()
+            a.sizes[name] = img.get_size()
             
 
 tool_rarity_colors = {"wood": DARK_WOOD_BROWN, "stone": STONE_GRAY, "iron": LIGHT_GRAY, "gold": GOLD_YELLOW, "emerald": LIGHT_GREEN}
@@ -404,12 +416,12 @@ load_blocks()
 load_tools()
 load_guns()
 load_icons()
-load_asset_sizes()
+load_sizes()
 
 # initializations after asset loading
-for tool in a.assets["tools"]:
+for tool in a.tools:
     o, n = tool.split("_")
     if n == "axe":
         o = norm_ore(o) + ("-ingot" if o != "wood" else "")
         ainfo[tool] = {"recipe": {o: 2, "stick": 1}, "energy": 8}
-chest_blocks = [block for block in a.assets["blocks"] if block is not None]
+chest_blocks = [block for block in a.blocks if block is not None]
