@@ -61,7 +61,28 @@ def ipure(str_):
         return bpure(str_)
     elif tpure(str_) in tinfo:
         return tpure(str_)
-
+    
+    
+def set_entity_screen_rects(entity):
+    rects = []
+    if not is_drawable(entity):
+        iter_ = g.w.data[entity.screen]
+    else:
+        iter_ = [block.name for block in all_blocks]
+    for blockindex, blockname in enumerate(iter_):
+        if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
+            if not is_drawable(entity):
+                stmt = entity.layer * L < blockindex < entity.layer * L * 2
+            else:
+                stmt = True
+            if stmt:
+                horindex = blockindex % HL
+                verindex = (blockindex % L) // HL
+                _x, _y = horindex * 30, verindex * 30
+                _rect = pygame.Rect(_x, _y, 30, 30)
+                rects.append(_rect)
+    entity.check_rects = rects
+    
 
 def update_entity(entity):
     try:
@@ -70,21 +91,39 @@ def update_entity(entity):
         pass
     else:      
         if "camel" in entity.traits:
-            entity.movex(0.1)
+            # collisions
+            if entity.x > -90:
+                # x (up)
+                x_rect = pygame.Rect(entity.x + 1, entity.y, entity.width + 1, entity.height)
+                while any(x_rect.colliderect(check_rect) for check_rect in entity.check_rects):
+                    entity.y -= 1
+                    x_rect = pygame.Rect(entity.x + 1, entity.y, entity.width + 1, entity.height)
+                # y (down)
+                y_rect = pygame.Rect(entity.x, entity.y + 1, entity.width, entity.height + 1)
+                while not any(y_rect.colliderect(check_rect) for check_rect in entity.check_rects):
+                    entity.y += 1
+                    y_rect = pygame.Rect(entity.x, entity.y + 1, entity.width, entity.height + 1)
+                pygame.draw.rect(Window.display, GREEN, y_rect, 1)
+                write(Window.display, "center", entity.screen + 1, orbit_fonts[15], GREEN, *y_rect.center)
+            entity.movex(0.2)
 
         if entity.smart_vector:
             if entity.right <= 0:
                 entity.x = Window.width
                 entity.screen -= 1
+                set_entity_screen_rects(entity)
             elif entity.x >= Window.width:
                 entity.right = 0
                 entity.screen += 1
+                set_entity_screen_rects(entity)
             elif entity.bottom <= 0:
                 entity.y = Window.height
                 entity.layer -= 1
+                set_entity_screen_rects(entity)
             elif entity.y >= Window.height:
                 entity.bottom = 0
                 entity.layer += 1
+                set_entity_screen_rects(entity)
             
             
 def is_smither(tool):
@@ -387,19 +426,6 @@ def init_world(type_):
     # Go!
     g.stage = "play"
     g.set_loading_world(False)
-    
-    
-def entity_screen_rects(entity):
-    rects = []
-    for blockindex, blockname in enumerate(g.w.data[entity.screen]):
-        if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
-            if entity.layer * L < blockindex < entity.layer * L * 2:
-                horindex = blockindex % HL
-                verindex = (blockindex % L) // HL
-                _x, _y = horindex * 30, verindex * 30
-                _rect = pygame.Rect(_x, _y, 30, 30)
-                rects.append(_rect)
-    return rects
                 
 
 def generate_world(worldcode=None, biome=None, screens=5):
@@ -457,8 +483,8 @@ def generate_world(worldcode=None, biome=None, screens=5):
     # mobs gain ground
     for entity in g.w.entities:
         if "mob" in entity.traits:
-            check_rects = entity_screen_rects(entity)
-            while any(entity.rect.colliderect(check_rect) for check_rect in check_rects):
+            set_entity_screen_rects(entity)
+            while any(entity.rect.colliderect(check_rect) for check_rect in entity.check_rects):
                 entity.y -= 1
             
 
@@ -649,11 +675,11 @@ class World:
         self.dnc_hours = list(range(12, 24)) + list(range(0, 12))
         # saved assets
         self.assets = {"blocks": {}, "tools": {}, "icons": {}}
-        self.asset_sizes = a.asset_sizes
+        self.asset_sizes = a.sizes
         for atype, dict_ in a.assets.items():
             for name, img in dict_.items():
                 self.assets[atype][name] = SmartSurface.from_surface(img)
-        
+
     @property
     def blocks(self):
         return self.assets["blocks"]

@@ -228,7 +228,9 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                     upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - HL - 1],
                             data[screen][blockindex - HL - 2], data[screen][blockindex - HL + 1],
                             data[screen][blockindex - HL + 2]]
-                    if upp_blocks.count("air") == len(upp_blocks):
+                    nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
+                            data[screen][blockindex + 1], data[screen][blockindex + 2]]
+                    if nei_blocks.count("air") == len(nei_blocks):
                         data[screen][blockindex - HL]  = "chest_bg"
                         data[screen][blockindex - 28]  = "sand_bg"
                         data[screen][blockindex - 29]  = "sand"

@@ -90,6 +90,14 @@ class Entity:
     @centery.setter
     def centery(self, value):
         self.y = value - self.image.get_height() / 2
+    
+    @property
+    def width(self):
+        return self.image.get_width()
+        
+    @property
+    def height(self):
+        return self.image.get_height()
         
     def movex(self, amount):
         self.x += amount
@@ -296,7 +304,6 @@ def load_guns():
             
             
 def load_icons():
-    a.icons = {}
     icon_sprs = cimgload("Images", "Spritesheets", "icons.png")
     icon_list = [
         ["lives", "hunger", "thirst", "energy", "o2", "xp"]
