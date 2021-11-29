@@ -64,24 +64,29 @@ def ipure(str_):
     
     
 def set_entity_screen_rects(entity):
-    rects = []
-    if not is_drawable(entity):
-        iter_ = g.w.data[entity.screen]
+    try:
+        g.w.data[entity.screen]
+    except IndexError:
+        pass
     else:
-        iter_ = [block.name for block in all_blocks]
-    for blockindex, blockname in enumerate(iter_):
-        if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
-            if not is_drawable(entity):
-                stmt = entity.layer * L < blockindex < entity.layer * L * 2
-            else:
-                stmt = True
-            if stmt:
-                horindex = blockindex % HL
-                verindex = (blockindex % L) // HL
-                _x, _y = horindex * 30, verindex * 30
-                _rect = pygame.Rect(_x, _y, 30, 30)
-                rects.append(_rect)
-    entity.check_rects = rects
+        rects = []
+        if not is_drawable(entity):
+            iter_ = g.w.data[entity.screen]
+        else:
+            iter_ = [block.name for block in all_blocks]
+        for blockindex, blockname in enumerate(iter_):
+            if blockname not in walk_through_blocks and not blockname.endswith("_bg"):
+                if not is_drawable(entity):
+                    stmt = entity.layer * L < blockindex < entity.layer * L * 2
+                else:
+                    stmt = True
+                if stmt:
+                    horindex = blockindex % HL
+                    verindex = (blockindex % L) // HL
+                    _x, _y = horindex * 30, verindex * 30
+                    _rect = pygame.Rect(_x, _y, 30, 30)
+                    rects.append(_rect)
+        entity.check_rects = rects
     
 
 def update_entity(entity):
@@ -103,8 +108,9 @@ def update_entity(entity):
                 while not any(y_rect.colliderect(check_rect) for check_rect in entity.check_rects):
                     entity.y += 1
                     y_rect = pygame.Rect(entity.x, entity.y + 1, entity.width, entity.height + 1)
-                pygame.draw.rect(Window.display, GREEN, y_rect, 1)
-                write(Window.display, "center", entity.screen + 1, orbit_fonts[15], GREEN, *y_rect.center)
+                if g.w.show_hitboxes:
+                    pygame.draw.rect(Window.display, GREEN, y_rect, 1)
+                    write(Window.display, "center", entity.screen + 1, orbit_fonts[15], GREEN, *y_rect.center)
             entity.movex(0.2)
 
         if entity.smart_vector:
@@ -311,7 +317,7 @@ def new_world(worldcode=None):
                             wn = f"New_World_{g.p.new_world_count}"
                             g.p.new_world_count += 1
                         g.w = World()
-                        generate_world(biome="desert")
+                        generate_world(biome=biome)
                         group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                         g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                         g.w.mode = game_mode
@@ -526,7 +532,7 @@ def generate_screen(biome=None):
                 if stone_height != 1:
                     ground_height += 1
                     stone_height -= 1
-            ground_height, stone_height = abs(ground_height), abs(stone_height)
+            #ground_height, stone_height = abs(ground_height), abs(stone_height)
             # generate ground and stone
             for _ in range(stone_height):
                 g.w.data[screen][noise_index] = chanced(biome_pack[2])
@@ -1151,6 +1157,8 @@ class Player:
     @lives.setter
     def lives(self, value):
         self.stats["lives"]["amount"] = value
+        if self.lives > 100:
+            self.lives = 100
     
     @property
     def hunger(self):
@@ -1159,6 +1167,8 @@ class Player:
     @hunger.setter
     def hunger(self, value):
         self.stats["hunger"]["amount"] = value
+        if self.hunger > 100:
+            self.hunger = 100
     
     @property
     def thirst(self):
@@ -1167,6 +1177,8 @@ class Player:
     @thirst.setter
     def thirst(self, value):
         self.stats["thirst"]["amount"] = value
+        if self.thirst > 100:
+            self.thirst = 100
     
     @property
     def energy(self):
@@ -1175,6 +1187,8 @@ class Player:
     @energy.setter
     def energy(self, value):
         self.stats["energy"]["amount"] = value
+        if self.energy > 100:
+            self.energy = 100
     
     @property
     def oxygen(self):
@@ -1183,6 +1197,8 @@ class Player:
     @oxygen.setter
     def oxygen(self, value):
         self.stats["o2"]["amount"] = value
+        if self.oxygen > 100:
+            self.oxygen = 100
     
     def set_moving_mode(self, name, *args):
         self.moving_mode = [name, *args]
@@ -1215,9 +1231,6 @@ class Player:
         self.stats["lives"]["last_regen"] = ticks()
         g.screen_shake = scrsh_length
         g.s_render_offset = scrsh_offset
-
-    def heal(self, amount):
-        self.stats["lives"]["amount"] += amount
 
     def eat(self):
         food = self.block
@@ -1361,6 +1374,7 @@ class Player:
     def camel_move(self, camel):
         self.rect.centerx = camel.centerx - 10
         self.rect.centery = camel.centery - 35
+        self.energy += 0.001
 
     def gain_ground(self):
         while any(self.rect.colliderect(block.rect) and bpure(block.name) not in walk_through_blocks and not block.name.endswith("_bg") for block in all_blocks):
@@ -2366,7 +2380,7 @@ def main(debug):
                                     if no_widgets(Entry):
                                         if entity.rect.collidepoint(g.mouse):
                                             if is_drawable(entity):
-                                                if "portal" in entity.traits and entity.is_drawable():
+                                                if "portal" in entity.traits and is_drawable(entity):
                                                     MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", **g.def_widget_kwargs)
                                                 elif "camel" in entity.traits:
                                                     if g.player.moving_mode[0] != "camel":

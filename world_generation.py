@@ -230,7 +230,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                             data[screen][blockindex - HL + 2]]
                     nei_blocks = [data[screen][blockindex - 2], data[screen][blockindex - 1],
                             data[screen][blockindex + 1], data[screen][blockindex + 2]]
-                    if nei_blocks.count("air") == len(nei_blocks):
+                    if nei_blocks.count("sand") == len(nei_blocks):
                         data[screen][blockindex - HL]  = "chest_bg"
                         data[screen][blockindex - 28]  = "sand_bg"
                         data[screen][blockindex - 29]  = "sand"
