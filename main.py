@@ -99,19 +99,19 @@ def update_entity(entity):
             # collisions
             if entity.x > -90:
                 # x (up)
-                x_rect = pygame.Rect(entity.x + 1, entity.y, entity.width + 1, entity.height)
+                x_rect = pygame.Rect(entity.x + entity.xbound, entity.y, entity.width + 1, entity.height)
                 while any(x_rect.colliderect(check_rect) for check_rect in entity.check_rects):
                     entity.y -= 1
-                    x_rect = pygame.Rect(entity.x + 1, entity.y, entity.width + 1, entity.height)
+                    x_rect = pygame.Rect(entity.x + entity.xbound, entity.y, entity.width + 1, entity.height)
                 # y (down)
-                y_rect = pygame.Rect(entity.x, entity.y + 1, entity.width, entity.height + 1)
+                y_rect = pygame.Rect(entity.x, entity.y + entity.ybound, entity.width, entity.height + 1)
                 while not any(y_rect.colliderect(check_rect) for check_rect in entity.check_rects):
                     entity.y += 1
-                    y_rect = pygame.Rect(entity.x, entity.y + 1, entity.width, entity.height + 1)
+                    y_rect = pygame.Rect(entity.x, entity.y + entity.ybound, entity.width, entity.height + 1)
                 if g.w.show_hitboxes:
                     pygame.draw.rect(Window.display, GREEN, y_rect, 1)
                     write(Window.display, "center", entity.screen + 1, orbit_fonts[15], GREEN, *y_rect.center)
-            entity.movex(0.2)
+            entity.movex(entity.xvel)
 
         if entity.smart_vector:
             if entity.right <= 0:
@@ -317,7 +317,7 @@ def new_world(worldcode=None):
                             wn = f"New_World_{g.p.new_world_count}"
                             g.p.new_world_count += 1
                         g.w = World()
-                        generate_world(biome=biome)
+                        generate_world(biome="desert")
                         group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                         g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                         g.w.mode = game_mode
@@ -402,8 +402,8 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["anvil", "iron-ingot", "stick", "workbench", None]
-            g.player.inventory_amounts = [1, 2, 1, 1, None]
+            g.player.inventory = ["gun-crafter", "prototype_scope", "prototype_magazine", "prototype_stock", "prototype_barrel"]
+            g.player.inventory_amounts = [1, 1, 1, 1, 1]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -1362,6 +1362,8 @@ class Player:
                         self.invisible = True
                 if bpure(block.name) == "spike-plant":
                     self.take_dmg(0.03, 1, 1)
+                elif bpure(block.name) == "lava":
+                    self.take_dmg(0.07, 1, 1)
 
         else:
             if self.invisible:
@@ -1469,7 +1471,7 @@ class Visual:
                 self.image = self.og_img.copy()
                 if "_" in g.player.tool:
                     self.rect = self.image.get_rect()
-                    self.image, self.rect = rot_center(flip(self.og_img, True, False if 90 > g.player.angle > -90 else True), self.angle + 270, *g.player.rect.center)
+                    self.image, self.rect = rot_center(flip(self.og_img, True, not 90 > g.player.angle > -90), self.angle + 270, *g.player.rect.center)
                     self.rect.center = g.mouse
                     if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
                         self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
@@ -1477,7 +1479,7 @@ class Visual:
                         self.rect.y += g.player.rect.centery - g.mouse[1] + (g.tool_range if g.mouse[1] > g.player.rect.centery else -g.tool_range)
                     self.draw()
                 else:
-                    self.image, self.rect = rot_center(flip(self.og_img, False, False if 90 > g.player.angle > -90 else True), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
+                    self.image, self.rect = rot_center(flip(self.og_img, False, not 90 > g.player.angle > -90), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
                     self.draw()
             if is_gun(g.player.tool):
                 if "scope" in g.gun_attrs[g.player.tool]:
@@ -2223,10 +2225,10 @@ def main(debug):
                                                 
                                 elif g.midblit == "gun":
                                     if event.key == K_SPACE:
-                                        if g.player.block in gun_blocks: 
+                                        if g.player.block in gun_blocks:
                                             g.gun_parts[g.player.block.split("_")[1]] = g.player.block
-                                            g.player.use_up_inv(g.player.inventory.index(g.player.block), 1)
                                             g.gun_log.append(g.player.block.split("_")[1])
+                                            g.player.use_up_inv(g.player.inventory.index(g.player.block), 1)
                                             
                                     elif event.key == K_ENTER:
                                         if all({k:v for k, v in g.gun_parts.items() if k not in g.extra_gun_parts}.values()):
@@ -2817,7 +2819,7 @@ def main(debug):
                     if g.player.stats["lives"]["amount"] + 1 <= 100:
                         if ticks() - g.player.stats["lives"]["last_regen"] >= g.player.stats["lives"]["regen_time"]:
                             g.player.stats["lives"]["amount"] += 1
-                            g.player.stats["lives"]["regen_time"] -= 0.2
+                            g.player.stats["lives"]["regen_time"] -= 0.5
                             g.player.stats["lives"]["last_regen"] = ticks()
 
                     # g.player food chart

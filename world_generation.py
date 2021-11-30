@@ -3,6 +3,7 @@ import random
 import requests
 import PIL.Image
 from prim_data import a, Entity, get_avatar
+from settings import bpure
 from settings import *
 from pyengine.basics import *
 from pyengine.pgbasics import *
@@ -73,13 +74,16 @@ class Biome:
                        "beach":    ("sand", "sand"),    "mountain":  ("snow", "stone"),
                        "swamp":    ("sw_soil", "dirt"), "prairie":   ("hay", "dirt"),
                        "jungle":   ("f_soil", "dirt"),  "savanna":   ("sv_soil", "dirt"),
-                       "industry": ("p_soil", "dirt"),  "wasteland": ("dirt", "dirt")}
+                       "industry": ("p_soil", "dirt"),  "wasteland": ("dirt", "dirt"),
+                       "volcano": ("blackstone", "blackstone")}
         self.tree_heights = {"swamp": 4, "jungle": 8, "savanna": 10, "beach": 6}
         self.tree_chances = {"forest": 8, "beach": 16, "swamp": 7, "jungle": 6, "savanna": 20}
         self.wood_types = {"savanna": "sv_wood"}
-        self.water_chances = {"forest": 3, "beach": 3, "swamp": 5, "jungle": 4, "savanna": 100}
+        self.fill_chances = {"forest": ("water", 3), "beach": ("water", 3), "swamp": ("water", 5), "jungle": ("water", 4),
+                             "savanna": ("water", 100), "volcano": ("lava", 3)}
         self.flatnesses = {"forest": 1, "industry": 10, "beach": 10}
         self.biomes = list(self.blocks.keys())
+
 
 bio = Biome()
 
@@ -108,7 +112,8 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
     block_pos = (horindex * 30, verindex * 30)
     block_x, block_y = block_pos
     entities = []
-    if "soil" in blockname:
+    sec, prim = bio.blocks[biome]
+    if bpure(blockname) == "soil":
         if 2 <= horindex <= HL - 3:
             if biome in bio.tree_chances:
                 tree_chance = chance(1 / bio.tree_chances[biome])
@@ -207,12 +212,12 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                 entities.append(e)
 
     if biome == "desert":
-        if "sand" in data[screen][blockindex]:         
+        if data[screen][blockindex] == prim:         
             if data[screen][blockindex - HL] == "air":
                 # camels
                 if chance(1 / 50):
                     name = choice(("camel", "fluff_camel"))
-                    camel = Entity(name, block_pos, abs_screen, 1, "bottomleft", traits=["camel", "mob", "passive"], smart_vector=True, index=blockindex)
+                    camel = Entity(name, block_pos, abs_screen, 1, "bottomleft", traits=["camel", "mob", "passive"], smart_vector=True, index=blockindex, xvel=0.2)
                     entities.append(camel)
                     
                 # cacti
@@ -243,7 +248,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                         metadata[screen][layer * L + blockindex - HL]["chest"] = get_chest_insides(block_names)
 
     elif biome == "beach":
-        if "sand" in data[screen][blockindex] and "air" in data[screen][blockindex - HL]:
+        if data[screen][blockindex] == prim and data[screen][blockindex - HL] == "air":
             if not is_in("wood", (data[screen][blockindex - HL - 1], data[screen][blockindex - HL + 1])):
                 if 4 <= horindex <= HL - 2:
                     if biome in bio.tree_chances:
@@ -280,6 +285,12 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                 if 1 <= horindex <= HL - 1:
                     if chance(1 / 25):
                         data[screen][blockindex - HL] = "rock_bg"
+ 
+    elif biome == "volcano":
+        # volcanoes
+        if chance(1 / 25):
+            if data[screen][blockindex] == "air" and data[screen][blockindex + HL] == prim:
+                pass
 
     if blockname == bio.blocks[biome][0]:
         if data[screen][blockindex - HL] == "air":
@@ -290,11 +301,12 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                     stmt = False
                 finally:
                     if stmt:
-                        if biome in bio.water_chances:
-                            water_chance = chance(1 / bio.water_chances[biome])
+                        if biome in bio.fill_chances:
+                            fill_chance = chance(1 / bio.fill_chances[biome][1])
+                            fill_type = bio.fill_chances[biome][0] + "_bg"
                         else:
-                            water_chance = 0
-                        if water_chance:
+                            fill_chance = 0
+                        if fill_chance:
                             # check whether water can flow horizontally
                             check_xindex = blockindex
                             faulty = True
@@ -306,10 +318,10 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                             if not faulty:
                                 water_xindex = blockindex + 1
                                 while data[screen][water_xindex] == "air":
-                                    data[screen][water_xindex] = "water"
+                                    data[screen][water_xindex] = fill_type
                                     water_yindex = water_xindex + HL
                                     while data[screen][water_yindex] == "air":
-                                        data[screen][water_yindex] = "water"
+                                        data[screen][water_yindex] = fill_type
                                         water_yindex += HL
                                     water_xindex += 1
 

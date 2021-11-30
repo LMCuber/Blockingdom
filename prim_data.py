@@ -19,6 +19,26 @@ class Entity:
     
     def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", traits=None, smart_vector=False, **kwargs):
         self.anim = 0
+        self.init_images(img_data, "images")
+        self.smart_vector = smart_vector
+        self.traits = traits if traits is not None else []
+        if not smart_vector:
+            self._rect = self.image.get_rect(topleft=(x, y))
+            setattr(self.rect, anchor, pos)
+        else:
+            self.x, self.y = pos
+            self.dx = 0
+        self.screen = screen
+        self.layer = layer
+        self.sizes = [image.get_size() for image in self.images]
+        self.xvel = 0
+        self.yvel = 0
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        if "camel" in self.traits:
+            self.init_images(img_data, "h_images")
+        
+    def init_images(self, img_data, name):
         if isinstance(img_data, list):
             iter_ = img_data
         elif isinstance(img_data, pygame.Surface):
@@ -32,25 +52,21 @@ class Entity:
                     iter_ = [imgs]
             else:
                 iter_ = [SmartSurface.from_string(img_data)]
-        self.images = [SmartSurface.from_surface(img) for img in iter_]
+        setattr(self, name, [SmartSurface.from_surface(flip(img, "h_" in name, "v_" in name)) for img in iter_])
         self.image = self.images[int(self.anim)]
-        self.smart_vector = smart_vector
-        self.traits = traits if traits is not None else []
-        if not smart_vector:
-            self._rect = self.image.get_rect(topleft=(x, y))
-            setattr(self.rect, anchor, pos)
-        else:
-            self.x, self.y = pos
-            self.dx = 0
-        self.screen = screen
-        self.layer = layer
-        self.sizes = [image.get_size() for image in self.images]
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
+    
     def update(self):
         self.animate()
+        self.logic()
         self.draw()
+    
+    @property
+    def xbound(self):
+        return 1 if self.xvel >= 0 else -1
+        
+    @property
+    def ybound(self):
+        return 1 if self.yvel >= 0 else -1
         
     @property
     def rect(self):
@@ -119,7 +135,12 @@ class Entity:
         except IndexError:
             self.anim = 0
         finally:
-            self.image = self.images[int(self.anim)]
+            self.image = (self.images if self.xvel >= 0 else self.h_images)[int(self.anim)]
+        
+    def logic(self):
+        if "camel" in self.traits:
+            if chance(1 / 2):
+                self.xvel *= -1
    
 
 # F U N C T I O N S ------------------------------------------------------------------------------------ #
