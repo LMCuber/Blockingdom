@@ -6,6 +6,7 @@ from pyengine.basics import *
 
 black_filter = pygame.Surface((30, 30)); black_filter.set_alpha(200)
 avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
+orb_colors = {"red": RED, "green": GREEN, "blue": POWDER_BLUE, "yellow": YELLOW, "orange": ORANGE, "purple": PURPLE, "pink": PINK}
 
 
 # C L A S S E S ---------------------------------------------------------------------------------------- #
@@ -138,9 +139,7 @@ class Entity:
             self.image = (self.images if self.xvel >= 0 else self.h_images)[int(self.anim)]
         
     def logic(self):
-        if "camel" in self.traits:
-            if chance(1 / 2):
-                self.xvel *= -1
+        pass
    
 
 # F U N C T I O N S ------------------------------------------------------------------------------------ #
@@ -244,7 +243,7 @@ def load_blocks():
         ["hay",         None,         "leaf",       None,           "sand",          "workbench",        "grass2"   ],
         ["snow",       "soil",        "stone",     "vine",          "wooden-planks", "a_wooden-planks",  "stick"    ],
         ["anvil",      "furnace",     "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore"],
-        ["blackstone", "closed-core", "base-core", "lava"]
+        ["blackstone", "closed-core", "base-core", "lava",          "base-orb"]
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
@@ -291,7 +290,7 @@ def load_blocks():
             pygame.draw.polygon(ingot_img, color, ((0, 11), (22, 3), (30, 11), (8, 19)))
             pygame.draw.polygon(ingot_img, rgb_mult(color, 0.9), ((0, 11), (8, 19), (8, 27), (0, 19)))
             pygame.draw.polygon(ingot_img, rgb_mult(color, 0.8), ((8, 19), (30, 11), (30, 19), (8, 27)))
-            a.assets[ingot_keys[0]][ingot_keys[1]] = pil2pg(pil_pixelate(pg2pil(ndget(a.assets, ingot_keys)), (10, 10)))
+            a.assets[ingot_keys[0]][ingot_keys[1]] = pil_to_pg(pil_pixelate(pg_to_pil(ndget(a.assets, ingot_keys)), (10, 10)))
             unplacable_blocks.append(ingot_keys[-1])
     # deleting unneceserry blocks that have been modified anyway
     del a.blocks["soil"]
@@ -446,10 +445,29 @@ load_guns()
 load_icons()
 load_sizes()
 
-# initializations after asset loading
+# - initializations after asset loading -
+# tool crafts
 for tool in a.tools:
     o, n = tool.split("_")
     if n == "axe":
         o = norm_ore(o) + ("-ingot" if o != "wood" else "")
         ainfo[tool] = {"recipe": {o: 2, "stick": 1}, "energy": 8}
+# colored ores
+base_orb = a.blocks["base-orb"]
+w, h = base_orb.get_size()
+for name, color in orb_colors.items():
+    colored_orb = pygame.Surface((30, 30), pygame.SRCALPHA)
+    for y in range(h):
+        for x in range(w):
+            c = base_orb.get_at((x, y))
+            if c != (0, 0, 0, 0):
+                rgb = c[:3]
+                if rgb != BLACK:
+                    colored_orb.set_at((x, y), rgb_mult(color, rgb[0] / 255))
+                else:
+                    colored_orb.set_at((x, y), BLACK)
+    orb_name = f"{name}-orb"
+    a.blocks[orb_name] = colored_orb
+    unplacable_blocks.append(orb_name)
+# chest blocks
 chest_blocks = [block for block in a.blocks if block is not None]

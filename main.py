@@ -7,6 +7,8 @@ import json
 import threading
 import tkinter.filedialog
 from copy import deepcopy
+from colorsys import rgb_to_hls, hls_to_rgb
+import fantasynames as fnames
 from pyengine.pgwidgets import *
 from pyengine.pgaudio import *
 from settings import *
@@ -111,7 +113,7 @@ def update_entity(entity):
                 if g.w.show_hitboxes:
                     pygame.draw.rect(Window.display, GREEN, y_rect, 1)
                     write(Window.display, "center", entity.screen + 1, orbit_fonts[15], GREEN, *y_rect.center)
-            entity.movex(entity.xvel)
+            #entity.movex(entity.xvel)
 
         if entity.smart_vector:
             if entity.right <= 0:
@@ -402,8 +404,8 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["gun-crafter", "prototype_scope", "prototype_magazine", "prototype_stock", "prototype_barrel"]
-            g.player.inventory_amounts = [1, 1, 1, 1, 1]
+            g.player.inventory = ["green-orb", None, None, None, None]
+            g.player.inventory_amounts = [1, None, None, None, None]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -425,7 +427,7 @@ def init_world(type_):
         g.player.stats["lives"]["last_regen"] = ticks()
 
     # dynamic surfaces
-    g.bars_bg = pygame.Surface((210, len(g.player.stats.keys()) * (17 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
+    g.bars_bg = pygame.Surface((200, len(g.player.stats.keys()) * (16 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
     # player
     g.player.rect.center = (500, 500)
     g.player.yvel = 0
@@ -542,7 +544,10 @@ def generate_screen(biome=None):
                 noise_index -= HL
             g.w.data[screen][noise_index] = biome_pack[0]
     for blockindex, blockname in enumerate(g.w.data[screen]):
-        entities = world_modifications(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1, chest_blocks, Window)
+        try:
+            entities = world_modifications(g.w.data, g.w.metadata, screen, layer, g.w.biome_names[-1], blockindex, blockname, len(g.w.data) - 1, chest_blocks, Window)
+        except IndexError:
+            entities = []
         g.w.entities.extend(entities)
     # sky
     for _ in range(L):
@@ -888,7 +893,7 @@ class PlayWidgets:
                         skin_pos[0] += _sp[0] * g.fppp
                         skin_pos[1] += _sp[1] * g.fppp
                         g.player.images[anim].blit(skin_img, skin_pos)
-        rects = [pg2pil(image).getbbox() for image in g.player.images]
+        rects = [pg_to_pil(image).getbbox() for image in g.player.images]
         x1 = min([rect[0] for rect in rects])
         y1 = min([rect[1] for rect in rects])
         x2 = max([rect[2] for rect in rects])
@@ -1242,7 +1247,7 @@ class Player:
         pil_draw.pieslice((0, 0, *[ps - 1 for ps in pie_size]), -90, degrees, fill=GRAY)
         pil_img = pil_img.resize(pie_size, PIL.Image.ANTIALIAS)
         del pil_draw
-        self.food_pie["image"] = pil2pg(pil_img)
+        self.food_pie["image"] = pil_to_pg(pil_img)
         self.food_pie["rect"] = self.food_pie["image"].get_rect()
         if self.food_pie["counter"] >= 270:
             for attr in finfo[food]["amounts"]:
@@ -1276,8 +1281,10 @@ class Player:
                         drop.rect.center = [pos + random.randint(-1, 1) for pos in drop.og_pos]
 
     def rand_username(self):
-        self.username = f"Player{rand(2, 456)}"
-
+        #self.username = f"Player{rand(2, 456)}"
+        #self.username = json.loads(requests.get("http://names.drycodes.com/10?nameOptions=funnyWords").text)[0].split("_")[0]
+        self.username = fnames.dwarf()
+       
     def cust_username(self):
         def set_username(ans):
             if ans is not None and ans != "":
@@ -1481,6 +1488,8 @@ class Visual:
                 else:
                     self.image, self.rect = rot_center(flip(self.og_img, False, not 90 > g.player.angle > -90), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
                     self.draw()
+                if chance(1 / 2):
+                    group(SparkParticle(self.rect.center, 4), all_other_particles)
             if is_gun(g.player.tool):
                 if "scope" in g.gun_attrs[g.player.tool]:
                     attr = ginfo["scope"][g.gun_attrs[g.player.tool]["scope"].split("_")[0]]
@@ -1754,6 +1763,34 @@ class BreakingBlockParticle(pygame.sprite.Sprite):
         self.rect.y += self.yvel
         if ticks() - self.start_time >= 200:
             self.kill()
+            
+            
+class SparkParticle:
+    def __init__(self, pos, diameter):
+        self.image = circle(diameter // 2, WHITE)
+        self.x, self.y = pos
+        self.radius = diameter // 2
+        self.angle = rand(-360, 360)
+        self.direc = randf(-1, 1) / 100
+        self.speed = 0.5
+    
+    @property
+    def xvel(self):
+        return angle_to_vel(self.angle, self.speed)[0]
+    
+    @property
+    def yvel(self):
+        return angle_to_vel(self.angle, self.speed)[1]
+        
+    def function(self):
+        #pygame.gfxdraw.filled_circle(Window.display, int(self.x), int(self.y), int(self.radius), WHITE)
+        Window.display.blit(self.image, (self.x, self.y))
+        self.x += self.xvel
+        self.y += self.yvel
+        self.angle += self.direc
+        self.radius -= 0.07
+        if self.radius <= 0:
+            all_other_particles.remove(self)
             
 
 class WorldButton(pygame.sprite.Sprite):
@@ -2534,9 +2571,6 @@ def main(debug):
                 if g.player.dead:
                     Window.display.blit(death_screen, (0, 0))
 
-                # particles from the engine
-                draw_and_update_particles()
-                
                 # projectiles
                 all_projectiles.function()
 
@@ -2544,6 +2578,10 @@ def main(debug):
                 g.player.function()
                 all_foreground_sprites.draw(Window.display)
                 all_foreground_sprites.update()
+                
+                # other particles
+                for oparticle in all_other_particles:
+                    oparticle.function()
                 
                 # entities
                 for entity in g.w.entities:

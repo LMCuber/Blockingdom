@@ -7,7 +7,7 @@ from settings import bpure
 from settings import *
 from pyengine.basics import *
 from pyengine.pgbasics import *
-from pyengine.pilbasics import pil2pg
+from pyengine.pilbasics import pil_to_pg
 
 
 HL = 27

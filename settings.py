@@ -110,6 +110,7 @@ orbit_fonts = [pygame.font.Font(path("Fonts", "Orbitron", "Orbitron-VariableFont
 all_blocks =                    SmartList()
 all_drops =                     pygame.sprite.Group()
 all_particles =                 SmartGroup()
+all_other_particles =           SmartList()
 all_projectiles =               SmartGroup()
 all_foreground_sprites =        pygame.sprite.Group()
 all_home_sprites =              pygame.sprite.Group()
@@ -280,7 +281,7 @@ class Game:
 
     @staticmethod
     def bglize(img):
-        ret = pil2pg(pil_blur(pg2pil(pgscale(img, (Window.width, Window.height - 120))), 10))
+        ret = pil_to_pg(pil_blur(pg_to_pil(pgscale(img, (Window.width, Window.height - 120))), 10))
         ret.set_alpha(30)
         return ret
 
