@@ -404,8 +404,8 @@ def init_world(type_):
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["green-orb", None, None, None, None]
-            g.player.inventory_amounts = [1, None, None, None, None]
+            g.player.inventory = ["magic-table", "green-orb", "blue-orb", "pink-orb", None]
+            g.player.inventory_amounts = [1, 1, 1, 1, None]
             g.player.stats = {
                 "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
@@ -1488,8 +1488,9 @@ class Visual:
                 else:
                     self.image, self.rect = rot_center(flip(self.og_img, False, not 90 > g.player.angle > -90), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
                     self.draw()
-                if chance(1 / 2):
-                    group(SparkParticle(self.rect.center, 4), all_other_particles)
+                if True:
+                    if chance(1 / 2):
+                        group(SparkParticle(self.rect.center, 4), all_other_particles)
             if is_gun(g.player.tool):
                 if "scope" in g.gun_attrs[g.player.tool]:
                     attr = ginfo["scope"][g.gun_attrs[g.player.tool]["scope"].split("_")[0]]
@@ -1619,6 +1620,10 @@ class Block:
             
         elif non_bg(self.name) == "gun-crafter":
             g.midblit = "gun"
+            g.player.main = "block"
+        
+        elif non_bg(self.name) == "magic-table":
+            g.midblit = "magic-table"
             g.player.main = "block"
             
         elif non_bg(self.name) == "water":
@@ -1767,7 +1772,7 @@ class BreakingBlockParticle(pygame.sprite.Sprite):
             
 class SparkParticle:
     def __init__(self, pos, diameter):
-        self.image = circle(diameter // 2, WHITE)
+        self.image = circle(diameter // 2, rgb_mult(PURPLE, randf(0.8, 1.2)))
         self.x, self.y = pos
         self.radius = diameter // 2
         self.angle = rand(-360, 360)
@@ -2277,6 +2282,20 @@ def main(debug):
                                     
                                     elif event.key == K_BACKSPACE:
                                         pass
+                                        
+                                elif g.midblit == "magic-table":
+                                    if event.key == pygame.K_SPACE:
+                                        if g.player.main == "tool":
+                                            if g.player.tool is not None:
+                                                g.magic_tool = g.player.tool
+                                        elif g.player.main == "block":
+                                            if g.player.block is not None:
+                                                if g.player.block.endswith("-orb"):
+                                                    if g.player.block in g.magic_orbs:
+                                                        g.magic_orbs[g.player.block] += 1
+                                                    else:
+                                                        g.magic_orbs[g.player.block] = 1
+                                                    g.player.use_up_inv(g.player.blocki)
                                 
                                 elif g.midblit == "chest":
                                     if event.key == K_SPACE:
@@ -2767,7 +2786,23 @@ def main(debug):
                             write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
                             #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
                             #pygame.draw.circle(Window.display, BLACK, pos, 5)
-                
+                            
+                # magic table
+                elif g.midblit == "magic-table":
+                    Window.display.blit(magic_table_img, crafting_rect)
+                    yo = 30 + 10
+                    x = crafting_x
+                    y = crafting_y - yo
+                    tx = crafting_x - crafting_rect.width / 3
+                    ty = crafting_y
+                    for magic_orb in g.magic_orbs:
+                        if g.magic_tool is not None:
+                            pygame.draw.aaline(Window.display, BLACK, (tx, ty), (x, y))
+                        Window.display.cblit(g.w.blocks[magic_orb], (x, y))
+                        y += yo
+                    if g.magic_tool is not None:
+                        Window.display.cblit(g.w.tools[g.magic_tool], (tx, ty))
+                        
                 # chest
                 elif g.midblit == "chest":
                     Window.display.blit(chest_template, chest_rect)

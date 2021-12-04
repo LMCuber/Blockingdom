@@ -28,6 +28,25 @@ write(img, "midtop", "Tool", orbit_fonts[20], BLACK, (w / 2), 0)
 workbench_rect = img.get_rect(center=(Window.width / 2, Window.height / 2))
 pygame.image.save(img, path("Images", "Surfaces", "anvil.png"))
 
+# magic-table
+t = 30
+w = 400
+h = 210
+img = pygame.Surface((w, h))
+img.fill((80, 26, 116), (0, 0, w, h))
+img.fill(DARK_GRAY, (0, t, w / 3, h))
+img.fill(DARK_GRAY, (w / 3 * 2, t, w, h))
+img.fill(WHITE, (0, 0, w, t))
+workbench_rel_center = (img.get_width() / 2, (img.get_height() + 30) / 2)
+write(img, "midtop", "Input", orbit_fonts[20], BLACK, w / 3 / 2, 0)
+write(img, "midtop", "Output", orbit_fonts[20], BLACK, (w / 3 / 2)*5, 0)
+write(img, "midtop", "Orb", orbit_fonts[20], BLACK, (w / 2), 0)
+workbench_rect = img.get_rect(center=(Window.width / 2, Window.height / 2))
+pygame.image.save(img, path("Images", "Surfaces", "magic-table.png"))
+p = pg_to_pil(img)
+p.show()
+raise
+
 # gun <^>
 gun_crafter = pygame.Surface((400, 210))
 gun_crafter.fill(LIGHT_GRAY)

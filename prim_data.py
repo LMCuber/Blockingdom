@@ -243,7 +243,7 @@ def load_blocks():
         ["hay",         None,         "leaf",       None,           "sand",          "workbench",        "grass2"   ],
         ["snow",       "soil",        "stone",     "vine",          "wooden-planks", "a_wooden-planks",  "stick"    ],
         ["anvil",      "furnace",     "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore"],
-        ["blackstone", "closed-core", "base-core", "lava",          "base-orb"]
+        ["blackstone", "closed-core", "base-core", "lava",          "base-orb",      "magic-table"]
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
@@ -302,7 +302,7 @@ def load_tools():
     tool_list = [
         ["pickaxe", "axe",    "sickle"],
         ["shovel",  "rake",   "scissors"],
-        ["kunai",   "hammer",]
+        ["kunai",   "hammer", "sword"]
     ]
     tools = {}
     whole_tools = {"stick"}

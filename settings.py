@@ -66,8 +66,10 @@ workbench_icon = pygame.transform.scale(_wbi, [s // 2 for s in _wbi.get_size()])
 furnace_img = imgload("Images", "Surfaces", "furnace.png")
 anvil_img = imgload("Images", "Surfaces", "anvil.png")
 gun_crafter_img = imgload("Images", "Surfaces", "gun_crafter.png")
+magic_table_img = imgload("Images", "Surfaces", "magic-table.png")
 # crafting and midblit constants
 crafting_center = (Window.width / 2, Window.height / 2 + 15)
+crafting_x, crafting_y = crafting_center
 crafting_rect = workbench_img.get_rect(center=[s // 2 for s in Window.size])
 chest_rect = chest_template.get_rect(center=Window.center)
 chest_rects = []
@@ -199,6 +201,11 @@ class Game:
         self.gun_attrs = {}
         self.gun_img = None
         self.gun_log = []
+        # magic table
+        self.magic_tool = None
+        self.magic_orbs = {}
+        self.magic_output = None
+        self.magic_log = []
         # skin menu
         self.skin_anim_speed = 0.06
         self.skins = {  # "pos" is topleft (of the player model; not the screen) just like normal pixel systems
