@@ -150,7 +150,7 @@ def custom_language(lang):
         
         
 def is_gun(name):
-    return name.split("_")[0] not in oinfo if name is not None else False
+    return name.removeprefix("enchanted_").split("_")[0] not in oinfo if name is not None else False
         
         
 def custom_gun(name):
@@ -1136,6 +1136,14 @@ class Player:
     @empty_tooli.setter
     def empty_tool(self, value):
         self.tools[self.empty_tooli] = value
+    
+    @property
+    def tool_health(self):
+        return self.tool_healths[self.tooli]
+        
+    @tool_health.setter
+    def tool_health(self, value):
+        self.tool_healths[self.tooli] = value
 
     @property
     def amount(self):
@@ -1488,7 +1496,7 @@ class Visual:
                 else:
                     self.image, self.rect = rot_center(flip(self.og_img, False, not 90 > g.player.angle > -90), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
                     self.draw()
-                if True:
+                if g.player.tool.startswith("enchanted"):
                     if chance(1 / 2):
                         group(SparkParticle(self.rect.center, 4), all_other_particles)
             if is_gun(g.player.tool):
@@ -2284,7 +2292,7 @@ def main(debug):
                                         pass
                                         
                                 elif g.midblit == "magic-table":
-                                    if event.key == pygame.K_SPACE:
+                                    if event.key == K_SPACE:
                                         if g.player.main == "tool":
                                             if g.player.tool is not None:
                                                 g.magic_tool = g.player.tool
@@ -2296,6 +2304,26 @@ def main(debug):
                                                     else:
                                                         g.magic_orbs[g.player.block] = 1
                                                     g.player.use_up_inv(g.player.blocki)
+                                                    
+                                    elif event.key == K_ENTER:
+                                        _r = []
+                                        _g = []
+                                        _b = []
+                                        for name, amount in g.magic_orbs.items():
+                                            color = eval(name.removesuffix("-orb").upper())
+                                            _r.append(color[0])
+                                            _g.append(color[1])
+                                            _b.append(color[2])
+                                        color = (sum(_r) / len(_r), sum(_g) / len(_g), sum(_b) / len(_b))
+                                        filter = pygame.Surface((30, 30))
+                                        filter.fill(color)
+                                        filter.set_alpha(125)
+                                        tool_name = f"enchanted_{g.player.tool}"
+                                        g.w.tools[tool_name] = g.w.tools[g.player.tool].copy()
+                                        g.w.tools[tool_name].blit(filter, (0, 0))
+                                        g.player.tool = tool_name
+                                        g.player.tool_health = 100
+                                        stop_midblit()
                                 
                                 elif g.midblit == "chest":
                                     if event.key == K_SPACE:

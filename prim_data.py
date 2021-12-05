@@ -6,7 +6,8 @@ from pyengine.basics import *
 
 black_filter = pygame.Surface((30, 30)); black_filter.set_alpha(200)
 avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
-orb_colors = {"red": RED, "green": GREEN, "blue": POWDER_BLUE, "yellow": YELLOW, "orange": ORANGE, "purple": PURPLE, "pink": PINK}
+BLUE = POWDER_BLUE
+orb_colors = {"red": RED, "green": GREEN, "blue": BLUE, "yellow": YELLOW, "orange": ORANGE, "purple": PURPLE, "pink": PINK}
 
 
 # C L A S S E S ---------------------------------------------------------------------------------------- #
