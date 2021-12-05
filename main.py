@@ -2320,10 +2320,11 @@ def main(debug):
                                         filter.set_alpha(125)
                                         tool_name = f"enchanted_{g.player.tool}"
                                         g.w.tools[tool_name] = g.w.tools[g.player.tool].copy()
-                                        g.w.tools[tool_name].blit(filter, (0, 0))
+                                        g.w.tools[tool_name].blit(filter, (0, 0), special_flags=BLEND_RGB_MULT)
                                         g.player.tool = tool_name
                                         g.player.tool_health = 100
                                         stop_midblit()
+                                        #g.w.tools[tool_name] = SmartSurface.from_surface(pil_to_pg(PIL.ImageEnhance.Contrast(pg_to_pil(g.w.tools[g.player.tool].copy())).enhance(1.2)))
                                 
                                 elif g.midblit == "chest":
                                     if event.key == K_SPACE:
@@ -2855,17 +2856,15 @@ def main(debug):
                             
                 if g.player.main == "block" and g.player.block is not None:
                     if g.player.block in ore_blocks:
-                        item = oinfo[g.player.block]["cform"]
+                        block = oinfo[g.player.block]["cform"]
                     elif g.player.block in gun_blocks:
-                        item = gpure(g.player.block).upper()
+                        block = gpure(g.player.block).upper()
                     else:
-                        item = bpure(g.player.block).upper()
-                    write(Window.display, "center", t | item, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
+                        block = bpure(g.player.block).upper()
+                    write(Window.display, "center", block, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
                 elif g.player.main == "tool" and g.player.tool is not None:
-                    item = g.player.tool.replace("_", " ").upper()
-                    write(Window.display, "center", item, orbit_fonts[15], g.w.text_color, Window.width / 2 - 96 - 35, 90)
-                else:
-                    item = None
+                    tool = g.player.tool.replace("_", " ").upper()
+                    write(Window.display, "center", tool, orbit_fonts[15], g.w.text_color, Window.width / 2 - 96 - 35, 90)
                 if g.mod == 1:
                     if no_widgets(Entry):
                         if g.player.main == "block" and g.player.block:
