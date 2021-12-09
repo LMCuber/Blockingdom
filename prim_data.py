@@ -471,4 +471,4 @@ for name, color in orb_colors.items():
     a.blocks[orb_name] = colored_orb
     unplacable_blocks.append(orb_name)
 # chest blocks
-chest_blocks = [block for block in a.blocks if block is not None]
+chest_blocks = [block for block in a.blocks if block is not None and block not in ("air",)]

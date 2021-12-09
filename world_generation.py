@@ -324,5 +324,8 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                                         data[screen][water_yindex] = fill_type
                                         water_yindex += HL
                                     water_xindex += 1
-
+    for md in metadata[screen]:
+        if "chest" in md:
+            while len(md["chest"]) < 25:
+                md["chest"].append((None, None))
     return entities

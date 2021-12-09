@@ -34,7 +34,7 @@ class Window:
     size = (width, height)
     center = tuple(s / 2 for s in size)
     pygame.display.set_caption(f"Blockingdom {System.version}")
-    window = pygame.display.set_mode((width, height))
+    window = pygame.display.set_mode((width, height), 0, 32)
     display = SmartSurface(size)
     center_window()
     
@@ -110,7 +110,7 @@ orbit_fonts = [pygame.font.Font(path("Fonts", "Orbitron", "Orbitron-VariableFont
 # G R O U P S ------------------------------------------------------------------------------------------ #
 # Group() refers to my custom group, while pygame.sprite.Group() refers to the built-in pygame group
 all_blocks =                    SmartList()
-all_drops =                     pygame.sprite.Group()
+all_drops =                     SmartGroup()
 all_particles =                 SmartGroup()
 all_other_particles =           SmartList()
 all_projectiles =               SmartGroup()
@@ -262,6 +262,7 @@ class Game:
         self.adverbs = txt2list(path("List_Files", "adverbs.txt"))
         self.profanities = txt2list(path("List_Files", "profanities.txt"))
         self.rhyme_url = r"https://api.datamuse.com/words?rel_rhy="
+        self.achievements = {}
         # dynamic surfaces
         if isfile(path("Background", "home_bg.png")):
             self.home_bg_img = cimgload("Images", "Background", "home_bg.png")
@@ -317,11 +318,11 @@ class Game:
         return chest_indexes[tuple(p + 3 for p in self.chest_pos)]
     
     @property
-    def chest_name(self):
+    def cur_chest_item(self):
         return self.chest[self.chest_index]
         
-    @chest_name.setter
-    def chest_name(self, value):
+    @cur_chest_item.setter
+    def cur_chest_item(self, value):
         self.chest[self.chest_index] = value
         
     def skin_data(self, bt):

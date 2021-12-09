@@ -1,3 +1,8 @@
+import sys
+import os
+sys.path.insert(1, os.path.dirname(os.getcwd()))
+
+
 # I M P O R T S --------------------------------------------------------------------------------------- #
 import atexit
 import string
@@ -15,11 +20,6 @@ from settings import *
 from prim_data import *
 from sounds import *
 from world_generation import *
-
-
-# S E T U P ------------------------------------------------------------------------------------------- #
-root = tkinter.Tk()
-root.withdraw()
 
 
 # N O R M A L  F U N C T I O N S ---------------------------------------------------------------------- #
@@ -56,15 +56,19 @@ def player_command(command):
             text = "Invalid or unusable command"
         finally:
             MessageboxError(Window.display, text, **g.def_widget_kwargs)
-            
+
+
+def ishow(str_):
+    return str_.replace("_", " ").replace("-", " ")
+
 
 def ipure(str_):
     if non_bg(str_) in g.w.blocks:
         return bpure(str_)
     elif tpure(str_) in tinfo:
         return tpure(str_)
-    
-    
+
+
 def set_entity_screen_rects(entity):
     try:
         g.w.data[entity.screen]
@@ -89,14 +93,14 @@ def set_entity_screen_rects(entity):
                     _rect = pygame.Rect(_x, _y, 30, 30)
                     rects.append(_rect)
         entity.check_rects = rects
-    
+
 
 def update_entity(entity):
     try:
         g.w.data[entity.screen]
     except IndexError:
         pass
-    else:      
+    else:
         if "camel" in entity.traits:
             # collisions
             if entity.x > -90:
@@ -132,11 +136,11 @@ def update_entity(entity):
                 entity.bottom = 0
                 entity.layer += 1
                 set_entity_screen_rects(entity)
-            
-            
+
+
 def is_smither(tool):
     return tool.split("_")[1] == "hammer"
-            
+
 
 def toggle_main():
     if g.player.main == "block":
@@ -147,12 +151,12 @@ def toggle_main():
 
 def custom_language(lang):
     g.w.language = lang
-        
-        
+
+
 def is_gun(name):
     return name.removeprefix("enchanted_").split("_")[0] not in oinfo if name is not None else False
-        
-        
+
+
 def custom_gun(name):
     if name not in g.w.blocks:
         g.w.tools[name] = SmartSurface.from_surface(g.gun_img.copy())
@@ -162,7 +166,7 @@ def custom_gun(name):
     else:
         MessageboxError(Window.display, "Name collides")
 
-    
+
 def gwfromperc(amount):
     g.loading_world_perc = amount
 
@@ -186,15 +190,6 @@ def is_clickable(block):
 
 
 def stop_midblit():
-    """
-    g.craftings = {}
-    g.crafting_log = []
-    g.gun_parts = {}
-    g.gun_log = []
-    g.burnings = {}
-    g.furnace_log = []
-    g.fuels = {}
-    """
     g.midblit = None
     g.cannot_place_block = True
 
@@ -285,19 +280,19 @@ def utilize_blocks():
         block.broken = 0
 
 
-def new_world(worldcode=None):  
+def new_world(worldcode=None):
     def init_world_data(wn):
         _glob.world_name = wn
         start_generating()
-    
+
     def destroy_ewn():
         ewn.destroy()
-        
+
     class Global:
         def __init__(self):
             self.world_name = None
             self.world_code = worldcode[:] if worldcode is not None else None
-            
+
     _glob = Global()
 
     def create():
@@ -363,7 +358,7 @@ def group(spr, grp):
         grp.add(spr)
     except AttributeError:
         grp.append(spr)
-    if grp in (all_drops, all_particles):
+    if grp in (all_particles,):
         all_foreground_sprites.add(spr)
 
 
@@ -389,7 +384,7 @@ def delete_all_worlds():
             g.w.name = None
             g.p.next_worldbutton_pos = g.p.starting_worldbutton_pos[:]
             g.p.new_world_count = 1
-            
+
         MessageboxOkCancel(Window.display, "Delete all worlds? This cannot be undone.", delete, **g.def_widget_kwargs)
     else:
         MessageboxError(Window.display, "You have no worlds to delete.", **g.def_widget_kwargs)
@@ -397,21 +392,21 @@ def delete_all_worlds():
 
 def cr_block(name, screen=-1, index=None):
     g.w.data[screen].insert(index if index is not None else len(g.w.data[screen]), name)
-    
+
 
 def init_world(type_):
     # player inventory and stats
     if type_ == "new":
         g.player = Player()
         if g.w.mode == "adventure":
-            g.player.inventory = ["magic-table", "green-orb", "blue-orb", "pink-orb", None]
-            g.player.inventory_amounts = [1, 1, 1, 1, None]
+            g.player.inventory = [None, None, None, None, None]
+            g.player.inventory_amounts = [None, None, None, None, None]
             g.player.stats = {
-                "lives": {"amount": 50, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
-                "hunger": {"amount": 50, "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
-                "thirst": {"amount": 50, "color": WATER_BLUE, "pos": (32, 60), "icon": "thirst"},
-                "energy": {"amount": 50, "color": YELLOW, "pos": (32, 80), "icon": "energy"},
-                "o2": {"amount": 100, "color": SMOKE_BLUE, "pos": (32, 100), "icon": "o2"},
+                "lives": {"amount": rand(10, 100), "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
+                "hunger": {"amount": rand(10, 100), "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
+                "thirst": {"amount": rand(10, 100), "color": WATER_BLUE, "pos": (32, 60), "icon": "thirst"},
+                "energy": {"amount": rand(10, 100), "color": YELLOW, "pos": (32, 80), "icon": "energy"},
+                "oxygen": {"amount": 100, "color": SMOKE_BLUE, "pos": (32, 100), "icon": "o2"},
                 "xp": {"amount": 0, "color": LIGHT_GREEN, "pos": (32, 120), "icon": "xp"},
             }
         elif g.w.mode == "freestyle":
@@ -434,7 +429,7 @@ def init_world(type_):
     # Go!
     g.stage = "play"
     g.set_loading_world(False)
-                
+
 
 def generate_world(worldcode=None, biome=None, screens=5):
     # world data (non-gui)
@@ -494,7 +489,7 @@ def generate_world(worldcode=None, biome=None, screens=5):
             set_entity_screen_rects(entity)
             while any(entity.rect.colliderect(check_rect) for check_rect in entity.check_rects):
                 entity.y -= 1
-            
+
 
 def generate_screen(biome=None):
     g.w.data.append(SmartList())
@@ -576,9 +571,9 @@ def save_screen(daemonic):
 
 # S T A T I C  O B J E C T  F U N C T I O N S  -------------------------------------------------------  #
 def is_drawable(obj):
-    if isinstance(obj, Entity):
+    try:
         return g.w.screen == obj.screen and g.w.layer == obj.layer
-    else:
+    except AttributeError:
         if not hasattr(obj, "visible_when") or obj.visible_when is None or (callable(obj.visible_when) and obj.visible_when()):
             return True
         else:
@@ -601,6 +596,9 @@ def is_home_worlds():
 class ExitHandler:
     @staticmethod
     def save(stage):
+        # disable unnecessarry widgets
+        for widget in pw.death_screen_widgets:
+            widget.disable()
         # home bg image
         if g.stage == "play":
             g.home_bg_img = g.bglize(Window.display.copy())
@@ -649,7 +647,7 @@ class ExitHandler:
         g.smither = None
         g.anvil_log = []
         g.crafting_log = []
-        g.gun_parts = {}
+        g.gun_parts = {k: None for k in g.gun_parts}
         g.gun_log = []
         # final
         if stage == "quit":
@@ -694,37 +692,37 @@ class World:
     @property
     def blocks(self):
         return self.assets["blocks"]
-    
+
     @property
     def tools(self):
         return self.assets["tools"]
-        
+
     @property
     def icons(self):
         return self.assets["icons"]
-  
+
     @property
     def text_color(self):
         return contrast_color(g.w.dnc_color)
-        
+
     @property
     def dnc_color(self):
         return self.dnc_colors[int(self.dnc_index)]
-    
+
     @property
     def dnc_length(self):
         for dnct in ("", "def", "hr"):
             with suppress(AttributeError):
                 return len(getattr(self, dnct + "_dnc_colors"))
-            
+
     @property
     def dnc_second_vel(self):
         return self.dnc_length * 2 / g.fps_cap
-    
+
     @property
     def dnc_minute_vel(self):
         return self.dnc_second_vel / 60
-        
+
     def set_dnc_colors(self):
         if random.randint(1, self.hound_round_chance) == 1:
             self.dnc_colors = self.hr_dnc_colors.copy()
@@ -747,8 +745,8 @@ class Play:
         self.loading_times = SmartList()
         self.anim_fps = 0.0583
         self.volume = 0.2
-        
-       
+
+
 g.p = Play()
 
 # load variables
@@ -914,7 +912,7 @@ class PlayWidgets:
             g.ckeys["p left"] = K_LEFT
             g.ckeys["p down"] = K_DOWN
             g.ckeys["p right"] = K_RIGHT
-        
+
     @staticmethod
     def show_config_command():
         g.opened_file = True
@@ -952,8 +950,8 @@ class PlayWidgets:
     @staticmethod
     def button_lw_command():
         if not all_messageboxes:
-            loading_path = tkinter.filedialog.askopenfilename(title="Load a .dat file", filetypes=g.ttypes)
-            if loading_path != "":
+            loading_path = choose_file("Load a .dat file", g.ttypes)
+            if loading_path:
                 with open(loading_path, "rb") as f:
                     worldcode = pickle.load(f)
                 new_world(worldcode)
@@ -962,7 +960,7 @@ class PlayWidgets:
     def button_daw_command():
         if not all_messageboxes:
             delete_all_worlds()
-        
+
     @staticmethod
     def button_c_command():
         g.opened_file = True
@@ -1024,9 +1022,9 @@ class Player:
         self.invisible = False
         self.skin = None
         self.stats = {}
-        
+
         self.set_moving_mode("adventure")
-        
+
         self.def_food_pie = {"counter": -90}
         self.food_pie = self.def_food_pie.copy()
         self.achievements = {"steps taken": 0, "steps counting": 0}
@@ -1058,22 +1056,23 @@ class Player:
         self.update_fall_effect()
         self.animate()
         self.update_effects()
-         
+        self.achieve()
+
     def draw(self):
         Window.display.blit(self.image, self.rect)
-        
+
     @property
     def closest_blocks(self):
         yield from sorted(all_blocks, key=lambda block: distance(self.rect, block.rect))
-    
+
     @property
     def angle(self):
         return revnum(degrees(two_pos_to_angle(self.rect.center, g.mouse)))
-        
+
     @property
     def item(self):
         return self.inventory[self.indexes[self.main]]
-    
+
     @item.setter
     def item(self, value):
         self.inventory[self.indexes[self.main]] = value
@@ -1081,7 +1080,7 @@ class Player:
     @property
     def itemi(self):
         return self.indexes[self.main]
-    
+
     @itemi.setter
     def itemi(self, value):
         self.indexes[self.main] = value
@@ -1089,7 +1088,7 @@ class Player:
     @property
     def block(self):
         return self.inventory[self.indexes["block"]]
-    
+
     @block.setter
     def block(self, value):
         self.inventory[self.indexes["block"]] = value
@@ -1097,15 +1096,15 @@ class Player:
     @property
     def blocki(self):
         return self.indexes["block"]
-    
+
     @blocki.setter
     def blocki(self, value):
         self.indexes["block"] = value
-               
+
     @property
     def empty_blocki(self):
         return first(self.inventory, None, self.blocki)
-    
+
     @empty_blocki.setter
     def empty_block(self, value):
         if isinstance(value, tuple):
@@ -1116,7 +1115,7 @@ class Player:
     @property
     def tool(self):
         return self.tools[self.indexes["tool"]]
-    
+
     @tool.setter
     def tool(self, value):
         self.tools[self.indexes["tool"]] = value
@@ -1124,11 +1123,11 @@ class Player:
     @property
     def tooli(self):
         return self.indexes["tool"]
-    
+
     @tooli.setter
     def tooli(self, value):
         self.indexes["tool"] = value
-        
+
     @property
     def empty_tooli(self):
         return first(self.tools, None, self.tooli)
@@ -1136,11 +1135,11 @@ class Player:
     @empty_tooli.setter
     def empty_tool(self, value):
         self.tools[self.empty_tooli] = value
-    
+
     @property
     def tool_health(self):
         return self.tool_healths[self.tooli]
-        
+
     @tool_health.setter
     def tool_health(self, value):
         self.tool_healths[self.tooli] = value
@@ -1148,80 +1147,84 @@ class Player:
     @property
     def amount(self):
         return self.inventory_amounts[self.indexes[self.main]]
-    
+
     @amount.setter
     def amount(self, value):
         self.inventory_amounts[self.indexes[self.main]] = value
-   
+
     def new_block(self, name, amount=1):
         if name in self.inventory:
             self.inventory_amounts[self.inventory.index(name)] += amount
         else:
             self.empty_block = name, amount
-        
+
     def new_empty_block(self, name, amount=1):
         if None in self.inventory:
             self.new_block(name, amount)
-            
+
     @property
     def lives(self):
         return self.stats["lives"]["amount"]
-    
+
     @lives.setter
     def lives(self, value):
         self.stats["lives"]["amount"] = value
         if self.lives > 100:
             self.lives = 100
-    
+
     @property
     def hunger(self):
         return self.stats["hunger"]["amount"]
-    
+
     @hunger.setter
     def hunger(self, value):
         self.stats["hunger"]["amount"] = value
         if self.hunger > 100:
             self.hunger = 100
-    
+
     @property
     def thirst(self):
         return self.stats["thirst"]["amount"]
-   
+
     @thirst.setter
     def thirst(self, value):
         self.stats["thirst"]["amount"] = value
         if self.thirst > 100:
             self.thirst = 100
-    
+
     @property
     def energy(self):
         return self.stats["energy"]["amount"]
-    
+
     @energy.setter
     def energy(self, value):
         self.stats["energy"]["amount"] = value
         if self.energy > 100:
             self.energy = 100
-    
+
     @property
     def oxygen(self):
-        return self.stats["o2"]["amount"]
-    
+        return self.stats["oxygen"]["amount"]
+
     @oxygen.setter
     def oxygen(self, value):
-        self.stats["o2"]["amount"] = value
+        self.stats["oxygen"]["amount"] = value
         if self.oxygen > 100:
             self.oxygen = 100
-    
+
+    def achieve(self):
+        for ac, cond in g.achievements:
+            print(ac, cond)
+
     def set_moving_mode(self, name, *args):
         self.moving_mode = [name, *args]
         if name in ("adventure", "freestyle"):
             self.last_moving_mode = [name, *args]
-    
+
     def new_tool(self, name):
         self.tool_healths[self.empty_tooli] = 100
         self.empty_tool = name
-    
+
     def link_worlds(self):
         g.cannot_place_block = True
 
@@ -1238,12 +1241,14 @@ class Player:
             self.inventory[index] = None
             self.inventory_amounts[index] = None
 
-    def take_dmg(self, amount, scrsh_offset, scrsh_length):
+    def take_dmg(self, amount, scrsh_offset, scrsh_length, reason=None):
         self.stats["lives"]["amount"] -= amount
         self.stats["lives"]["regen_time"] = def_regen_time
         self.stats["lives"]["last_regen"] = ticks()
         g.screen_shake = scrsh_length
         g.s_render_offset = scrsh_offset
+        if g.player.stats["lives"]["amount"] <= 0:
+            g.player.die(reason)
 
     def eat(self):
         food = self.block
@@ -1292,7 +1297,7 @@ class Player:
         #self.username = f"Player{rand(2, 456)}"
         #self.username = json.loads(requests.get("http://names.drycodes.com/10?nameOptions=funnyWords").text)[0].split("_")[0]
         self.username = fnames.dwarf()
-       
+
     def cust_username(self):
         def set_username(ans):
             if ans is not None and ans != "":
@@ -1340,12 +1345,12 @@ class Player:
             self.movex(-self.adv_xvel)
         if g.keys[g.ckeys["p right"]]:
             self.movex(self.adv_xvel)
-            
+
         # yvel
         self.yvel += self.gravity
         self.dy += self.yvel
-        
-        # collision
+
+        # collisions
         for block in all_blocks:
             if block.name not in walk_through_blocks and "_bg" not in block.name:
                 # x-collision
@@ -1360,9 +1365,7 @@ class Player:
                     elif self.yvel >= 0:
                         if g.w.mode == "adventure":
                             if self.yvel >= 8 and self.fall_effect != 0:
-                                self.take_dmg(round(self.yvel * 5 / fall_damage_blocks.get(block.name, 1)), 5, 30)
-                                if g.player.stats["lives"]["amount"] <= 0:
-                                    g.player.die("fell from high ground")
+                                self.take_dmg(round(self.yvel * 5 / fall_damage_blocks.get(block.name, 1)), 5, 30, "fell from high ground")
                         self.dy = block.rect.top - self.rect.bottom
                         self.yvel = 0
                         self.in_air = False
@@ -1375,10 +1378,13 @@ class Player:
                     if not self.invisible:
                         self.image.set_alpha(150)
                         self.invisible = True
-                if bpure(block.name) == "spike-plant":
-                    self.take_dmg(0.03, 1, 1)
+                if bpure(block.name) == "spike plant":
+                    self.take_dmg(0.03, 1, 1, "got spiked")
                 elif bpure(block.name) == "lava":
-                    self.take_dmg(0.07, 1, 1)
+                    self.take_dmg(0.07, 1, 1, "tried to swim in lava")
+                # cactus
+                if bpure(block.name) == "cactus":
+                    self.take_dmg(0.03, 1, 0.5, "got spiked")
 
         else:
             if self.invisible:
@@ -1387,7 +1393,7 @@ class Player:
 
         if self.rect.bottom < 0:
             utilize_blocks()
-        
+
     def camel_move(self, camel):
         self.rect.centerx = camel.centerx - 10
         self.rect.centery = camel.centery - 35
@@ -1420,7 +1426,7 @@ class Player:
             empty_group(all_drops)
             utilize_blocks()
             self.gain_ground()
-        
+
         elif self.rect.top > Window.height:
             if g.w.layer <= 1:
                 g.w.layer += 1
@@ -1428,7 +1434,7 @@ class Player:
                 utilize_blocks()
             else:
                 g.player.die("Fell into the void")
-        
+
         elif self.rect.bottom < 0:
             if g.w.layer >= 1:
                 g.w.layer -= 1
@@ -1461,13 +1467,13 @@ class Player:
 
 class Visual:
     __slots__ = ("image", "og_img", "rect", "angle")
-    
+
     def __init__(self):
         self.angle = 0
-    
+
     def draw(self):
         Window.display.blit(self.image, self.rect)
-    
+
     def function(self):
         if g.player.main == "block":
             if g.player.block is not None:
@@ -1617,35 +1623,35 @@ class Block:
         if non_bg(self.name) == "workbench":
             g.midblit = "workbench"
             g.player.main = "block"
-            
+
         elif non_bg(self.name) == "furnace":
             g.midblit = "furnace"
             g.player.main = "block"
-            
+
         elif non_bg(self.name) == "anvil":
             g.midblit = "anvil"
             g.player.main = "block"
-            
+
         elif non_bg(self.name) == "gun-crafter":
             g.midblit = "gun"
             g.player.main = "block"
-        
+
         elif non_bg(self.name) == "magic-table":
             g.midblit = "magic-table"
             g.player.main = "block"
-            
+
         elif non_bg(self.name) == "water":
             if g.player.block == "bucket":
                 g.w.data[g.w.screen][block.abs_index] = "air"
                 g.player.new_block("water", 1)
                 block.utilize()
-                
+
         elif non_bg(self.name) == "portal-generator":
             pos = [roundn(p, 30) for p in g.player.rect.center]
             g.w.entities.append(Entity("portal", pos, g.w.screen, 1))
             block.name = "air"
             block.utilize()
-            
+
         elif non_bg(self.name) == "dynamite":
             exploded_indexes = [
                                 self.layer_index - 28, self.layer_index - HL, self.layer_index - 26,
@@ -1659,16 +1665,16 @@ class Block:
                     block.name = "air"
                     block.image = g.w.blocks["air"].copy()
                     update_block_states()
-                    
+
         elif non_bg(self.name) == "command-block":
             def set_command(cmd):
                 self.cmd = cmd
             Entry(Window.display, "Enter your command:", set_command, pos=DPP)
-        
+
         elif non_bg(self.name) == "chest":
             g.midblit = "chest"
             g.chest = g.w.metadata[g.w.screen][self.abs_index]["chest"]
-            
+
 
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, pos, size, mouse, speed, pierce=False):
@@ -1678,11 +1684,11 @@ class Projectile(pygame.sprite.Sprite):
         self.x, self.y = pos
         self.xvel, self.yvel = two_pos_to_vel(pos, mouse, 100)
         self.pierce = pierce
-    
+
     @property
     def rect(self):
         return self.image.get_rect(topleft=(self.x, self.y))
-    
+
     def collision(self):
         for block in g.player.closest_blocks:
             if block.name != "air":
@@ -1695,7 +1701,7 @@ class Projectile(pygame.sprite.Sprite):
         else:
             if self.x - self.w <= 0 or self.x >= Window.width or self.y - self.h <= 0 or self.y >= Window.height:
                 self.kill()
-    
+
     def draw(self):
         Window.display.blit(self.image, (self.x, self.y))
 
@@ -1723,15 +1729,25 @@ class Drop(pygame.sprite.Sprite):
         self.image = scale(self.image, (self.width // 3, self.height // 3))
         self.rect = self.image.get_rect(center=pos)
         self.og_pos = self.rect.center
+        self.screen = g.w.screen
+        self.layer = g.w.layer
+
+    def update(self):
+        if is_drawable(self):
+            Window.display.blit(self.image, self.rect)
+
+    def kill(self):
+        all_drops.remove(self)
 
 
 class Hovering:
-    __slots__ = ("image", "rect", "faulty", "show")
+    __slots__ = ("image", "rect", "faulty", "show", "AWHITE", "ARED")
 
     def __init__(self):
-        self.image = pygame.Surface((30, 30))
-        self.image.fill(WHITE)
-        self.image.set_alpha(120)
+        self.AWHITE = (255, 255, 255, 120)
+        self.ARED = (255, 0, 0, 120)
+        self.image = pygame.Surface((30, 30)).convert_alpha()
+        self.image.fill(self.AWHITE)
         self.rect = self.image.get_rect()
 
     def function(self):
@@ -1749,14 +1765,31 @@ class Hovering:
                     else:
                         self.show = False
             if self.faulty:
-                self.image.fill(RED)
+                self.image.fill(self.ARED)
             else:
-                self.image.fill(WHITE)
+                self.image.fill(self.AWHITE)
         else:
             self.show = False
         if self.show:
             Window.display.blit(self.image, self.rect)
-
+            
+            
+class SlidePopup(pygame.sprite.Sprite):
+    def __init__(self, text):
+        pygame.sprite.Sprite.__init__(self)
+        self.font = orbit_fonts[12]
+        self.image = pygame.Surface(self.font.size(text), pygame.SRCALPHA)
+        write(self.image, "center", text, self.font, BLACK, *[s / 2 for s in self.image.get_size()])
+        self.rect = self.image.get_rect(center=(Window.width - 110, 100))
+        self.alpha = 255
+    
+    def update(self):
+        self.rect.y -= 1
+        self.alpha -= 2
+        self.image.set_alpha(self.alpha)
+        if self.alpha <= 0:
+            self.kill()
+        
 
 class BreakingBlockParticle(pygame.sprite.Sprite):
     def __init__(self, name, pos):
@@ -1776,8 +1809,8 @@ class BreakingBlockParticle(pygame.sprite.Sprite):
         self.rect.y += self.yvel
         if ticks() - self.start_time >= 200:
             self.kill()
-            
-            
+
+
 class SparkParticle:
     def __init__(self, pos, diameter):
         self.image = circle(diameter // 2, rgb_mult(PURPLE, randf(0.8, 1.2)))
@@ -1786,15 +1819,15 @@ class SparkParticle:
         self.angle = rand(-360, 360)
         self.direc = randf(-1, 1) / 100
         self.speed = 0.5
-    
+
     @property
     def xvel(self):
         return angle_to_vel(self.angle, self.speed)[0]
-    
+
     @property
     def yvel(self):
         return angle_to_vel(self.angle, self.speed)[1]
-        
+
     def function(self):
         #pygame.gfxdraw.filled_circle(Window.display, int(self.x), int(self.y), int(self.radius), WHITE)
         Window.display.blit(self.image, (self.x, self.y))
@@ -1804,7 +1837,7 @@ class SparkParticle:
         self.radius -= 0.07
         if self.radius <= 0:
             all_other_particles.remove(self)
-            
+
 
 class WorldButton(pygame.sprite.Sprite):
     def __init__(self, data, pos, text_color=BLACK, colorkey=None):
@@ -1842,7 +1875,7 @@ class StaticWidget:
 
 
 class StaticButton(pygame.sprite.Sprite, StaticWidget):
-    def __init__(self, text, pos, group, bg_color=WHITE, text_color=BLACK, anchor="center", size="icon", icon=None, command=None, visible_when=None):
+    def __init__(self, text, pos, group, bg_color=WHITE, text_color=BLAC, anchor="center", size="icon", icon=None, command=None, visible_when=None):
         pygame.sprite.Sprite.__init__(self)
         StaticWidget.__init__(self, group, visible_when)
         if size == "world":
@@ -1853,6 +1886,7 @@ class StaticButton(pygame.sprite.Sprite, StaticWidget):
             tw += 35
         w, h = tw + 10, th + 10
         self.image = pygame.Surface((w, h), pygame.SRCALPHA)
+        self.image.set_colorkey(BLACK)
         pygame.draw.rect(self.image, bg_color, (0, 0, *self.image.get_size()), 0, 10, 10, 10, 10)
         pygame.draw.rect(self.image, DARK_BROWN, (0, 0, *self.image.get_size()), 2, 10, 10, 10, 10)
         self.text_color = text_color
@@ -2129,7 +2163,7 @@ def main(debug):
             # fps cap
             dt = g.clock.tick(g.fps_cap) / 1000 * 120
             t.init(g.w.language)
-            
+
             # global dynamic variables
             g.p.anim_fps = pw.anim_fps.value / g.fps_cap
 
@@ -2159,17 +2193,19 @@ def main(debug):
                 # 'x' button
                 if event.type == pygame.QUIT:
                     running = False
-                
+
                 # mechanical events
                 if not g.events_locked:
                     process_widget_events(event, g.mouse)
-                    
-                    if event.type == KEYDOWN:                    
+
+                    if event.type == KEYDOWN:
+                        if event.key == K_SPACE:
+                            group(SlidePopup("testingasdasd"), all_particles)
                         if g.stage == "play":
                             if no_widgets(Entry):
                                 if event.key == pygame.K_TAB:
                                     toggle_main()
-                                
+
                                 if g.midblit == "workbench":
                                     if event.key == K_SPACE:
                                         if g.player.block is not None:
@@ -2200,7 +2236,7 @@ def main(debug):
                                                     del g.craftings[g.crafting_log[-1]]
                                                 g.player.new_block(g.crafting_log[-1])
                                                 del g.crafting_log[-1]
-                                            
+
                                 elif g.midblit == "furnace":
                                     if event.key == K_SPACE:
                                         if g.player.block is not None:
@@ -2221,7 +2257,7 @@ def main(debug):
                                             if not g.fuels:
                                                 g.fuel_health = 100
                                             g.player.use_up_inv()
-                                                
+
                                     elif event.key == K_BACKSPACE:
                                         if g.furnace_log:
                                             if None in g.player.inventory:
@@ -2235,7 +2271,7 @@ def main(debug):
                                                     if g.fuels[g.furnace_log[-1]] == 0:
                                                         g.fuels.delval(g.furnace_log[-1])
                                                 del g.furnace_log[-1]
-                                    
+
                                 elif g.midblit == "anvil":
                                     if event.key == K_SPACE:
                                         if g.player.main == "tool":
@@ -2251,7 +2287,7 @@ def main(debug):
                                                     g.smithings[g.player.block] += 1
                                                 g.player.use_up_inv()
                                                 g.anvil_log.append(g.player.block)
-                                    
+
                                     elif event.key == K_BACKSPACE:
                                         if g.anvil_log:
                                             if not is_smither(g.anvil_log):
@@ -2262,7 +2298,7 @@ def main(debug):
                                                 if None in g.player.tools:
                                                     g.player.empty_tool = g.anvil_log[-1]
                                                     del g.anvil_log[-1]
-                                    
+
                                     elif event.key == K_ENTER:
                                          if g.smithable is not None:
                                             if g.player.stats["xp"]["amount"] >= ainfo[g.smithable].get("xp", 0):
@@ -2272,14 +2308,14 @@ def main(debug):
                                                         g.player.new_block(g.smithable, g.craft_by_what)
                                                     else:
                                                         g.player.new_tool(g.smithable)
-                                                
+
                                 elif g.midblit == "gun":
                                     if event.key == K_SPACE:
                                         if g.player.block in gun_blocks:
                                             g.gun_parts[g.player.block.split("_")[1]] = g.player.block
                                             g.gun_log.append(g.player.block.split("_")[1])
                                             g.player.use_up_inv(g.player.inventory.index(g.player.block), 1)
-                                            
+
                                     elif event.key == K_ENTER:
                                         if all({k:v for k, v in g.gun_parts.items() if k not in g.extra_gun_parts}.values()):
                                             g.gun_img = Window.display.subsurface(*crafting_abs_pos, *crafting_eff_size)
@@ -2287,10 +2323,10 @@ def main(debug):
                                             g.gun_img = crop_transparent(g.gun_img)
                                             g.gun_img = scalex(g.gun_img, 0.7)
                                             Entry(Window.display, "Custom gun name:", custom_gun, pos=DPP, input_required=True)
-                                    
+
                                     elif event.key == K_BACKSPACE:
                                         pass
-                                        
+
                                 elif g.midblit == "magic-table":
                                     if event.key == K_SPACE:
                                         if g.player.main == "tool":
@@ -2304,7 +2340,7 @@ def main(debug):
                                                     else:
                                                         g.magic_orbs[g.player.block] = 1
                                                     g.player.use_up_inv(g.player.blocki)
-                                                    
+
                                     elif event.key == K_ENTER:
                                         _r = []
                                         _g = []
@@ -2325,24 +2361,34 @@ def main(debug):
                                         g.player.tool_health = 100
                                         stop_midblit()
                                         #g.w.tools[tool_name] = SmartSurface.from_surface(pil_to_pg(PIL.ImageEnhance.Contrast(pg_to_pil(g.w.tools[g.player.tool].copy())).enhance(1.2)))
-                                
+
                                 elif g.midblit == "chest":
-                                    if event.key == K_SPACE:
-                                        if g.chest_name != (None, None):
-                                            g.chest_name[1] -= 1
-                                            g.player.new_empty_block(g.chest_name[0])
-                                            if g.chest_name[1] == 0:
-                                                g.chest_name = (None, None)
-                                    
+                                    if g.player.main == "block":
+                                        if event.key == K_BACKSPACE:
+                                            if g.cur_chest_item != (None, None):
+                                                g.cur_chest_item[1] -= 1
+                                                g.player.new_empty_block(g.cur_chest_item[0])
+                                                if g.cur_chest_item[1] == 0:
+                                                    g.cur_chest_item = (None, None)
+                                        elif event.key == K_SPACE:
+                                            if g.player.amount > 0:
+                                                if g.cur_chest_item[0] in g.player.inventory:
+                                                    g.cur_chest_item[1] += 1
+                                                    g.player.use_up_inv()
+                                                elif g.cur_chest_item[0] is None:
+                                                    g.cur_chest_item[0] = g.player.block
+                                                    g.cur_chest_item[1] += 1
+                                                    g.player.use_up_inv()
+
                                 elif event.key in (K_SPACE, K_TAB):
                                     toggle_main()
 
                                 if event.key == K_c:
                                     Entry(Window.display, "Enter your command:", player_command, pos=DPP)
-                                
+
                                 elif event.key == K_p:
                                     g.player.cust_username()
-                                
+
                                 elif event.key == K_l:
                                     Entry(Window.display, "Enter language:", custom_language, pos=DPP)
 
@@ -2462,7 +2508,7 @@ def main(debug):
                                     if block.rect.collidepoint(g.mouse):
                                         if not hov.faulty:
                                             block.function()
-                                                
+
                                 for entity in g.w.entities:
                                     if no_widgets(Entry):
                                         if entity.rect.collidepoint(g.mouse):
@@ -2514,7 +2560,7 @@ def main(debug):
                                 spr.process_event(event)
 
             # play loop
-            if g.stage == "play":  
+            if g.stage == "play":
                 if not g.menu:
                     if g.mouses[0]:
                         if g.clicked_when == "play" and not g.cannot_place_block:
@@ -2626,11 +2672,15 @@ def main(debug):
                 g.player.function()
                 all_foreground_sprites.draw(Window.display)
                 all_foreground_sprites.update()
-                
+
+                # drops
+                for drop in all_drops:
+                    drop.update()
+
                 # other particles
                 for oparticle in all_other_particles:
                     oparticle.function()
-                
+
                 # entities
                 for entity in g.w.entities:
                     if is_drawable(entity):
@@ -2639,7 +2689,7 @@ def main(debug):
 
                 # visual tool and block
                 visual.function()
-                
+
                 # mobs
                 all_mobs.function()
 
@@ -2748,7 +2798,7 @@ def main(debug):
                             g.fuels.delindex(0)
                         finally:
                             Window.display.cblit(_surf, (x + 25, y))
-                            
+
                 # anvil
                 elif g.midblit == "anvil":
                     x = crafting_rect.x + 30 / 2 + 25
@@ -2756,7 +2806,7 @@ def main(debug):
                     sy = y
                     xo = 30 + 5
                     yo = 30 + 10
-                    Window.display.blit(anvil_img, crafting_rect)                
+                    Window.display.blit(anvil_img, crafting_rect)
                     for smithing in g.smithings:
                         # anvil material
                         if g.smither is not None:
@@ -2803,7 +2853,7 @@ def main(debug):
                     # smither
                     if g.smither is not None:
                         Window.display.cblit(g.w.tools[g.smither], crafting_center)
-                        
+
                 # gun crafter
                 elif g.midblit == "gun":
                     Window.display.blit(gun_crafter_img, crafting_rect)
@@ -2815,7 +2865,7 @@ def main(debug):
                             write(Window.display, "center", "?", orbit_fonts[20], BLACK, *pos)
                             #pygame.gfxdraw.aacircle(Window.display, *pos, 5, BLACK)
                             #pygame.draw.circle(Window.display, BLACK, pos, 5)
-                            
+
                 # magic table
                 elif g.midblit == "magic-table":
                     Window.display.blit(magic_table_img, crafting_rect)
@@ -2831,7 +2881,7 @@ def main(debug):
                         y += yo
                     if g.magic_tool is not None:
                         Window.display.cblit(g.w.tools[g.magic_tool], (tx, ty))
-                        
+
                 # chest
                 elif g.midblit == "chest":
                     Window.display.blit(chest_template, chest_rect)
@@ -2851,9 +2901,9 @@ def main(debug):
                     Window.display.blit(square_border_img, g.chest_pos)
                     for rect in chest_rects:
                         if rect.collidepoint(g.mouse):
-                            with suppress(IndexError):
-                                write(Window.display, "center", ipure(g.chest[chest_indexes[rect.topleft]][0]), orbit_fonts[15], BLACK, crafting_rect.centerx, 150)
-                            
+                            with suppress(IndexError, AttributeError):
+                                write(Window.display, "center", ishow(g.chest[chest_indexes[rect.topleft]][0]), orbit_fonts[15], BLACK, crafting_rect.centerx, 150)
+
                 if g.player.main == "block" and g.player.block is not None:
                     if g.player.block in ore_blocks:
                         block = oinfo[g.player.block]["cform"]
@@ -2875,7 +2925,7 @@ def main(debug):
                 Window.display.cblit(tool_holders_img, (Window.width / 2 - 96 - 35, 20), "midtop")
                 Window.display.cblit(inventory_img, (Window.width / 2 + 20, 20), "midtop")
                 Window.display.cblit(pouch_img, (Window.width / 2 + 20 + 96 + 40, 20), "midtop")
-                
+
                 # selected tool
                 x = 258
                 y = 38
@@ -2895,7 +2945,7 @@ def main(debug):
                         if index == g.player.tooli:
                             Window.display.cblit(square_border_img, (x, y))
                     x += 33
-                    
+
                 # selected block
                 x = 359
                 y = 38
@@ -2908,7 +2958,7 @@ def main(debug):
                         if index == g.player.blocki:
                             Window.display.cblit(square_border_img, (x, y))
                     x += 33
-                
+
                 # pouch icon
                 Window.display.cblit(pouch_icon, (546 + 15, y))
                 write(Window.display, "center", g.player.pouch, orbit_fonts[15], g.w.text_color, 546 + 15, y + 25)
@@ -2931,8 +2981,10 @@ def main(debug):
             elif g.stage == "home":
                 Window.display.fill(DARK_BROWN)
                 write(Window.display, "center", "Blockingdom", orbit_fonts[50], BLACK, Window.width // 2, 58)
-                Window.display.blit(frame_img, (0, 0))
                 Window.display.blit(g.home_bg_img, (0, 120))
+                Window.display.blit(frame_img, (0, 0))
+                if Platform.os != "Windows":
+                    write(Window.display, "bottomright", "There may be issues with non-Windows operating systems.", orbit_fonts[10], BLACK, Window.width - 30, Window.height - 30)
 
                 all_home_sprites.draw(Window.display)
                 all_home_sprites.update()
@@ -2950,13 +3002,13 @@ def main(debug):
 
                 all_messageboxes.draw(Window.display)
                 all_messageboxes.update()
-                
+
                 # generating world loading bar
                 if g.loading_world:
                     pygame.draw.rect(Window.display, BLACK, (Window.width / 2 - 100, Window.height / 2 - 15, 200, 30), 3)
                     pygame.draw.rect(Window.display, LIGHT_GREEN, (Window.width / 2 - 98, Window.height / 2 - 13, g.loading_world_perc * 2 - 4, 26))
                     write(Window.display, "center", f"{int(g.loading_world_perc)}%", orbit_fonts[20], BLACK, *Window.center)
-                
+
             # skin menu filling
             if g.skin_menu:
                 # background (filling)
