@@ -18,7 +18,7 @@ class Entity:
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
     entity_imgs["camel"] = img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2))
     entity_imgs["fluff_camel"] = cimgload("Images", "Mobs", "fluff_camel.png", frames=4)
-    
+
     def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", traits=None, smart_vector=False, **kwargs):
         self.anim = 0
         self.init_images(img_data, "images")
@@ -39,7 +39,7 @@ class Entity:
             setattr(self, k, v)
         if "camel" in self.traits:
             self.init_images(img_data, "h_images")
-        
+
     def init_images(self, img_data, name):
         if isinstance(img_data, list):
             iter_ = img_data
@@ -56,67 +56,67 @@ class Entity:
                 iter_ = [SmartSurface.from_string(img_data)]
         setattr(self, name, [SmartSurface.from_surface(flip(img, "h_" in name, "v_" in name)) for img in iter_])
         self.image = self.images[int(self.anim)]
-    
+
     def update(self):
         self.animate()
         self.logic()
         self.draw()
-    
+
     @property
     def xbound(self):
         return 1 if self.xvel >= 0 else -1
-        
+
     @property
     def ybound(self):
         return 1 if self.yvel >= 0 else -1
-        
+
     @property
     def rect(self):
         if not self.smart_vector:
             return self._rect
         else:
             return self.image.get_rect(topleft=(self.x, self.y))
-    
+
     @property
     def right(self):
         return self.x + self.image.get_width()
-        
+
     @right.setter
     def right(self, value):
         self.x = value - self.image.get_width()
-        
+
     @property
     def centerx(self):
         return self.x + self.image.get_width() / 2
-    
+
     @centerx.setter
     def centerx(self, value):
         self.x = value - self.image.get_width() / 2
-        
+
     @property
     def bottom(self):
         return self.y + self.image.get_height()
-    
+
     @bottom.setter
     def bottom(self, value):
         self.y = value - self.image.get_height()
-    
+
     @property
     def centery(self):
         return self.y + self.image.get_height() / 2
-    
+
     @centery.setter
     def centery(self, value):
         self.y = value - self.image.get_height() / 2
-    
+
     @property
     def width(self):
         return self.image.get_width()
-        
+
     @property
     def height(self):
         return self.image.get_height()
-        
+
     def movex(self, amount):
         self.x += amount
         self.dx += amount
@@ -138,10 +138,10 @@ class Entity:
             self.anim = 0
         finally:
             self.image = (self.images if self.xvel >= 0 else self.h_images)[int(self.anim)]
-        
+
     def logic(self):
         pass
-   
+
 
 # F U N C T I O N S ------------------------------------------------------------------------------------ #
 def get_avatar():
@@ -186,12 +186,12 @@ def get_avatar():
         hair_chance += 0.1
     img = pgscale(img, (30, 30))
     return img
-    
-    
+
+
 def norm_ore(ore):
     return ore.removesuffix("en")
-    
-    
+
+
 def cfilter(image, alpha, size, color=BLACK, colorkey=BLACK):
     surf = pygame.Surface((size[0], size[1]))
     surf.fill(color)
@@ -203,7 +203,12 @@ def cfilter(image, alpha, size, color=BLACK, colorkey=BLACK):
 
 
 def tpure(tool):
-    return (tool.split("_")[1] if tool is not None else tool) if "_" in tool else tool
+    ret = tool.removeprefix("enchanted_")
+    return (ret.split("_")[1] if ret is not None else ret) if "_" in ret else ret
+
+
+def tore(tool):
+    return tool.removeprefix("enchanted_").split("_")[0]
 
 
 # I M A G E S ------------------------------------------------------------------------------------------ #
@@ -217,20 +222,20 @@ class _Assets:
     def __init__(self):
         self.assets = {"blocks": {}, "tools": {}, "icons": {}}
         self.sizes = {}
-    
+
     @property
     def blocks(self):
         return self.assets["blocks"]
-    
+
     @property
     def tools(self):
         return self.assets["tools"]
-    
+
     @property
     def icons(self):
         return self.assets["icons"]
-    
-    
+
+
 a = _Assets()
 
 
@@ -322,8 +327,8 @@ def load_guns():
             a.blocks[f"{gun_name}_{gun_part}"] = cimgload("Images", "Guns", gun_part, gun_filename)
             gun_blocks.append(f"{gun_name}_{gun_part}")
     a.og_blocks = {k: v.copy() for k, v in a.blocks.items()}
-            
-            
+
+
 def load_icons():
     icon_sprs = cimgload("Images", "Spritesheets", "icons.png")
     icon_list = [
@@ -339,7 +344,7 @@ def load_sizes():
     for atype, dict_ in a.assets.items():
         for name, img in dict_.items():
             a.sizes[name] = img.get_size()
-            
+
 
 tool_rarity_colors = {"wood": DARK_WOOD_BROWN, "stone": STONE_GRAY, "iron": LIGHT_GRAY, "gold": GOLD_YELLOW, "emerald": LIGHT_GREEN}
 tool_rarity_mults = {}
@@ -369,10 +374,10 @@ block_breaking_times = {"stone": 1000, "sand": 200, "hay": 150, "soil": 200, "di
 tinfo = {
     "axe":
         {"blocks": {"wood": 0.03, "bamboo": 0.024, "coconut": 0.035, "cactus": 0.04, "barrel": 0.01, "workbench": 0.02}},
-    
+
     "pickaxe":
         {"blocks": {"snow": 0.036, "stone": 0.02, "coal": 0.01}},
-    
+
     "shovel":
         {"blocks": {"soil": 0.16, "dirt": 0.06, "sand": 0.2}},
 
