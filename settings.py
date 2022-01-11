@@ -14,19 +14,22 @@ from pyengine.basics import *
 from pyengine.pilbasics import *
 
 
+cimgload = partial(imgload, scale=3)
+
+
 # N O N - G R A P H I C A L  C L A S S E S  P R E - I N I T I A L I Z E D ------------------------------ #
 class BlockNotFoundError(Exception):
     pass
-    
-      
+
+
 class System:
     version = "Alpha"
     if version not in ("Alpha", "Beta"):
         maj = version.split(".")[0]
         min = version.split(".")[1]
         pat = version.split(".")[2]
-        
-    
+
+
 # W I N D O W ,  S U R F A C E S  A N D  S P R I T E  G R O U P S -------------------------------------- #
 class Window:
     width = 810
@@ -34,13 +37,18 @@ class Window:
     size = (width, height)
     center = tuple(s / 2 for s in size)
     pygame.display.set_caption(f"Blockingdom {System.version}")
-    window = pygame.display.set_mode((width, height), 0, 32)
-    display = SmartSurface(size)
+    window = pygame.display.set_mode((width, height))
+    display = SmartSurface(size).convert_alpha()
     center_window()
-    
-    
+    try:
+        icon = cimgload("Images", "Visuals", f"{Platform.os}_icon.png")
+    except FileNotFoundError:
+        icon = cimgload("Images", "Visuals", "Windows_icon.png")
+    finally:
+        pygame.display.set_icon(icon)
+
+
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
-cimgload = partial(imgload, scale=3)
 # backgrounds
 inventory_img = cimgload("Images", "Background", "inventory.png")
 tool_holders_img = cimgload("Images", "Background", "tool_holders.png")
@@ -50,13 +58,12 @@ pouch_icon = cimgload("Images", "Background", "pouch_icon.png")
 player_hit_chart = cimgload("Images", "Background", "player_hit_chart.png")
 lock = cimgload("Images", "Player_Skins", "lock.png")
 frame_img = cimgload("Images", "Background", "frame.png")
-                         
+
 # visuals
 arrow_sprs = cimgload("Images", "Spritesheets", "arrow.png", frames=11)
 shower_sprs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
-pygame.display.set_icon(cimgload("Images", "Visuals", "icon.png"))
 chest_template = cimgload("Images", "Visuals", "chest_template.png")
 
 # surfaces
@@ -108,18 +115,17 @@ neuro_fonts = [pygame.font.Font(path("Fonts", "NeuropolX", "neuropol x rg.ttf"),
 orbit_fonts = [pygame.font.Font(path("Fonts", "Orbitron", "Orbitron-VariableFont_wght.ttf"), i) for i in range(1, 101)]
 
 # G R O U P S ------------------------------------------------------------------------------------------ #
-# Group() refers to my custom group, while pygame.sprite.Group() refers to the built-in pygame group
 all_blocks =                    SmartList()
 all_drops =                     SmartGroup()
 all_particles =                 SmartGroup()
 all_other_particles =           SmartList()
 all_projectiles =               SmartGroup()
-all_foreground_sprites =        pygame.sprite.Group()
-all_home_sprites =              pygame.sprite.Group()
-all_home_world_world_buttons =  pygame.sprite.Group()
-all_home_world_static_buttons = pygame.sprite.Group()
-all_home_settings_buttons =     pygame.sprite.Group()
-all_messageboxes =              pygame.sprite.Group()
+all_foreground_sprites =        SmartGroup()
+all_home_sprites =              SmartGroup()
+all_home_world_world_buttons =  SmartGroup()
+all_home_world_static_buttons = SmartGroup()
+all_home_settings_buttons =     SmartGroup()
+all_messageboxes =              SmartGroup()
 all_mobs =                      SmartGroup()
 
 # C O N S T A N T S ------------------------------------------------------------------------------------ #
@@ -143,7 +149,7 @@ def_regen_time = millis(5)
 
 class Game:
     def __init__(self):
-        """ The game class has all types of global attributes related to the game, as well as the player and the 'w' object that represents a world & its data """
+        """ The game class has all types of global attributes related to the game, as well as the player and the 'w' object which represents a world & its data """
         # 'global' variables
         self.ckeys = {"p up": K_w, "p left": K_a, "p down": K_s, "p right": K_d}
         # initialization
@@ -241,14 +247,6 @@ class Game:
                     self.skins[bt][index]["sprs"] = []
         # spritesheets
         self.portal_sprs = cimgload("Images", path("Spritesheets", "portal.png"), frames=7)
-        # rendering
-        self.screenshake = 0
-        self.s_render_offset = None
-        self.render_offset = [0, 0]
-        self.clicked_when = None
-        self.typing = False
-        self.worldbutton_pos_ydt = 40
-        self.max_worldbutton_pos = [45, 180 + 6 * self.worldbutton_pos_ydt]
         # static attributes
         self.color_codes = {"b": BLACK, "w": WHITE, "g": GREEN, "u": WATER_BLUE, "y": YELLOW}
         self.ttypes = [("Data Files", "*.dat")]
@@ -275,13 +273,19 @@ class Game:
         self.loading_world = False
         self.loading_world_perc = 0
         self.loading_world_text = None
-        # dynamic other
+        # dynamic others
         self.cannot_place_block = False
+        self.invalid_file_name = False
         # rendering
-        self.screen_shake = 0
-        self.render_offset = (0, 0)
-        self.render_scale = 3
-      
+        self.screenshake = 0
+        self.s_render_offset = None
+        self.render_offset = [0, 0]
+        self.clicked_when = None
+        self.typing = False
+        self.worldbutton_pos_ydt = 40
+        self.max_worldbutton_pos = [45, 180 + 6 * self.worldbutton_pos_ydt]
+        self.fpss = SmartList()
+
     @staticmethod
     def stop():
         pygame.quit()
@@ -296,11 +300,11 @@ class Game:
     @property
     def mouse(self):
         return pygame.mouse.get_pos()
-    
+
     @property
     def mouses(self):
         return pygame.mouse.get_pressed()
-        
+
     @property
     def keys(self):
         return pygame.key.get_pressed()
@@ -308,26 +312,31 @@ class Game:
     @property
     def mod(self):
         return pygame.key.get_mods()
-    
+
     @property
     def str_mod(self):
-        return "_bg" if self.mod == 1 else ""
-    
+        if self.mod == 1:
+            return "_bg"
+        elif self.mod == 64:
+            return "_jt"
+        else:
+            return ""
+
     @property
     def chest_index(self):
         return chest_indexes[tuple(p + 3 for p in self.chest_pos)]
-    
+
     @property
     def cur_chest_item(self):
         return self.chest[self.chest_index]
-        
+
     @cur_chest_item.setter
     def cur_chest_item(self, value):
         self.chest[self.chest_index] = value
-        
+
     def skin_data(self, bt):
         return self.skins[bt][self.skin_indexes[bt]]
-    
+
     def set_loading_world(self, tof):
         self.loading_world = self.events_locked = tof
         self.loading_world_perc = 0
@@ -343,7 +352,7 @@ def is_in(elm, seq):
     elif isinstance(seq, (list, tuple, set)):
         itr = iter(seq)
     else:
-        raise ValueError(f"Iterable must be a dict, list, tuple or set; not {type(seq)} ({seq}).")
+        raise_type("seq", 2, "List, Tuple, Set", name(seq))
     if bpure(elm) in itr:
         return True
     else:
@@ -352,12 +361,11 @@ def is_in(elm, seq):
 
 def bpure(str_):
     ret = str_.removesuffix("_bg")
-    ret = ret.replace("-", " ")
-    return ret.split("_")[1] if "_" in ret else ret
-        
-        
-def gpure(str_):
-    return str_.replace("_", " ")
+    if "_deg" in ret:
+        return ret
+    elif "_" in ret:
+        return ret.split("_")[1]
+    return ret
 
 
 # L A M B D A S ---------------------------------------------------------------------------------------- #

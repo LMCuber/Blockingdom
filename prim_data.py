@@ -8,6 +8,8 @@ black_filter = pygame.Surface((30, 30)); black_filter.set_alpha(200)
 avatar_map = dict.fromkeys(((2, 3), (2, 4), (7, 3), (7, 4)), WHITE) | dict.fromkeys(((3, 3), (3, 4), (6, 3), (6, 4)), BLACK)
 BLUE = POWDER_BLUE
 orb_colors = {"red": RED, "green": GREEN, "blue": BLUE, "yellow": YELLOW, "orange": ORANGE, "purple": PURPLE, "pink": PINK}
+rotations2 = {0: 90, 90: 0}
+rotations4 = {90: 0, 0: 270, 270: 180, 180: 90}
 
 
 # C L A S S E S ---------------------------------------------------------------------------------------- #
@@ -18,6 +20,7 @@ class Entity:
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
     entity_imgs["camel"] = img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2))
     entity_imgs["fluff_camel"] = cimgload("Images", "Mobs", "fluff_camel.png", frames=4)
+    #entity_imgs["penguin"] = cimgload("Images", "Mobs", "penguin.png", frames=TODO)
 
     def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", traits=None, smart_vector=False, **kwargs):
         self.anim = 0
@@ -144,6 +147,38 @@ class Entity:
 
 
 # F U N C T I O N S ------------------------------------------------------------------------------------ #
+def color_base(block_type, colors, unplacable=False):
+    base_block = a.blocks[f"base-{block_type}"]
+    w, h = base_block.get_size()
+    for name, color in colors.items():
+        colored_block = pygame.Surface((30, 30), pygame.SRCALPHA)
+        for y in range(h):
+            for x in range(w):
+                c = base_block.get_at((x, y))
+                if c != (0, 0, 0, 0):
+                    rgb = c[:3]
+                    if rgb != BLACK:
+                        colored_block.set_at((x, y), rgb_mult(color, rgb[0] / 255))
+                    else:
+                        colored_block.set_at((x, y), BLACK)
+        block_name = f"{name}-{block_type}"
+        a.blocks[block_name] = colored_block
+        if unplacable:
+            unplacable_blocks.append(block_name)
+
+
+def rotate_base(block_type, states=4):
+    base_block = a.blocks[f"base-{block_type}"]
+    w, h = base_block.get_size()
+    if states == 4:
+        rotations = [0, 90, 180, 270]
+    elif states == 2:
+        rotations = [0, 90]
+    for r in rotations:
+        a.blocks[f"{block_type}_deg{r}"] = rotate(base_block, r)
+    a.aliases["blocks"][f"{block_type}_deg0"] = block_type
+
+
 def get_avatar():
     """
     svg_path = path("tempfiles", "avatar.svg")
@@ -221,6 +256,7 @@ DARK_WOOD_BROWN = (80, 40, 0)
 class _Assets:
     def __init__(self):
         self.assets = {"blocks": {}, "tools": {}, "icons": {}}
+        self.aliases = {"blocks": {}, "tools": {}, "icons": {}}
         self.sizes = {}
 
     @property
@@ -243,13 +279,13 @@ a = _Assets()
 def load_blocks():
     _bsprs = cimgload("Images", "Spritesheets", "blocks.png")
     block_list = [
-        ["air",        "bucket",      "apple",     "bamboo",        "cactus",        "watermelon",       "rock"     ],
-        ["chest",       None,         "coconut",   "coconut-piece", "command-block", "wood",             "bush"     ],
-        [None,         "dirt",        "dynamite",  "fire",           None,           "watermelon-piece", "grass1"   ],
-        ["hay",         None,         "leaf",       None,           "sand",          "workbench",        "grass2"   ],
-        ["snow",       "soil",        "stone",     "vine",          "wooden-planks", "a_wooden-planks",  "stick"    ],
-        ["anvil",      "furnace",     "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore"],
-        ["blackstone", "closed-core", "base-core", "lava",          "base-orb",      "magic-table"]
+        ["air",        "bucket",           "apple",     "bamboo",        "cactus",        "watermelon",       "rock"      ],
+        ["chest",      "snow",             "coconut",   "coconut-piece", "command-block", "wood",             "bush"      ],
+        ["base-pipe",  "dirt",             "dynamite",  "fire",           None,           "watermelon-piece", "grass1"    ],
+        ["hay",        "base-curved-pipe", "leaf",      "grave",         "sand",          "workbench",        "grass2"    ],
+        ["snow-stone", "soil",             "stone",     "vine",          "wooden-planks", "a_wooden-planks",  "stick"     ],
+        ["anvil",      "furnace",          "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore"  ],
+        ["blackstone", "closed-core",      "base-core", "lava",          "base-orb",      "magic-table",      "base-armor"]
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
@@ -288,16 +324,15 @@ def load_blocks():
             pygame.draw.rect(surf, color, rect)
     # ores
     for name, color in [(oi, oinfo[oi]["color"]) for oi in oinfo]:
-        if name != "stone":
-            a.blocks[name] = swap_palette(a.blocks["base-ore"], BLACK, color)
-            a.blocks[f"{name}-ingot"] = pygame.Surface((30, 30), pygame.SRCALPHA)
-            ingot_keys = ("blocks", f"{name}-ingot")
-            ingot_img = ndget(a.assets, ingot_keys)
-            pygame.draw.polygon(ingot_img, color, ((0, 11), (22, 3), (30, 11), (8, 19)))
-            pygame.draw.polygon(ingot_img, rgb_mult(color, 0.9), ((0, 11), (8, 19), (8, 27), (0, 19)))
-            pygame.draw.polygon(ingot_img, rgb_mult(color, 0.8), ((8, 19), (30, 11), (30, 19), (8, 27)))
-            a.assets[ingot_keys[0]][ingot_keys[1]] = pil_to_pg(pil_pixelate(pg_to_pil(ndget(a.assets, ingot_keys)), (10, 10)))
-            unplacable_blocks.append(ingot_keys[-1])
+        a.blocks[name] = swap_palette(a.blocks["base-ore"], BLACK, color)
+        a.blocks[f"{name}-ingot"] = pygame.Surface((30, 30), pygame.SRCALPHA)
+        ingot_keys = ("blocks", f"{name}-ingot")
+        ingot_img = ndget(a.assets, ingot_keys)
+        pygame.draw.polygon(ingot_img, color, ((0, 11), (22, 3), (30, 11), (8, 19)))
+        pygame.draw.polygon(ingot_img, rgb_mult(color, 0.9), ((0, 11), (8, 19), (8, 27), (0, 19)))
+        pygame.draw.polygon(ingot_img, rgb_mult(color, 0.8), ((8, 19), (30, 11), (30, 19), (8, 27)))
+        a.assets[ingot_keys[0]][ingot_keys[1]] = pil_to_pg(pil_pixelate(pg_to_pil(ndget(a.assets, ingot_keys)), (10, 10)))
+        unplacable_blocks.append(ingot_keys[-1])
     # deleting unneceserry blocks that have been modified anyway
     del a.blocks["soil"]
     del a.blocks["leaf"]
@@ -356,27 +391,28 @@ for r in tool_rarity_colors:
 # B L O C K  D A T A ----------------------------------------------------------------------------------- #
 # ore info
 oinfo = {
-    "talc":      {"moh": 1,  "cform": "Mg3Si4O10",      "color": MINT},
-    "gypsum":    {"moh": 2,  "cform": "CaSO4.2H2O",     "color": LIGHT_GRAY},
-    "stone":     {"moh": 3,  "cform": None,             "color": None},            "gold":      {"moh": 3,  "cform": "Au",           "color": GOLD_YELLOW}, "coal": {"moh": 3, "cform": "AICo", "color": BLACK},
-    "iron":      {"moh": 4,  "cform": "Fe",             "color": LIGHT_GRAY},
-    "palladium": {"moh": 5,  "cform": "Pd",             "color": (190, 173, 210)}, "obisidian": {"moh": 5, "cform": "SiO2",          "color": (20, 20, 20)},
-    "titanium":  {"moh": 6,  "cform": "FeTiO3",         "color": (210, 210, 210)}, "uranium":   {"moh": 6, "cform": "U",             "color": MOSS_GREEN},
-    "quartz":    {"moh": 7,  "cform": "SiO2",           "color": LIGHT_PINK},
-    "topaz":     {"moh": 8,  "cform": "Al2(F,OH)2SiO4", "color": (30, 144, 255)},  "emerald":   {"moh": 8, "cform": "Be3Al2(SiO3)6", "color": LIGHT_GREEN},
-    "corundum":  {"moh": 9,  "cform": "Al2O3",          "color": (176, 223, 230)},
-    "diamond":   {"moh": 10, "cform": "C",              "color": POWDER_BLUE}
+    "talc":      {"moh": 1,  "color": MINT},
+    "gypsum":    {"moh": 2,  "color": LIGHT_GRAY},
+    "gold":      {"moh": 3,  "color": GOLD_YELLOW},     "coal": {"moh": 3, "color": BLACK},
+    "iron":      {"moh": 4,  "color": LIGHT_GRAY},
+    "palladium": {"moh": 5,  "color": (190, 173, 210)}, "obisidian": {"moh": 5, "color": (20, 20, 20)},
+    "titanium":  {"moh": 6,  "color": (210, 210, 210)}, "uranium":   {"moh": 6, "color": MOSS_GREEN},
+    "quartz":    {"moh": 7,  "color": LIGHT_PINK},
+    "topaz":     {"moh": 8,  "color": (30, 144, 255)},  "emerald":   {"moh": 8, "color": LIGHT_GREEN},
+    "corundum":  {"moh": 9,  "color": (176, 223, 230)},
+    "diamond":   {"moh": 10, "color": POWDER_BLUE}
 }
 ore_blocks = list(oinfo.keys())
-ore_blocks.remove("stone")
+ore_colors = {ore: data["color"] for ore, data in oinfo.items()}
 
 block_breaking_times = {"stone": 1000, "sand": 200, "hay": 150, "soil": 200, "dirt": 200, "watermelon": 500}
+block_breaking_amounts = {"stone": 0.01, "sand": 0.01, "hay": 0.07, "soil": 0.05, "dirt": 0.05, "watermelon": 0.01}
 tinfo = {
     "axe":
-        {"blocks": {"wood": 0.03, "bamboo": 0.024, "coconut": 0.035, "cactus": 0.04, "barrel": 0.01, "workbench": 0.02}},
+        {"blocks": {"wood": 0.03, "bamboo": 0.024, "coconut": 0.035, "cactus": 0.04, "barrel": 0.01, "workbench": 0.02, "wooden-planks": 0.035}},
 
     "pickaxe":
-        {"blocks": {"snow": 0.036, "stone": 0.02, "coal": 0.01}},
+        {"blocks": {"snow-stone": 0.036, "stone": 0.02, "blackstone": 0.015}, "grave": 0.015},
 
     "shovel":
         {"blocks": {"soil": 0.16, "dirt": 0.06, "sand": 0.2}},
@@ -387,11 +423,9 @@ tinfo = {
     "scissors":
         {"blocks": {"leaf": 0.04, "vine": 0.02}}
 }
-breaking = 0.008
-for ore in oinfo:
-    if ore != "stone":
-        tinfo["pickaxe"]["blocks"][ore] = breaking
-        breaking /= 1.5
+fin_mult = 1 / 0.015873
+for mult, ore in enumerate(oinfo, 50):
+    tinfo["pickaxe"]["blocks"][ore] = (11 - oinfo[ore]["moh"]) * 0.003 * (1 - (1 / mult * fin_mult - 1) * 2.3)
 tool_blocks = set(itertools.chain.from_iterable([list(tinfo[tool]["blocks"].keys()) for tool in tinfo]))
 
 # B L O C K  C L A S S I F I C A T I O N S ------------------------------------------------------------- #
@@ -401,9 +435,8 @@ item_blocks = ["dynamite"]
 unbreakable_blocks = ["air", "water"]
 functionable_blocks = ["dynamite", "command-block"]
 climbable_blocks = ["vine"]
-practically_no_blocks = ["air", "water"]
-dif_drop_blocks = {"coconut": {"block": "coconut-piece", "amount": 2},
-                   "watermelon": {"block": "watermelon-piece", "amount": 2}}
+dif_drop_blocks = {"coconut": [{"block": "coconut-piece", "amount": 2}],
+                   "watermelon": [{"block": "watermelon-piece", "amount": 2}]}
 fall_damage_blocks = {"hay": 10}
 gun_blocks = []
 burnable_blocks = []
@@ -431,9 +464,8 @@ cinfo = {
 
 c = 2
 for ore in oinfo:
-    if ore != "stone":
-        oinfo[ore]["chance"] = c
-        c /= 1.5
+    oinfo[ore]["chance"] = c
+    c /= 1.5
 
 # [0] = color, [1] = block-radar
 ginfo = {
@@ -449,7 +481,6 @@ load_blocks()
 load_tools()
 load_guns()
 load_icons()
-load_sizes()
 
 # - initializations after asset loading -
 # tool crafts
@@ -458,22 +489,20 @@ for tool in a.tools:
     if n == "axe":
         o = norm_ore(o) + ("-ingot" if o != "wood" else "")
         ainfo[tool] = {"recipe": {o: 2, "stick": 1}, "energy": 8}
-# colored ores
-base_orb = a.blocks["base-orb"]
-w, h = base_orb.get_size()
-for name, color in orb_colors.items():
-    colored_orb = pygame.Surface((30, 30), pygame.SRCALPHA)
-    for y in range(h):
-        for x in range(w):
-            c = base_orb.get_at((x, y))
-            if c != (0, 0, 0, 0):
-                rgb = c[:3]
-                if rgb != BLACK:
-                    colored_orb.set_at((x, y), rgb_mult(color, rgb[0] / 255))
-                else:
-                    colored_orb.set_at((x, y), BLACK)
-    orb_name = f"{name}-orb"
-    a.blocks[orb_name] = colored_orb
-    unplacable_blocks.append(orb_name)
+
+# colored blocks
+color_base("orb", orb_colors, True)
+color_base("armor", ore_colors, True)
+
+# rotations
+rotate_base("pipe", 2)
+rotate_base("curved-pipe", 4)
+
 # chest blocks
 chest_blocks = [block for block in a.blocks if block is not None and block not in ("air",)]
+
+# loading sizes
+load_sizes()
+
+# last second initializations
+oinfo["stone"] = {"moh": 3}

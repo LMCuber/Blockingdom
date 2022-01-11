@@ -35,8 +35,8 @@ def get_quote():
     quote = image_to_string(pil_img)
     quote = "".join([char for char in quote])
     return quote
-    
-    
+
+
 def destroy_group(grp):
     for spr in grp:
         spr.kill()
@@ -70,18 +70,18 @@ def rand_block(*args):
 class Biome:
     def __init__(self):
         self.heights = {"forest": 5, "desert": 5, "beach": 3, "mountain": 10, "industry": 2, "wasteland": 3}
-        self.blocks = {"forest":   ("f_soil", "dirt"),  "desert":    ("sand", "sand"),
-                       "beach":    ("sand", "sand"),    "mountain":  ("snow", "stone"),
-                       "swamp":    ("sw_soil", "dirt"), "prairie":   ("hay", "dirt"),
-                       "jungle":   ("f_soil", "dirt"),  "savanna":   ("sv_soil", "dirt"),
-                       "industry": ("p_soil", "dirt"),  "wasteland": ("dirt", "dirt"),
-                       "volcano": ("blackstone", "blackstone")}
+        self.blocks = {"forest":   ("f_soil", "dirt"),          "desert":    ("sand", "sand"),
+                       "beach":      ("sand", "sand"),            "mountain":  ("stone", "stone"),
+                       "swamp":     ("sw_soil", "dirt"),         "prairie":   ("hay", "dirt"),
+                       "jungle":    ("f_soil", "dirt"),          "savanna":   ("sv_soil", "dirt"),
+                       "industry":  ("p_soil", "dirt"),          "wasteland": ("dirt", "dirt"),
+                       "volcano":   ("blackstone", "blackstone"), "snow":      ("snow", "snow")}
         self.tree_heights = {"swamp": 4, "jungle": 8, "savanna": 10, "beach": 6}
         self.tree_chances = {"forest": 8, "beach": 16, "swamp": 7, "jungle": 6, "savanna": 20}
         self.wood_types = {"savanna": "sv_wood"}
         self.fill_chances = {"forest": ("water", 3), "beach": ("water", 3), "swamp": ("water", 5), "jungle": ("water", 4),
                              "savanna": ("water", 100), "volcano": ("lava", 3)}
-        self.flatnesses = {"forest": 1, "industry": 10, "beach": 10}
+        self.flatnesses = {"forest": 1, "snow": 5, "industry": 10, "beach": 10}
         self.biomes = list(self.blocks.keys())
 
 
@@ -177,7 +177,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                     for i in range(vine_height):
                         data[screen][vine_index] = "vine"
                         vine_index += HL
-                
+
                     # bamboo
                 if biome == "jungle":
                     if chance(1 / 7):
@@ -186,20 +186,20 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                         for i in range(bamboo_height):
                             data[screen][bamboo_index] = "bamboo_bg"
                             bamboo_index -= HL
-             
+
         if biome == "jungle":
             if 0 <= horindex <= HL - 3:
                 # portal
                 if chance(1 / 20):
                     e = Entity("portal", block_pos, abs_screen, 1, traits=["portal"])
                     entities.append(e)
-               
-        if biome == "forest":
+
+        elif biome == "forest":
             # watermelons
             if chance(1 / 40):
                 data[screen][blockindex - HL] = "watermelon_bg"
-        
-        if biome == "industry":
+
+        elif biome == "industry":
             # barrels
             if chance(1 / 40):
                 barrel_indexes = [blockindex - HL, blockindex - HL * 2]
@@ -212,14 +212,14 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                 entities.append(e)
 
     if biome == "desert":
-        if data[screen][blockindex] == prim:         
+        if data[screen][blockindex] == prim:
             if data[screen][blockindex - HL] == "air":
                 # camels
                 if chance(1 / 50):
                     name = choice(("camel", "fluff_camel"))
                     camel = Entity(name, block_pos, abs_screen, 1, "bottomleft", traits=["camel", "mob", "passive"], smart_vector=True, index=blockindex, xvel=0.2)
                     entities.append(camel)
-                    
+
                 # cacti
                 if chance(1 / 20):
                     cactus_height = nordis(4, 2)
@@ -227,7 +227,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                     for i in range(cactus_height):
                         data[screen][cactus_index] = "cactus_bg"
                         cactus_index -= HL
-                 
+
                 # temples
                 if chance(1 / 10):
                     upp_blocks = [data[screen][blockindex - HL], data[screen][blockindex - HL - 1],
@@ -260,7 +260,7 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                         pairs = []
                         pairs.append(rand(1, tree_height - 1))
                         pairs.append(tree_height - pairs[-1])
-                        
+
                         tree_index = blockindex - HL
                         for i in range(pairs[0]):
                             data[screen][tree_index] = "wood_bg"
@@ -279,18 +279,28 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
                         for leaf in leaves:
                             if chance(1 / 12):
                                 data[screen][leaf] = "coconut"
-            
+
             # rocks
             if biome == "beach":
                 if 1 <= horindex <= HL - 1:
                     if chance(1 / 25):
                         data[screen][blockindex - HL] = "rock_bg"
- 
+
     elif biome == "volcano":
         # volcanoes
         if chance(1 / 25):
             if data[screen][blockindex] == "air" and data[screen][blockindex + HL] == prim:
                 pass
+
+    elif biome == "wasteland":
+        # graves
+        if chance(1 / 30):
+            if data[screen][blockindex] == "air" and data[screen][blockindex + HL] == prim:
+                data[screen][blockindex] = "grave_bg"
+                neighbor_indexes = [HL * 2 - 1, HL * 2, HL * 2 + 1, HL * 3 - 1, HL * 3, HL * 3 + 1]
+                delta_index = choice(neighbor_indexes)
+                if data[screen][blockindex + delta_index] != "air":
+                    metadata[screen][layer * L + blockindex + delta_index]["loot"] = {"wood": 2}
 
     if blockname == bio.blocks[biome][0]:
         if data[screen][blockindex - HL] == "air":
