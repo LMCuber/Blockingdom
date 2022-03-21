@@ -14,9 +14,6 @@ from pyengine.basics import *
 from pyengine.pilbasics import *
 
 
-cimgload = partial(imgload, scale=3)
-
-
 # N O N - G R A P H I C A L  C L A S S E S  P R E - I N I T I A L I Z E D ------------------------------ #
 class BlockNotFoundError(Exception):
     pass
@@ -25,9 +22,7 @@ class BlockNotFoundError(Exception):
 class System:
     version = "Alpha"
     if version not in ("Alpha", "Beta"):
-        maj = version.split(".")[0]
-        min = version.split(".")[1]
-        pat = version.split(".")[2]
+        maj, min, pat = version.split(".")
 
 
 # W I N D O W ,  S U R F A C E S  A N D  S P R I T E  G R O U P S -------------------------------------- #
@@ -38,17 +33,12 @@ class Window:
     center = tuple(s / 2 for s in size)
     pygame.display.set_caption(f"Blockingdom {System.version}")
     window = pygame.display.set_mode((width, height))
-    display = SmartSurface(size).convert_alpha()
+    display = SmartSurface(size)
     center_window()
-    try:
-        icon = cimgload("Images", "Visuals", f"{Platform.os}_icon.png")
-    except FileNotFoundError:
-        icon = cimgload("Images", "Visuals", "Windows_icon.png")
-    finally:
-        pygame.display.set_icon(icon)
 
 
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
+cimgload = partial(imgload, scale=3)
 # backgrounds
 inventory_img = cimgload("Images", "Background", "inventory.png")
 tool_holders_img = cimgload("Images", "Background", "tool_holders.png")
@@ -65,6 +55,7 @@ shower_sprs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
 chest_template = cimgload("Images", "Visuals", "chest_template.png")
+pygame.display.set_icon(cimgload("Images", "Visuals", f"{Platform.os.lower()}_icon.png"))
 
 # surfaces
 workbench_img = imgload("Images", "Surfaces", "workbench.png")
@@ -106,13 +97,24 @@ gun_crafter_part_poss = {"stock": (rx + w // 2 - 32, ry + h // 2 - 9),
 
 # F O N T S -------------------------------------------------------------------------------------------- #
 # a maximum of two (normal + italic) of them is used; the other ones are experimental
-exo2_fonts = [pygame.font.Font(path("Fonts", "Exo2", "Exo2-Light.ttf"), i) for i in range(1, 101)]
-iexo2_fonts = [pygame.font.Font(path("Fonts", "Exo2", "Exo2-LightItalic.ttf"), i) for i in range(1, 101)]
-elec_fonts = [pygame.font.Font(path("Fonts", "Electrolize", "Electrolize-Regular.ttf"), i) for i in range(1, 101)]
-awave_fonts = [pygame.font.Font(path("Fonts", "Audiowide", "Audiowide-Regular.ttf"), i) for i in range(1, 101)]
-pixel_font = Font("pixel_font")
-neuro_fonts = [pygame.font.Font(path("Fonts", "NeuropolX", "neuropol x rg.ttf"), i) for i in range(1, 101)]
-orbit_fonts = [pygame.font.Font(path("Fonts", "Orbitron", "Orbitron-VariableFont_wght.ttf"), i) for i in range(1, 101)]
+def get_fonts(*p, sys=False):
+    if not sys:
+        return [pygame.font.Font(path("Fonts", *p), i) for i in range(1, 101)]
+    else:
+        return [pygame.font.SysFont(p[0], i) for i in range(1, 101)]
+
+
+exo2_fonts = get_fonts("Exo2", "Exo2-Light.ttf")
+iexo2_fonts = get_fonts("Exo2", "Exo2-LightItalic.ttf")
+elec_fonts = get_fonts("Electrolize", "Electrolize-Regular.ttf")
+awave_fonts = get_fonts("Audiowide", "Audiowide-Regular.ttf")
+neuro_fonts = get_fonts("NeuropolX", "neuropol x rg.ttf")
+orbit_fonts = get_fonts("Orbitron", "Orbitron-VariableFont_wght.ttf")
+dejavu_fonts = get_fonts("DejaVu", "ttf", "DejaVuSans-ExtraLight.ttf")
+cyber_fonts = get_fonts("Cyberbit", "Cyberbit.ttf")
+arial_fonts = get_fonts("Arial", sys=True)
+cambria_fonts = get_fonts("Cambria", sys=True)
+pixel_font = Font("Fonts", "Pixel", "pixel.png")
 
 # G R O U P S ------------------------------------------------------------------------------------------ #
 all_blocks =                    SmartList()
@@ -120,13 +122,14 @@ all_drops =                     SmartGroup()
 all_particles =                 SmartGroup()
 all_other_particles =           SmartList()
 all_projectiles =               SmartGroup()
-all_foreground_sprites =        SmartGroup()
-all_home_sprites =              SmartGroup()
-all_home_world_world_buttons =  SmartGroup()
-all_home_world_static_buttons = SmartGroup()
-all_home_settings_buttons =     SmartGroup()
-all_messageboxes =              SmartGroup()
+all_foreground_sprites =        pygame.sprite.Group()
+all_home_sprites =              pygame.sprite.Group()
+all_home_world_world_buttons =  pygame.sprite.Group()
+all_home_world_static_buttons = pygame.sprite.Group()
+all_home_settings_buttons =     pygame.sprite.Group()
+all_messageboxes =              pygame.sprite.Group()
 all_mobs =                      SmartGroup()
+all_rests =                     SmartGroup()
 
 # C O N S T A N T S ------------------------------------------------------------------------------------ #
 vowels = {"a", "e", "i", "o", "u"}
@@ -149,7 +152,7 @@ def_regen_time = millis(5)
 
 class Game:
     def __init__(self):
-        """ The game class has all types of global attributes related to the game, as well as the player and the 'w' object which represents a world & its data """
+        """ The game class has all types of global attributes related to the game, as well as the player and the 'w' object that represents a world & its data """
         # 'global' variables
         self.ckeys = {"p up": K_w, "p left": K_a, "p down": K_s, "p right": K_d}
         # initialization
@@ -163,7 +166,6 @@ class Game:
         self.player_size = (27, 27)
         self.skin_scale_mult = 5
         self.skin_fppp = 15
-        self.player_model = pygame.Surface([s * self.skin_scale_mult for s in self.player_size]); self.player_model.fill(GRAY)
         self.player_model_pos = (338, 233)
         self.tool_range = 30
         self.player_commands = {"tool", "tp", "give"}
@@ -176,6 +178,9 @@ class Game:
         self.opened_file = False
         self.last_break = ticks()
         self.last_music = None
+        self.last_ambient = None
+        self.first_music = False
+        self.pending_entries = []
         # surfaces
         self.night_sky = pygame.Surface(Window.size)
         self.menu_surf = pygame.Surface(Window.size); self.menu_surf.set_alpha(100)
@@ -217,22 +222,22 @@ class Game:
         self.skins = {  # "pos" is topleft (of the player model; not the screen) just like normal pixel systems
             "head": [
                 {"name": None},
-                {"name": "hat", "frames": 4, "pos": (-2, -1)},
-                {"name": "headband", "frames": 8, "pos": (-3, -1)},
-                {"name": "grass_hat", "frames": 6, "pos": (-2, -4)},
-                {"name": "helicopter", "frames": 7, "pos": (0, -5)},
-                {"name": "crown", "frames": 6, "pos": (-1, -3)}
+                {"name": "hat", "frames": 4, "offset": (-2, -1)},
+                {"name": "headband", "frames": 8, "offset": (-3, -1)},
+                {"name": "grass_hat", "frames": 6, "offset": (-2, -4)},
+                {"name": "helicopter", "frames": 7, "offset": (0, -5)},
+                {"name": "crown", "frames": 6, "offset": (-1, -3)}
             ],
             "face": [
                 {"name": None},
-                {"name": "glasses", "frames": 5, "frame_pause": 4, "pos": (0, 2)}
+                {"name": "glasses", "frames": 5, "frame_pause": 4, "offset": (0, 2)}
             ],
             "shoulder": [
                 {"name": None}
             ],
             "body": [
                 {"name": None},
-                {"name": "detective", "frames": 6, "pos": (0, 5)}
+                {"name": "detective", "frames": 6, "offset": (0, 5)}
             ]
         }
         self.skin_bts = list(self.skins.keys())
@@ -247,11 +252,20 @@ class Game:
                     self.skins[bt][index]["sprs"] = []
         # spritesheets
         self.portal_sprs = cimgload("Images", path("Spritesheets", "portal.png"), frames=7)
+        # rendering
+        self.screenshake = 0
+        self.s_render_offset = None
+        self.render_offset = [0, 0]
+        self.clicked_when = None
+        self.typing = False
+        self.worldbutton_pos_ydt = 40
+        self.max_worldbutton_pos = [45, 180 + 6 * self.worldbutton_pos_ydt]
         # static attributes
         self.color_codes = {"b": BLACK, "w": WHITE, "g": GREEN, "u": WATER_BLUE, "y": YELLOW}
         self.ttypes = [("Data Files", "*.dat")]
         self.itypes = [("PNG Image Files", "*.png"), ("JPG Image Files", "*.jpg")]
         self.bar_rgb = bar_rgb()
+        self.flame_rgb = lerp(RED, WATER_BLUE, 50) + lerp(WATER_BLUE, RED, 50)
         self.def_widget_kwargs = {"pos": DPP, "font": orbit_fonts[20]}
         self.common_languages = {"EN", "FR", "SP"}
         self.nouns = txt2list(path("List_Files", "nouns.txt")) + [verb for verb in txt2list(path("List_Files", "verbs.txt")) if verb.endswith("ing")]
@@ -260,6 +274,9 @@ class Game:
         self.adverbs = txt2list(path("List_Files", "adverbs.txt"))
         self.profanities = txt2list(path("List_Files", "profanities.txt"))
         self.rhyme_url = r"https://api.datamuse.com/words?rel_rhy="
+        self.funny_words_url = r"http://names.drycodes.com/10?nameOptions=funnyWords"
+        self.name_url = r"https://api.namefake.com"
+        self.random_word_url = r"http://api.wordnik.com/v4/words.json/randomWords?hasDictionaryDef=true&minCorpusCount=0&minLength=5&maxLength=15&limit=1&api_key=a2a73e7b926c924fad7001ca3111acd55af2ffabf50eb4ae5"
         self.achievements = {}
         # dynamic surfaces
         if isfile(path("Background", "home_bg.png")):
@@ -273,18 +290,12 @@ class Game:
         self.loading_world = False
         self.loading_world_perc = 0
         self.loading_world_text = None
-        # dynamic others
+        # dynamic other
         self.cannot_place_block = False
-        self.invalid_file_name = False
         # rendering
-        self.screenshake = 0
-        self.s_render_offset = None
-        self.render_offset = [0, 0]
-        self.clicked_when = None
-        self.typing = False
-        self.worldbutton_pos_ydt = 40
-        self.max_worldbutton_pos = [45, 180 + 6 * self.worldbutton_pos_ydt]
-        self.fpss = SmartList()
+        self.screen_shake = 0
+        self.render_offset = (0, 0)
+        self.render_scale = 3
 
     @staticmethod
     def stop():
@@ -315,12 +326,7 @@ class Game:
 
     @property
     def str_mod(self):
-        if self.mod == 1:
-            return "_bg"
-        elif self.mod == 64:
-            return "_jt"
-        else:
-            return ""
+        return "_bg" if self.mod == 1 else ""
 
     @property
     def chest_index(self):
@@ -352,7 +358,7 @@ def is_in(elm, seq):
     elif isinstance(seq, (list, tuple, set)):
         itr = iter(seq)
     else:
-        raise_type("seq", 2, "List, Tuple, Set", name(seq))
+        raise ValueError(f"Iterable must be a dict, list, tuple or set; not {type(seq)} ({seq}).")
     if bpure(elm) in itr:
         return True
     else:
@@ -361,16 +367,16 @@ def is_in(elm, seq):
 
 def bpure(str_):
     ret = str_.removesuffix("_bg")
-    if "_deg" in ret:
-        return ret
-    elif "_" in ret:
-        return ret.split("_")[1]
-    return ret
+    ret = ret.replace("-", " ")
+    return ret.split("_")[1] if "_" in ret else ret
+
+
+def gpure(str_):
+    return str_.replace("_", " ")
 
 
 # L A M B D A S ---------------------------------------------------------------------------------------- #
-inf = lambda num: INF if num == float("inf") else num
+...
 
 # icons
-
 breaking_sprs = cimgload("Images", "Visuals", "breaking.png", frames=4)

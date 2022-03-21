@@ -9,6 +9,7 @@ import tkinter.filedialog
 from copy import deepcopy
 from colorsys import rgb_to_hls, hls_to_rgb
 import fantasynames as fnames
+import pyengine.pgbasics
 from pyengine.pgwidgets import *
 from pyengine.pgaudio import *
 from settings import *
@@ -45,76 +46,46 @@ def player_command(command):
         elif command:
             raise Exception
     except Exception:
-        text = "Invalid or unusable command"
-        MessageboxError(Window.display, text, **g.def_widget_kwargs)
+        MessageboxError(Window.display, "Invalid or unusable command", **g.def_widget_kwargs)
 
 
-def delete_file(p):
-    if button_tod.option == "Trash":
-        send2trash(p)
-    elif button_tod.option == "Delete":
-        os.remove(p)
+def is_audio(file_name):
+    return file_name.endswith(".mp3") or file_name.endswith(".wav") or file_name.endswith(".ogg")
 
 
-def aliased(name):
-    return {v: k for k, v in chain_dict(g.w.aliases.values()).items()}.get(name, name)
-
-
-def is_bg(block):
-    return block.endswith("_bg") or block in walk_through_blocks
-
-
-def is_jt(block):
-    return block.endswith("_jt")
-
-
-def is_wt(block):
-    return is_bg(block) or is_jt(block)
-
-
-def get_suffix(block):
-    if is_bg(block):
-        return "_bg"
-    elif is_jt(block):
-        return "_jt"
-    return ""
-
-
-def dropilize(block, name=None):
-    name = block.name if name is None else name
-    pos = [p + rand(-5, 5) for p in block.rect.center]
-    if non_e(name) not in dif_drop_blocks:
-        group(Drop(non_e(name), 1, pos), all_drops)
+def get_rand_track(p):
+    while True:
+        track = choice(os.listdir(p))
+        if is_audio(track):
+            break
     else:
-        for drop_data in dif_drop_blocks[non_e(name)]:
-            group(Drop(drop_data["block"], drop_data["amount"], pos), all_drops)
-            pos = [p + rand(-5, 5) for p in block.rect.center]
+        raise RuntimeError(f"No audio files found in given directory {p}")
+    return path(p, track)
 
 
-
-def dropilize_map(block, map):
-    if map:
-        if isinstance(map, dict):
-            iter = map.items()
-        elif isinstance(map, list):
-            iter = map
-        for name, amount in iter:
-            if name is not None:
-                dropilize(block, name)
+def next_ambient():
+    pygame.mixer.music.load(get_rand_track(path("Audio", "Music", "Ambient")))
+    try:
+        pygame.mixer.music.play(start=rand(0, audio_length(music_path)))
+    except wave.Error:
+        pygame.mixer.music.play()
+    g.last_ambient = music_name
 
 
 def ishow(str_):
-    ret = str_.replace("_", " ").replace("-", " ")
+    if str_ == None:
+        return ""
     if "_deg" in str_:
-        deg = str_.split("_deg")[1]
-        name, deg = ret.split("deg")
-        ret = f"{deg}\N{DEGREE SIGN} {name}"
-    ret = ret.upper()
+        spl = str_.split("_")
+        deg = int(spl[1].removeprefix("deg"))
+        ret = f"{deg}{DEG} {ishow(spl[0])}"
+    else:
+        ret = str_.replace("_", " ").replace("-", " ")
     return ret
 
 
 def ipure(str_):
-    if non_e(str_) in g.w.blocks:
+    if non_bg(str_) in g.w.blocks:
         return bpure(str_)
     elif tpure(str_) in tinfo:
         return tpure(str_)
@@ -124,11 +95,11 @@ def show_added(item, pre="Added", post=""):
     group(SlidePopup(f"{pre} {ishow(item)} {post}"), all_particles)
 
 
-def set_entity_screen_rects(entity):
+def set_entity_screen_attrs(entity):
     try:
         g.w.get_data[entity.screen]
     except IndexError:
-        pass
+        return
     else:
         rects = []
         if not is_drawable(entity):
@@ -147,7 +118,13 @@ def set_entity_screen_rects(entity):
                     _x, _y = horindex * 30, verindex * 30
                     _rect = pygame.Rect(_x, _y, 30, 30)
                     rects.append(_rect)
-        entity.check_rects = rects
+        entity.screen_rects = rects
+
+
+def externally_update_entities():
+    for entity in g.w.entities:
+        set_entity_screen_attrs(entity)
+        update_entity(entity)
 
 
 def update_entity(entity):
@@ -158,42 +135,70 @@ def update_entity(entity):
     else:
         if entity.smart_vector:
             if entity.right <= 0:
-                entity.x = Window.width
+                entity.x = Window.width - 1
                 entity.screen -= 1
-                set_entity_screen_rects(entity)
+                set_entity_screen_attrs(entity)
             elif entity.x >= Window.width:
-                entity.right = 0
+                entity.right = 1
                 entity.screen += 1
-                set_entity_screen_rects(entity)
+                set_entity_screen_attrs(entity)
             elif entity.bottom <= 0:
-                entity.y = Window.height
+                entity.y = Window.height - 1
                 entity.layer -= 1
-                set_entity_screen_rects(entity)
+                set_entity_screen_attrs(entity)
             elif entity.y >= Window.height:
-                entity.bottom = 0
+                entity.bottom = 1
                 entity.layer += 1
-                set_entity_screen_rects(entity)
+                set_entity_screen_attrs(entity)
 
-        if not hasattr(entity, "check_rects"):
-            set_entity_screen_rects(entity)
+        if not hasattr(entity, "screen_rects"):
+            set_entity_screen_attrs(entity)
 
-        if "camel" in entity.traits:
+        if "moving" in entity.traits:
             # collisions
             if entity.x > -90:
-                # x (up)
+                # rise up
                 x_rect = pygame.Rect(entity.x + entity.xbound, entity.y, entity.width + 1, entity.height)
-                while any(x_rect.colliderect(check_rect) for check_rect in entity.check_rects):
+                while any(x_rect.colliderect(screen_rect) for screen_rect in entity.screen_rects):
                     entity.y -= 1
                     x_rect = pygame.Rect(entity.x + entity.xbound, entity.y, entity.width + 1, entity.height)
-                # y (down)
+                # fall down
                 y_rect = pygame.Rect(entity.x, entity.y + entity.ybound, entity.width, entity.height + 1)
-                while not any(y_rect.colliderect(check_rect) for check_rect in entity.check_rects):
+                while not any(y_rect.colliderect(screen_rect) for screen_rect in entity.screen_rects):
                     entity.y += 1
                     y_rect = pygame.Rect(entity.x, entity.y + entity.ybound, entity.width, entity.height + 1)
                 if g.w.show_hitboxes:
                     pygame.draw.rect(Window.display, GREEN, y_rect, 1)
                     write(Window.display, "center", entity.screen + 1, orbit_fonts[15], GREEN, *y_rect.center)
-            #entity.movex(entity.xvel)
+            entity.movex(1 if getattr(entity, "penguin_sliding", False) else entity.xvel)
+
+        taking_damage = False
+        if "mob" in entity.traits:
+            if is_drawable(entity):
+                # displaying health
+                if 0 < entity.health < 100:
+                    _w, _h = 30, 7
+                    _tl = (entity.centerx - _w / 2, entity.y - 10)
+                    pygame.draw.rect(Window.display, g.bar_rgb[int(entity.health)], (*_tl, entity.health / (100 / _w), _h))
+                    pygame.draw.rect(Window.display, BLACK, (*_tl, _w, _h), 1)
+                # damaging
+                if not entity.taking_damage and g.player.tool.endswith("_sword") and visual.to_swing > 0 and entity.rect.colliderect(visual.rect):
+                    if hasattr(visual, "rect"):
+                        offset = int(entity.x - visual.rect.x), int(entity.y - visual.rect.y)
+                        if entity.mask.overlap(visual.mask, offset):
+                            taking_damage = True
+
+        if taking_damage:
+            entity.taking_damage = True
+            entity.last_took_damage = ticks()
+            entity.health -= 50
+            if entity.health <= 0:
+                pos = entity.center
+                entity.die()
+                for k, v in minfo[entity.species][g.w.linked].items():
+                    amount = nordis(v, minfo[entity.species].get("dis", 2))
+                    if amount > 0:
+                        all_drops.add(Drop(k, pos, amount))
 
 
 def is_smither(tool):
@@ -222,7 +227,7 @@ def custom_gun(name):
         g.gun_attrs[name] = g.gun_parts
         g.midblit = None
     else:
-        MessageboxError(Window.display, "Name collision occured; please choose another name.")
+        MessageboxError(Window.display, "Name collides")
 
 
 def gwfromperc(amount):
@@ -231,13 +236,7 @@ def gwfromperc(amount):
 
 def update_block_states():
     for block in all_blocks:
-        if non_e(block.name) != "water":
-            moore = all_blocks.moore(block.layer_index, HL, "edges")
-            if is_in("water", [block.name for block in moore]):
-                for block in moore:
-                    if non_e(block.name) == "water":
-                        block.name = "water"
-                        break
+        block.update_state()
 
 
 def is_clickable(block):
@@ -247,9 +246,21 @@ def is_clickable(block):
         pass
 
 
-def stop_midblit():
+def stop_midblit(*args):
     g.midblit = None
     g.cannot_place_block = True
+    if args == ["all"]:
+        g.craftings = {}
+        g.burnings = {}
+        g.smithings = {}
+        g.magic_orbs = {}
+        g.magic_tool = None
+    else:
+        for arg in args:
+            if len(arg) == 1:
+                setattr(g, arg[0], {})
+            else:
+                setattr(g, arg[0], arg[1])
 
 
 def is_eatable(food):
@@ -323,14 +334,29 @@ def convert_size(size_bytes):
 
 def update_button_data(button):
     name = button.data["world"]
-    mb = convert_size(os.path.getsize(path("Worlds", button.data["world"] + ".dat")))
+    mb = convert_size(os.path.getsize(path(".worlds", button.data["world"] + ".dat")))
     date = button.data["date"]
     button.overwrite(f"{name} | {mb} | {date}")
 
 
-def non_e(name):
-    return name.replace("_bg", "").replace("_jt", "")
+def tool_type(tool):
+    return tool.split("_")[0].removeprefix("enchanted_")
 
+
+def non_bg(name):
+    return name.replace("_bg", "")
+
+
+def non_jt(name):
+    return name.replace("_jt", "")
+
+
+def non_wt(name):
+    return non_jt(non_bg(name))
+
+
+def is_bg(name):
+    return "_bg" in name
 
 def utilize_blocks():
     def utilize():
@@ -338,10 +364,9 @@ def utilize_blocks():
             block.utilize()
             block.broken = 0
 
-    v = pw.new_screen_type.option
-    if v == "Instant":
+    if pw.generation_mode.option == "Instant":
         utilize()
-    elif v == "Generative":
+    elif pw.generation_mode.option == "Generative":
         Thread(target=utilize).start()
 
 
@@ -369,12 +394,8 @@ def new_world(worldcode=None):
                 g.w.screen = 0
                 if _glob.world_code is None:
                     try:
-                        swn = safe_file_name(wn, os_="Windows")
-                        if swn != wn:
-                            wn = swn
-                            g.invalid_file_name = True
-                        open(path("tempfiles", wn + ".txt"), "w").close()
-                        os.remove(path("tempfiles", wn + ".txt"))
+                        open(path(".tempfiles", wn + ".txt"), "w").close()
+                        os.remove(path(".tempfiles", wn + ".txt"))
                     except InvalidFilenameError:
                         MessageboxError(Window.display, "Invalid world name", pos=DPP)
                     else:
@@ -383,8 +404,8 @@ def new_world(worldcode=None):
                             wn = f"New_World_{g.p.new_world_count}"
                             g.p.new_world_count += 1
                         g.w = World()
-                        generate_world(biome=biome)
-                        group(WorldButton({"world": wn}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
+                        generate_world(biome="arctic")
+                        group(WorldButton({"world": wn, "mode": game_mode, "date": date.today().strftime("%m/%d/%Y")}, g.p.next_worldbutton_pos), all_home_world_world_buttons)
                         g.p.next_worldbutton_pos[1] += g.worldbutton_pos_ydt
                         g.w.mode = game_mode
                         destroy_widgets()
@@ -445,8 +466,8 @@ def hovering(button):
 def delete_all_worlds():
     if g.p.world_names:
         def delete():
-            for file_ in os.listdir("Worlds"):
-                delete_file(path("Worlds", file_))
+            for file_ in os.listdir(".worlds"):
+                os.remove(path(".worlds", file_))
                 open("variables.dat", "w").close()
                 open("worldbuttons.dat", "w").close()
             empty_group(all_home_world_world_buttons)
@@ -468,12 +489,11 @@ def init_world(type_):
     # player inventory and stats
     if type_ == "new":
         g.player = Player()
-        g.player.yvel = g.player.dy = 0
         if g.w.mode == "adventure":
-            g.player.inventory = Inventory(["stone", "grave", None, None, None])
-            g.player.inventory_amounts = [1, 1, 0, 0, 0]
+            g.player.inventory = ["magic-table", "pink-orb", "sv_soil", None, None]
+            g.player.inventory_amounts = [1, 2, 1, None, None]
             g.player.stats = {
-                "lives": {"amount": 100, "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
+                "lives": {"amount": rand(10, 100), "color": RED, "pos": (32, 20), "last_regen": ticks(), "regen_time": def_regen_time, "icon": "lives"},
                 "hunger": {"amount": rand(10, 100), "color": ORANGE, "pos": (32, 40), "icon": "hunger"},
                 "thirst": {"amount": rand(10, 100), "color": WATER_BLUE, "pos": (32, 60), "icon": "thirst"},
                 "energy": {"amount": rand(10, 100), "color": YELLOW, "pos": (32, 80), "icon": "energy"},
@@ -481,26 +501,22 @@ def init_world(type_):
                 "xp": {"amount": 0, "color": LIGHT_GREEN, "pos": (32, 120), "icon": "xp"},
             }
         elif g.w.mode == "freestyle":
-            g.player.inventory = Inventory(["anvil", "bush", "dynamite", "command-block", "workbench"])
+            g.player.inventory = ["anvil", "bush", "dynamite", "command-block", "workbench"]
             g.player.inventory_amounts = [float("inf")] * 5
-        g.player.tools = ["iron_pickaxe", "iron_axe"]
+        g.player.tools = ["iron_sword", "iron_axe"]
         g.player.tool_healths = [100, 100]
         g.player.indexes = {"tool": 0, "block": 0}
-
     elif type_ == "existing":
-        g.player.image = SmartSurface.from_string(g.player.image, (g.player.width, g.player.height), "RGBA")
-        g.player.images = [SmartSurface.from_string(img, (g.player.width, g.player.height), "RGBA") for img in g.player.images]
         g.player.stats["lives"]["regen_time"] = def_regen_time
         g.player.stats["lives"]["last_regen"] = ticks()
 
     # dynamic surfaces
     g.bars_bg = pygame.Surface((200, len(g.player.stats.keys()) * (16 + 7))); g.bars_bg.fill(GRAY); g.bars_bg.set_alpha(150)
+    # music
+    pw.next_piece_command()
     # Go!
     g.stage = "play"
     g.set_loading_world(False)
-    # start game things
-    if g.invalid_file_name:
-        group(SlidePopup("Removed invalid characters from file name"), all_particles)
 
 
 def generate_world(worldcode=None, biome=None, screens=5):
@@ -559,8 +575,8 @@ def generate_world(worldcode=None, biome=None, screens=5):
     # mobs gain ground
     for entity in g.w.entities:
         if "mob" in entity.traits:
-            set_entity_screen_rects(entity)
-            while any(entity.rect.colliderect(check_rect) for check_rect in entity.check_rects):
+            set_entity_screen_attrs(entity)
+            while any(entity.rect.colliderect(screen_rect) for screen_rect in entity.screen_rects):
                 entity.y -= 1
 
 
@@ -622,43 +638,19 @@ def generate_screen(biome=None):
     for _ in range(L):
         cr_block("air", index=0)
     # underground
-    """
-    underground = [random.choices(("stone", "air"), weights=(60, 40))[0] for _ in range(L)]
-    for _ in range(2):
-        cop = SmartList(underground[:])
-        for index, block in enumerate(cop):
-            nei = cop.moore(index, HL)
-            if nei.count("stone") <= 3:
-                underground[index] = "air"
-            elif nei.count("stone") >= 5:
-                underground[index] = "stone"
-    """
-    '''
-    underground = []["stone"] * L
-    pos = VL // 2 * HL + HL // 2
-    for _ in range(300):
-        underground[pos] = "air"
-        direc = rand(1, 4)
-        if direc == 1:
-            vel = -HL
-        elif direc == 2:
-            vel = 1
-        elif direc == 3:
-            vel = HL
-        elif direc == 4:
-            vel = -1
-        pos += vel
-        hi, vi = pos % HL, pos // HL
-        if pos < 0 or pos >= L:
-            pos -= vel
-    '''
     underground = SmartList([wchoice(("stone", "air"), (50, 50)) for _ in range(L)])
     underground.smoothen("stone", "air", 3, 5, HL, itr=3)
     underground = [block if block == "air" else rand_ore("stone") for block in underground]
     underground[0:HL] = ["air"] * HL
-    g.w.get_data[-1].extend(underground)
-    # after effects
-    g.w.naturals = {k: False for k, v in g.w.naturals.items()}
+    g.w.data[-1].extend(underground)
+    # magic world
+    magic_0 = ["air"] * L
+    magic_1 = SmartList([wchoice(("magic-brick", "air"), (50, 50)) for _ in range(L)])
+    magic_1.smoothen("magic-brick", "air", 3, 5, HL, itr=5)
+    magic_2 = ["air"] * L
+    g.w.magic_data[-1].extend(magic_0)
+    g.w.magic_data[-1].extend(magic_1)
+    g.w.magic_data[-1].extend(magic_2)
 
 
 def save_screen():
@@ -671,7 +663,7 @@ def save_screen():
 # S T A T I C  O B J E C T  F U N C T I O N S  -------------------------------------------------------  #
 def is_drawable(obj):
     try:
-        return g.w.screen == obj.screen and g.w.layer == obj.layer
+        return g.w.screen == obj.screen and g.w.layer == obj.layer and g.w.dimension == getattr(obj, "dimension", "data")
     except AttributeError:
         if not hasattr(obj, "visible_when") or obj.visible_when is None or (callable(obj.visible_when) and obj.visible_when()):
             return True
@@ -699,34 +691,30 @@ class ExitHandler:
         for widget in pw.death_screen_widgets:
             widget.disable()
         # home bg image
-        if g.stage == "home":
-            pygame.image.save(g.home_bg_img, path("Images", "Background", "home_bg.png"))
+        pygame.image.save(g.home_bg_img, path("Images", "Background", "home_bg.png"))
         # world data
         if g.w.screen is not None:
             if g.w.data:
                save_screen()
             if g.w.name is not None:
-                with open(path("Worlds", g.w.name + ".dat"), "wb") as f:
+                with open(path(".worlds", g.w.name + ".dat"), "wb") as f:
                     pickle.dump(g.w.data, f)
         # save button data
         for button in all_home_world_world_buttons:
             if button.data["world"] == g.w.name:
                 g.player.width, g.player.height = g.player.image.get_size()
+                del g.player.image
                 button.data["player_obj"] = deepcopy(g.player)
                 button.data["world_obj"] = deepcopy(g.w)
                 break
+        if toggle_sd.cycles[toggle_sd.cycle] == "data":
+            for button in all_home_world_world_buttons:
+                update_button_data(button)
         # save world buttons (pickle)
         with open("worldbuttons.dat", "wb") as f:
             if all_home_world_world_buttons:
                 button_attrs = [button.data for button in all_home_world_world_buttons]
                 pickle.dump(button_attrs, f)
-        """
-        # save world buttons (json? testing)
-        with open("worldbuttons.json", "w") as f:
-            if all_home_world_world_buttons:
-                button_attrs = [button.data for button in all_home_world_world_buttons]
-                button_attrs = [{k: v if not k.endswith("_obj") else vars(v) for k, v in attr.items()} for attr in button_attrs]
-        """
         # save play (global variable) data
         with open("variables.dat", "wb") as f:
             pickle.dump(g.p, f)
@@ -750,30 +738,6 @@ class ExitHandler:
             g.w.entities.clear()
 
 
-class Inventory(list):
-    def __setitem__(self, index, item):
-        super().__setitem__(index, aliased(item))
-
-
-class Asset(dict):
-    def __init__(self, name, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.name = name
-
-    @property
-    def iter(self):
-        return dict(list(self.items()) + list(g.w.aliases[self.name].items()))
-
-    def __contains__(self, item):
-        return item in self.iter
-
-    def __getitem__(self, item):
-        try:
-            return super().__getitem__(item)
-        except KeyError:
-            return super().__getitem__(self.iter[item])
-
-
 class World:
     def __init__(self):
         # world-generation / world data related data
@@ -788,13 +752,11 @@ class World:
         self.biomes = []
         self.prev_screen = self.data
         self.name = None
-        self.naturals = dict.fromkeys(("snow", "rain"), False)
-        self.info = {
-            "date": date.today().strftime("%m/%d/%Y")
-        }
+        self.linked = False
         # game settings
         self.show_hitboxes = False
         self.language = "english"
+        self.player_model_color = GRAY
         # day-night cycle
         self.hound_round = False
         self.hound_round_chance = 20
@@ -807,15 +769,17 @@ class World:
         self.dnc_vel = self.dnc_minute_vel / 20
         self.dnc_hours = list(range(12, 24)) + list(range(0, 12))
         # saved assets
-        self._assets = ("blocks", "tools", "icons")
-        self.assets = {}
-        self.aliases = a.aliases
-        for asset in self._assets:
-            self.assets[asset] = Asset(asset)
+        self.assets = {"blocks": {}, "tools": {}, "icons": {}}
         self.asset_sizes = a.sizes
         for atype, dict_ in a.assets.items():
             for name, img in dict_.items():
                 self.assets[atype][name] = SmartSurface.from_surface(img)
+
+    @property
+    def player_model(self):
+        ret = pygame.Surface([s * g.skin_scale_mult for s in g.player_size])
+        ret.fill(self.player_model_color)
+        return ret
 
     @property
     def blocks(self):
@@ -863,7 +827,7 @@ class World:
 
     @property
     def get_data(self):
-        return getattr(self, self.dimension)
+        return getattr(self, self.dimension if self.dimension == "data" else self.dimension + "_data")
 
     @property
     def sky_color(self):
@@ -872,15 +836,8 @@ class World:
                 return self.dnc_color
             else:
                 return ALMOST_BLACK
-        elif self.dimension == "magic_data":
-            if self.layer < 2:
-                return PURPLE
-            else:
-                return DARK_PURPLE
-
-    @property
-    def biome(self):
-        return self.biomes[self.screen]
+        elif self.dimension == "magic":
+            return DARK_PURPLE
 
 
 class Play:
@@ -908,40 +865,41 @@ class PlayWidgets:
     def __init__(self):
         # menu widgets
         set_default_fonts(orbit_fonts)
-        _def_menu_widget_height = 31
+        _menu_widget_height = 31
         _menu_widget_kwargs = {"anchor": "center", "template": "menu widget", "font": orbit_fonts[15]}
         self.menu_widgets = [
             Checkbox(Window.display, "Stats", self.show_stats_command, checked=True, exit_command=self.checkb_sf_exit_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "FPS", self.show_fps_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Time", self.show_time_command, **_menu_widget_kwargs),
             Checkbox(Window.display, "Biomes", self.show_biomes_command, **_menu_widget_kwargs),
-            ToggleButton(Window.display, ("Instant", "Generative"), **_menu_widget_kwargs),
             Checkbox(Window.display, "Hitboxes", check_command=self.show_hitboxes_command, uncheck_command=self.when_not_show_hitboxes_command, **_menu_widget_kwargs),
-            Checkbox(Window.display, "Fog", self.fog_command, pos=(DPX, DPY), **_menu_widget_kwargs),
-            Button(Window.display, "Change Skin", self.change_skin_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
+            Checkbox(Window.display, "Fog", self.fog_command, **_menu_widget_kwargs),
+            ToggleButton(Window.display, ("Instant", "Generative"), **_menu_widget_kwargs),
+            Button(Window.display, "Change Skin", self.change_skin_command, height=_menu_widget_height, **_menu_widget_kwargs),
             Slider(Window.display, "Animation", range(21), int(g.p.anim_fps * g.fps_cap), height=60, **_menu_widget_kwargs),
             Slider(Window.display, "Volume", range(101), int(g.p.volume * 100), height=60, **_menu_widget_kwargs),
-            Button(Window.display, "Config", self.show_config_command, height=_def_menu_widget_height, **_menu_widget_kwargs),
-            Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_def_menu_widget_height, **_menu_widget_kwargs)
+            Button(Window.display, "Next Piece", self.next_piece_command, height=_menu_widget_height, **_menu_widget_kwargs),
+            Button(Window.display, "Config", self.show_config_command, height=_menu_widget_height, **_menu_widget_kwargs),
+            Button(Window.display, "Save and Quit", self.save_and_quit_command, height=_menu_widget_height, **_menu_widget_kwargs)
         ]
-        _y = 110
+        _y = 90
         for mw in self.menu_widgets:
             mw.set_pos((DPX, _y), "midtop")
             if isinstance(mw, Slider):
                 _y += 61
             else:
                 _y += 32
-        _def_death_screen_widget_kwargs = {"anchor": "center", "disabled": True, "disable_type": "static", "font": orbit_fonts[15]}
+        _death_screen_widget_kwargs = {"anchor": "center", "disabled": True, "disable_type": "static", "font": orbit_fonts[15]}
         self.death_screen_widgets = [
-            Label(Window.display, "Death", (DPX, DPY - 64), **_def_death_screen_widget_kwargs),
-            Button(Window.display, "Play Again", command=self.quit_death_screen_command, pos=(DPX, DPY), **_def_death_screen_widget_kwargs)
+            Label(Window.display, "Death", (DPX, DPY - 64), **_death_screen_widget_kwargs),
+            Button(Window.display, "Play Again", command=self.quit_death_screen_command, pos=(DPX, DPY), **_death_screen_widget_kwargs)
         ]
-        self.new_screen_type = self.menu_widgets[4]
+        self.death_cause = self.death_screen_widgets[0]
+        self.right_bar_widgets = self.menu_widgets[1:3]
+        self.generation_mode = self.menu_widgets[6]
         self.anim_fps = self.menu_widgets[8]
         self.volume = self.menu_widgets[9]
-        self.death_cause = self.death_screen_widgets[0]
         befriend_iterable(self.menu_widgets)
-        befriend_iterable(self.death_screen_widgets)
         # skin menu arrow buttons to change the skin
         self.change_skin_buttons = []
         for bt in g.skins:
@@ -950,17 +908,21 @@ class PlayWidgets:
         for bt in g.skins:
             self.change_skin_buttons.append({"name": "n-" + bt, "surf": rotozoom(triangle(height=30), 270, 1)})
             self.change_skin_buttons[-1]["mask"] = pygame.mask.from_surface(self.change_skin_buttons[-1]["surf"])
-        sx = 135
-        x = sx
-        y = 125
-        for num, button in enumerate(self.change_skin_buttons):
-            button["rect"] = button["surf"].get_rect(center=(x, y))
-            if num == 3:
+        xo, yo = 40, 100
+        sx = g.skin_menu_rect.x + xo
+        sy = g.skin_menu_rect.y + yo
+        x, y = sx, sy
+        for index, button in enumerate(self.change_skin_buttons):
+            if index == 4:
                 x = Window.width - sx
-                y = sx
-            else:
-                y += 115
-        self.skin_done = Button(Window.display, "Done", self.new_player_skin, pos=(DPX, DPY + 90), width=9 * g.skin_fppp, height=30, bg_color=GRAY, template="menu widget", click_effect=True, special_flags=["static"]) # <- confirm skin button
+                y = sy
+            button["rect"] = button["surf"].get_rect(center=(x, y))
+            y += (g.skin_menu_rect.height - yo * 2) / 3
+        _skin_button_kwargs = {"width": 9 * g.skin_fppp, "height": 30, "bg_color": GRAY, "template": "menu widget", "special_flags": ["static"]}
+        self.skin_buttons = [
+            Button(Window.display, "Color", self.color_skin_button, pos=(DPX, DPY + 90), **_skin_button_kwargs),
+            Button(Window.display, "Done", self.new_player_skin, pos=(DPX, DPY + 120), click_effect=True, **_skin_button_kwargs)
+        ]
 
     # menu widget commands
     @staticmethod
@@ -975,20 +937,28 @@ class PlayWidgets:
                         if data:
                             pygame.draw.rect(Window.display, BLACK, (x, y, bar_outline_width, bar_outline_height), 0, 3, 3, 3, 3)
                             pygame.draw.rect(Window.display, g.bar_rgb[int((data["amount"] - 1) * (99 / 100))], (*[p + 2 for p in (x, y)], fromperc(data["amount"], bar_width), bar_outline_height - 4), 0, 3, 3, 3, 3)
-                            Window.display.blit(g.w.icons[data["icon"]], (x - 22, y - 3))
+                            Window.display.cblit(g.w.icons[data["icon"]], (x - 17, y + 3))
                             write(Window.display, "midleft", f"{round(data['amount'])} / 100", orbit_fonts[13], g.w.text_color, x + bar_outline_width + 8, y + 3)
                         y += 20
 
     @staticmethod
     def show_fps_command():
         if g.stage == "play":
-            write(Window.display, "topright", int(g.fpss.mean), orbit_fonts[20], BLACK, Window.width - 10, 40)
+            write(Window.display, "topright", int(g.clock.get_fps()), orbit_fonts[20], BLACK, Window.width - 10, 40)
 
     @staticmethod
     def show_time_command():
         if g.stage == "play":
-            ind = int(g.w.dnc_index)
-            fin = f"{ind} / {g.w.dnc_length}"
+            num = g.w.dnc_index
+            den = g.w.dnc_length
+            prc = num / den * 100
+            if g.w.dnc_direc == op.add:
+                tim = 0.12 * prc + 12
+            elif g.w.dnc_direc == op.sub:
+                tim = -0.12 * prc + 12
+            hrs = int(tim)
+            mns = str(int(0.6 * int(str(tim).split(".")[1][:2])))
+            fin = f"{hrs}:{0 if len(mns) == 1 else ''}{mns}"
             write(Window.display, "topright", fin, orbit_fonts[20], g.w.text_color, Window.width - 10, 70)
 
     @staticmethod
@@ -1026,18 +996,32 @@ class PlayWidgets:
         g.menu = False
         for widget in self.menu_widgets:
             widget.disable()
-        self.skin_done.enable()
+        for button in self.skin_buttons:
+            button.enable()
         g.skin_menu = True
+
+    def color_skin_button(self):
+        g.pending_entries.append(Entry(Window.display, "Enter RGB or HEX color code", self.color_skin, pos=DPP, disabled=True, add=False))
+
+    @staticmethod
+    def color_skin(code):
+        try:
+            color = pygame.Color(code if "#" in code else [int(cc) for cc in code.replace(",", " ").split(" ") if cc])
+        except ValueError:
+            MessageboxOk(Window.display, "Invalid color.", **g.def_widget_kwargs)
+        else:
+            g.w.player_model_color = color
 
     @staticmethod
     def new_player_skin():
+        # finalizing skin
         longest_sprs_len = max([len(g.skin_data(bt)["sprs"]) for bt in g.skins])
-        g.player.images = [SmartSurface(Window.size, pygame.SRCALPHA) for _ in range(longest_sprs_len)]
-        _bg = pygame.Surface(g.player_size); _bg.fill(GRAY)
+        g.player.images = [SmartSurface((Window.size), pygame.SRCALPHA) for _ in range(longest_sprs_len if longest_sprs_len > 0 else 1)]
+        _bg = SmartSurface(g.player_size); _bg.fill(g.w.player_model_color)
         for image in g.player.images:
             image.cblit(_bg, [s / 2 for s in image.get_size()])
         if not g.player.images:
-            g.player.images = [pygame.Surface(g.player_size)]; g.player.images[0].fill(GRAY)
+            g.player.images = [SmartSurface(g.player_size)]; g.player.images[0].fill(GRAY)
         for anim in range(longest_sprs_len):
             for bt in g.skins:
                 if g.skin_data(bt).get("name", True) is not None:
@@ -1046,23 +1030,32 @@ class PlayWidgets:
                     except IndexError:
                         skin_img = scalex(g.skin_data(bt)["sprs"][anim % 4], 1 / g.skin_scale_mult)
                     finally:
-                        _sp = g.skin_data(bt)["pos"]
+                        _sp = g.skin_data(bt)["offset"]
                         skin_pos = [s / 2 for s in Window.size]
                         skin_pos[0] -= g.player_size[0] / 2
                         skin_pos[1] -= g.player_size[1] / 2
-                        skin_pos[0] += _sp[0] * g.fppp
-                        skin_pos[1] += _sp[1] * g.fppp
+                        skin_pos[0] += _sp[0] * g.fppp + 1
+                        skin_pos[1] += _sp[1] * g.fppp + 1
                         g.player.images[anim].blit(skin_img, skin_pos)
+        # cropping
         rects = [pg_to_pil(image).getbbox() for image in g.player.images]
         x1 = min([rect[0] for rect in rects])
         y1 = min([rect[1] for rect in rects])
         x2 = max([rect[2] for rect in rects])
         y2 = max([rect[3] for rect in rects])
         rect = pil_rect2pg((x1, y1, x2, y2))
-        g.player.images = [image.subsurface(rect) for image in g.player.images]
+        # image initialization
+        p_imgs = [image.subsurface(rect) for image in g.player.images]
+        g.player.flip_images(p_imgs)
+        g.player.images = g.player.right_images
         g.player.rect = g.player.images[0].get_rect(center=g.player.rect.center)
         g.player.width, g.player.height = g.player.images[0].get_size()
+        del g.player.images
+        # lasts
         g.skin_menu = False
+        for button in iter_buttons():
+            if getattr(button, "text", None) == "Color":
+                button.destroy()
 
     @staticmethod
     def change_movement_command(type_):
@@ -1076,6 +1069,13 @@ class PlayWidgets:
             g.ckeys["p right"] = K_RIGHT
 
     @staticmethod
+    def next_piece_command():
+        music_name = get_rand_track(path("Audio", "Music", "Background"))
+        pygame.mixer.music.load(music_name)
+        pygame.mixer.music.play()
+        g.last_music = os.path.splitext(os.path.split(music_name)[1])[0]
+
+    @staticmethod
     def show_config_command():
         g.opened_file = True
         open_text("config.json")
@@ -1087,7 +1087,6 @@ class PlayWidgets:
         ExitHandler.save("home")
         g.stage = "home"
         g.menu = False
-        g.invalid_file_name = False
 
     # home static widgets
     @staticmethod
@@ -1130,6 +1129,20 @@ class PlayWidgets:
         open_text("CREDITS.txt")
 
     @staticmethod
+    def toggle_sd_command():
+        if toggle_sd.cycle < len(toggle_sd.cycles) - 1:
+            toggle_sd.cycle += 1
+        else:
+            toggle_sd.cycle = 0
+        toggle_sd.overwrite(toggle_sd.cycles[toggle_sd.cycle])
+        if toggle_sd.cycles[toggle_sd.cycle] == "data":
+            for button in all_home_world_world_buttons:
+                update_button_data(button)
+        elif toggle_sd.cycles[toggle_sd.cycle] == "name":
+            for button in all_home_world_world_buttons:
+                button.overwrite(button.data["world"])
+
+    @staticmethod
     def set_home_stage_worlds():
         g.home_stage = "worlds"
 
@@ -1148,12 +1161,18 @@ class Player:
         self.images = [SmartSurface(g.player_size) for _ in range(4)]
         for image in self.images:
             image.fill(GRAY)
+        # image initialization
+        self.direc = "left"
         self.anim = 0
+        self.up = True
+        self.flip_images(self.images)
         self.animate()
+        # rest
         self.rect = self.image.get_rect(center=(Window.width / 2, Window.height / 2))
         self.rect.center = (Window.width / 2, Window.height / 2)
         self.width = self.rect.width
         self.height = self.rect.height
+        self.size = (self.width, self.height)
         self.gravity = 0.15
         self.fre_vel = 3
         self.adv_xvel = 2
@@ -1165,7 +1184,6 @@ class Player:
         self.fall_effect = 0
         self.dx = 0
         self.dy = 0
-        self.direc = "left"
         self.still = True
         self.in_air = True
         self.invisible = False
@@ -1177,6 +1195,7 @@ class Player:
         self.def_food_pie = {"counter": -90}
         self.food_pie = self.def_food_pie.copy()
         self.achievements = {"steps taken": 0, "steps counting": 0}
+        self.armor = {}
         self.dead = False
         self.spawn_data = (g.w.screen, g.w.layer)
 
@@ -1185,8 +1204,7 @@ class Player:
         self.tools = []
         self.tool_healths = []
         self.tool_ammos = []
-        self.tool_metadata = []
-        self.inventory = Inventory()
+        self.inventory = []
         self.inventory_amounts = []
         self.indexes = {}
         self.pouch = 0
@@ -1194,17 +1212,13 @@ class Player:
         self.main = "block"
 
     def function(self):
+        self.animate()
         self.draw()
-        self.dx = 0
-        self.dy = 0
         if no_widgets(Entry):
             getattr(self, self.moving_mode[0] + "_move")(*self.moving_mode[1:])
-        self.update_move()
-        self.external_gravity()
         self.off_screen()
         self.drops()
         self.update_fall_effect()
-        self.animate()
         self.update_effects()
         self.achieve()
 
@@ -1212,19 +1226,16 @@ class Player:
         Window.display.blit(self.image, self.rect)
 
     @property
+    def reverse_blocks(self):
+        yield from reversed(all_blocks)
+
+    @property
     def closest_blocks(self):
         yield from sorted(all_blocks, key=lambda block: distance(self.rect, block.rect))
 
     @property
     def closest_tool_blocks(self):
-        try:
-            return sorted(all_blocks, key=lambda block: distance(visual.rect, block.rect))
-        except AttributeError:
-            return all_blocks
-
-    @property
-    def reverse_blocks(self):
-        yield from sorted(all_blocks, key=lambda block: block.layer_index, reverse=True)
+        yield from sorted(all_blocks, key=lambda block: distance(visual.rect, block.rect))
 
     @property
     def angle(self):
@@ -1248,11 +1259,11 @@ class Player:
 
     @property
     def block(self):
-        return self.inventory[self.indexes["block"]]
+        return self.inventory[self.blocki] if self.inventory[self.blocki] is not None else ""
 
     @block.setter
     def block(self, value):
-        self.inventory[self.indexes["block"]] = value
+        self.inventory[self.blocki] = value
 
     @property
     def blocki(self):
@@ -1269,7 +1280,8 @@ class Player:
     @empty_blocki.setter
     def empty_block(self, value):
         if isinstance(value, tuple):
-            self.inventory_amounts[self.empty_blocki], self.inventory[self.empty_blocki] = reversed(value)
+            ebi = self.empty_blocki
+            self.inventory[ebi], self.inventory_amounts[ebi] = value
         else:
             self.inventory[self.empty_blocki] = value
 
@@ -1373,17 +1385,13 @@ class Player:
         if self.oxygen > 100:
             self.oxygen = 100
 
-    @property
-    def xp(self):
-        return self.stats["xp"]["amount"]
-
-    @xp.setter
-    def xp(self, value):
-        self.xp = value
+    def flip_images(self, images):
+        images = [SmartSurface.from_surface(img) for img in images]
+        self.right_images = images
+        self.left_images = [SmartSurface.from_surface(pygame.transform.flip(img, True, False)) for img in images]
 
     def achieve(self):
-        for ac, cond in g.achievements:
-            print(ac, cond)
+        pass
 
     def set_moving_mode(self, name, *args):
         self.moving_mode = [name, *args]
@@ -1395,7 +1403,20 @@ class Player:
         self.empty_tool = name
 
     def link_worlds(self):
-        g.cannot_place_block = True
+        def m():
+            time.sleep(randf(0.5, 1.5))
+            if chance(1 / 10):
+                text = "The linking has been unsuccesful."
+            else:
+                text = "The worlds have linked succesfully."
+                g.cannot_place_block = True
+                g.w.dimension = "magic"
+                g.w.linked = True
+                utilize_blocks()
+                next_ambient()
+            MessageboxOk(Window.display, "The worlds have linked succesfully.", **g.def_widget_kwargs)
+
+        Thread(target=m).start()
 
     def die(self, cause):
         self.dead = True
@@ -1410,26 +1431,26 @@ class Player:
             self.inventory[index] = None
             self.inventory_amounts[index] = None
 
-    def take_dmg(self, amount, scrsh_offset, scrsh_length, reason=None):
+    def take_dmg(self, amount, shake_offset, shake_length, reason=None):
         self.stats["lives"]["amount"] -= amount
         self.stats["lives"]["regen_time"] = def_regen_time
         self.stats["lives"]["last_regen"] = ticks()
-        g.screenshake = scrsh_length
-        g.s_render_offset = scrsh_offset
+        g.screen_shake = shake_length
+        g.s_render_offset = shake_offset
         if g.player.stats["lives"]["amount"] <= 0:
             g.player.die(reason)
 
     def eat(self):
         food = self.block
-        self.food_pie["counter"] += get_finfo(self.inventory[self.indexes["block"]])["speed"]
+        self.food_pie["counter"] += get_finfo(self.inventory[self.blocki])["speed"]
         degrees = self.food_pie["counter"]
-        pie_size = (40, 40)
+        pie_size = (30, 30)
         pil_img = PIL.Image.new("RGBA", [s * 4 for s in pie_size])
         pil_draw = PIL.ImageDraw.Draw(pil_img)
-        pil_draw.pieslice((0, 0, *[ps - 1 for ps in pie_size]), -90, degrees, fill=GRAY)
+        pil_draw.pieslice((0, 0, *[ps * 4 - 1 for ps in pie_size]), -90, degrees, fill=g.w.player_model_color[:3])
         pil_img = pil_img.resize(pie_size, PIL.Image.ANTIALIAS)
-        del pil_draw
-        self.food_pie["image"] = pil_to_pg(pil_img)
+        pg_img = pil_to_pg(pil_img)
+        self.food_pie["image"] = pg_img
         self.food_pie["rect"] = self.food_pie["image"].get_rect()
         if self.food_pie["counter"] >= 270:
             for attr in finfo[food]["amounts"]:
@@ -1450,10 +1471,7 @@ class Player:
             self.fall_effect = self.yvel
 
     def update_effects(self):
-        if g.w.naturals["rain"]:
-            if self.block == "bucket":
-                if chance(1 / 2500):
-                    self.new_empty_block("water")
+        pass
 
     def drops(self):
         for drop in all_drops:
@@ -1466,9 +1484,13 @@ class Player:
                         drop.rect.center = [pos + random.randint(-1, 1) for pos in drop.og_pos]
 
     def rand_username(self):
-        #self.username = f"Player{rand(2, 456)}"
-        #self.username = json.loads(requests.get("http://names.drycodes.com/10?nameOptions=funnyWords").text)[0].split("_")[0]
-        self.username = fnames.dwarf()
+        # self.username = f"Player{rand(2, 456)}"
+        # self.username = json.loads(requests.get(g.funny_words_url).text)[0].split("_")[0]
+        # self.username = fnames.dwarf()
+        # self.username = shake_str(json.loads(requests.get(g.name_url).text)["name"]).title()
+        # self.username = json.loads(requests.get(g.name_url).text)["username"].capitalize()
+        # self.username = " ".join([json.loads(requests.get(g.random_word_url).text)[0]["word"] for _ in range(2)]).title()
+        self.username = rand_alien_name().title()
 
     def cust_username(self):
         def set_username(ans):
@@ -1481,67 +1503,48 @@ class Player:
                 self.rand_username()
         Entry(Window.display, "Enter your new username:", set_username, pos=DPP, default_text=("random", orbit_fonts[20]))
 
-    def movex(self, xvel):
-        self.dx += xvel
-        if xvel > 0:
-            self.direc = "right"
-        else:
-            self.direc = "left"
-        self.still = False
-
-    def movey(self, yvel):
-        self.dy += self.yvel
-
     def freestyle_move(self):
         keys = pygame.key.get_pressed()
         if g.keys[g.ckeys["p up"]]:
-            self.movey(-self.fre_vel)
+            self.rect.y -= self.fre_vel
         if g.keys[g.ckeys["p down"]]:
-            self.movey(self.fre_vel)
+            self.rect.y += self.fre_vel
         if g.keys[g.ckeys["p left"]]:
-            self.movex(-self.fre_vel)
+            self.rect.x -= self.fre_vel
         if g.keys[g.ckeys["p right"]]:
-            self.movex(self.fre_vel)
+            self.rect.x += self.fre_vel
+
+    @property
+    def cols(self):
+        return [block.rect for block in all_blocks if self.rect.colliderect(block.rect) and block.name not in walk_through_blocks and not is_bg(block.name)]
 
     def adventure_move(self):
-        # jumping
-        keys = pygame.key.get_pressed()
-        if g.keys[g.ckeys["p up"]]:
-            if not self.in_air and self.yvel <= 0:
-                self.yvel = self.jump_yvel
-                self.in_air = True
-
-        # xvel
-        self.still = True
-        if g.keys[g.ckeys["p left"]]:
-            self.movex(-self.adv_xvel)
-        if g.keys[g.ckeys["p right"]]:
-            self.movex(self.adv_xvel)
-
-        # yvel
-        self.yvel += self.gravity
-        self.dy += self.yvel
-
         # collisions
-        for block in all_blocks:
-            # x-collision
-            if not is_wt(block.name):
-                if block.rect.colliderect(self.rect.x + self.dx, self.rect.y, self.width, self.height):
-                    self.dx = 0
-
-            # y-collision
-            if block.rect.colliderect(self.rect.x, self.rect.y + self.dy, self.width, self.height):
-                if self.yvel < 0:
-                    if not is_bg(block.name):
-                        self.dy = block.rect.bottom - self.rect.top
-                        self.yvel = 0
-                elif self.yvel >= 0:
-                    if not is_bg(block.name):
-                        if self.yvel >= 8 and self.fall_effect != 0:
-                            self.take_dmg(round(self.yvel * 5 / fall_damage_blocks.get(block.name, 1)), 5, 30, "fell from high ground")
-                        self.dy = block.rect.top - self.rect.bottom
-                        self.yvel = 0
-                        self.in_air = False
+        self.yvel += self.gravity
+        self.rect.bottom += self.yvel
+        if self.cols:
+            if self.yvel > 0:
+                self.rect.bottom = self.cols[0].top
+                self.yvel = 0
+                self.in_air = False
+            else:
+                self.rect.top = self.cols[0].bottom
+                self.yvel = 0
+        keys = pygame.key.get_pressed()
+        xvel = 2
+        if keys[g.ckeys["p left"]]:
+            self.rect.x -= xvel
+            self.direc = "left"
+            if self.cols:
+                self.rect.x += xvel
+        if keys[g.ckeys["p right"]]:
+            self.rect.x += xvel
+            self.direc = "right"
+            if self.cols:
+                self.rect.x -= xvel
+        if keys[g.ckeys["p up"]] and 0 < self.yvel < 1 and not self.in_air:
+            self.yvel = self.jump_yvel
+            self.in_air = True
 
         # other important collisions with blocks
         for block in all_blocks:
@@ -1558,14 +1561,6 @@ class Player:
                 # cactus
                 if bpure(block.name) == "cactus":
                     self.take_dmg(0.03, 1, 0.5, "got spiked")
-
-        else:
-            if self.invisible:
-                self.invisible = False
-                self.image.set_alpha(255)
-
-        if self.rect.bottom < 0:
-            utilize_blocks()
 
     def camel_move(self, camel):
         self.rect.centerx = camel.centerx - 10
@@ -1605,7 +1600,12 @@ class Player:
                 self.rect.bottom = 1
                 utilize_blocks()
             else:
-                g.player.die("Fell into the void")
+                if g.w.mode == "adventure":
+                    self.die("Fell into the void")
+                else:
+                    self.rect.y -= 400
+                    self.yvel = 0
+            self.gain_ground()
 
         elif self.rect.bottom < 0:
             save_screen()
@@ -1615,79 +1615,80 @@ class Player:
                 utilize_blocks()
                 self.gain_ground()
 
-    def update_move(self):
-        self.rect.x += self.dx
-        self.rect.y += self.dy
-        adx = abs(self.dx) + floor(abs(self.dy))
-        self.achievements["steps taken"] += adx
-        self.achievements["steps counting"] += adx
-        if self.achievements["steps counting"] >= 10_000:
-            # TODO: hunger
-            self.stats["hunger"]["amount"] -= nordis(5, 5)
-            self.achievements["steps counting"] = 0
-
     def external_gravity(self):
         pass
 
     def animate(self):
         self.anim += g.p.anim_fps
+        ga = getattr(self, self.direc + "_images")
         try:
-            self.images[int(self.anim)]
+            ga[int(self.anim)]
         except IndexError:
             self.anim = 0
         finally:
-            self.image = self.images[int(self.anim)]
+            self.image = ga[int(self.anim)]
 
 
 class Visual:
-    __slots__ = ("image", "og_img", "rect", "angle")
-
     def __init__(self):
         self.angle = 0
+        self.to_swing = 0
+
+    @property
+    def mask(self):
+        return pygame.mask.from_surface(self.image)
 
     def draw(self):
         Window.display.blit(self.image, self.rect)
 
     def function(self):
-        if g.player.main == "block":
-            if g.player.block is not None:
-                self.og_img = g.w.blocks[g.player.block]
-                self.image = scale(self.og_img, [s // 2 for s in self.og_img.get_size()])
-                self.rect = self.image.get_rect()
-                if g.player.direc == "left":
-                    self.rect.right = g.player.rect.left - 5
-                elif g.player.direc == "right":
-                    self.rect.left = g.player.rect.right + 5
-                self.rect.centery = g.player.rect.centery
-                self.draw()
-
-        elif g.player.main == "tool":
-            if g.player.tool is not None:
-                self.og_img = g.w.tools[g.player.tool]
-                self.image = self.og_img.copy()
-                if "_" in g.player.tool:
+        if g.stage == "play":
+            if g.player.main == "block":
+                if g.player.block:
+                    self.og_img = g.w.blocks[g.player.block]
+                    self.image = scale(self.og_img, [s // 2 for s in self.og_img.get_size()])
                     self.rect = self.image.get_rect()
-                    self.image, self.rect = rot_center(flip(self.og_img, True, not 90 > g.player.angle > -90), self.angle + 270, *g.player.rect.center)
-                    self.rect.center = g.mouse
-                    if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
-                        self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
-                    if abs(g.player.rect.centery - g.mouse[1]) >= g.tool_range:
-                        self.rect.y += g.player.rect.centery - g.mouse[1] + (g.tool_range if g.mouse[1] > g.player.rect.centery else -g.tool_range)
+                    if g.player.direc == "left":
+                        self.rect.right = g.player.rect.left - 5
+                    elif g.player.direc == "right":
+                        self.rect.left = g.player.rect.right + 5
+                    self.rect.centery = g.player.rect.centery
                     self.draw()
-                else:
-                    self.image, self.rect = rot_center(flip(self.og_img, False, not 90 > g.player.angle > -90), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
-                    self.draw()
-                if g.player.tool.startswith("enchanted"):
-                    if chance(1 / 2):
-                        group(SparkParticle(self.rect.center, 4), all_other_particles)
 
-            if is_gun(g.player.tool):
-                if "scope" in g.gun_attrs[g.player.tool]:
-                    try:
-                        attr = ginfo["scope"][g.gun_attrs[g.player.tool]["scope"].split("_")[0]]
-                    except AttributeError:
-                        pass
+            elif g.player.main == "tool":
+                if g.player.tool is not None:
+                    self.og_img = g.w.tools[g.player.tool]
+                    self.image = self.og_img.copy()
+                    if "_" in g.player.tool:
+                        self.rect = self.image.get_rect()
+                        self.image, self.rect = rot_center(flip(self.og_img, True, g.mouse[0] < g.player.rect.centerx), self.angle + 270, *g.player.rect.center)
+                        self.rect.center = g.mouse
+                        if abs(g.player.rect.centerx - g.mouse[0]) >= g.tool_range:
+                            self.rect.x += g.player.rect.centerx - g.mouse[0] + (g.tool_range if g.mouse[0] > g.player.rect.centerx else -g.tool_range)
+                        if abs(g.player.rect.centery - g.mouse[1]) >= g.tool_range:
+                            self.rect.y += g.player.rect.centery - g.mouse[1] + (g.tool_range if g.mouse[1] > g.player.rect.centery else -g.tool_range)
                     else:
+                        self.image, self.rect = rot_center(flip(self.og_img, False, g.mouse[0] < g.player.rect.centerx), g.player.angle, g.player.rect.centerx, g.player.rect.centery + 20)
+                    if g.player.tool.endswith("_sword"):
+                        if self.to_swing > 0:
+                            av = 7
+                            if g.mouse[0] < g.player.rect.centerx:
+                                self.angle += av
+                            else:
+                                self.angle -= av
+                            self.to_swing -= av
+                            self.draw()
+                    else:
+                        self.draw()
+
+                    if g.player.tool.startswith("enchanted_"):
+                        if not g.player.tool.endswith("_sword") or visual.to_swing > 0:
+                            if chance(1 / 2):
+                                group(SparkParticle(self.rect.center, 4), all_other_particles)
+
+                if is_gun(g.player.tool):
+                    if "scope" in g.gun_attrs[g.player.tool]:
+                        attr = ginfo["scope"][g.gun_attrs[g.player.tool]["scope"].split("_")[0]]
                         color = attr[0]
                         block_radar = attr[1]
                         start_pos = g.player.rect.center
@@ -1702,7 +1703,7 @@ class Visual:
                                     if block.rect.clipline(start_pos, end_pos):
                                         pygame.draw.rect(Window.display, GREEN, block.rect, 1)
                                         break
-                        pygame.gfxdraw.line(Window.display, *start_pos, *end_pos, color)
+                        pygame.draw.aaline(Window.display, color, start_pos, end_pos)
 
 
 class Block:
@@ -1716,31 +1717,24 @@ class Block:
         self.light = 1
 
     @property
+    def mask(self):
+        return pygame.mask.from_surface(self.image)
+
+    @property
     def abs_index(self):
         return self.layer_index + g.w.abs_blocki
 
     def update(self):
         self.dynamic_methods()
         self.check_not_hovering()
-        #write(self.image, "center", self.name, orbit_fonts[5], BLACK, [s // 2 for s in self.image.get_size()][0], 5)
         self.draw()
-
-    def change(self, name):
-        self.name = name
-        self.image = g.w.blocks[self.name].copy()
 
     def dynamic_methods(self):
         if "dirt" in self.name:
             if all_blocks[self.layer_index - HL].name in walk_through_blocks:
                 with AttrExs(self, "last_dirt", ticks()):
                     if ticks() - self.last_dirt >= 5000:
-                        self.name = bio.blocks[g.w.biomes[g.w.screen]][0] + get_suffix(self.name)
-        elif "stone" in self.name:
-            if g.w.biome == "mountain":
-                if g.w.naturals["snow"]:
-                    if g.w.data[g.w.screen][self.abs_index - HL] == "air":
-                        if chance(1 / 5000):
-                            self.change("snow-stone")
+                        self.name = bio.blocks[g.w.biomes[g.w.screen]][0] + ("_bg" if "_bg" in self.name else "")
 
     def check_not_hovering(self):
         if not is_in(self.name, tool_blocks):
@@ -1752,10 +1746,21 @@ class Block:
         Window.display.blit(self.image, self.rect)
 
     def try_breaking(self, type_="normal"):
+        last_name = self.name
         drops = []
+        eval_drop_pos = "[p + rand(-5, 5) for p in self.rect.center]"
+        drop_pos = eval(eval_drop_pos)
         if type_ == "normal":
-            if non_e(self.name) not in ore_blocks:
-                self.broken += block_breaking_amounts.get(ipure(self.name), 0.01)
+            if non_bg(self.name) not in ore_blocks:
+                breaking_time = apply(self.name, block_breaking_times, 500)
+                if ticks() - g.last_break >= breaking_time:
+                    self.broken += 1
+                    if self.broken >= 5:
+                        if is_in(self.name, dif_drop_blocks):
+                            drops.append(Drop(dif_drop_blocks[non_bg(self.name)]["block"], drop_pos))
+                        else:
+                            drops.append(Drop(non_bg(self.name), drop_pos))
+                    g.last_break = ticks()
 
         elif type_ == "tool":
             if get_tinfo(g.player.tool, self.name):
@@ -1763,20 +1768,31 @@ class Block:
                 if chance(1 / 20):
                     group(BreakingBlockParticle(self.name, (self.rect.centerx, self.rect.top + rand(-2, 2))), all_particles)
 
+            if self.broken >= 5:
+                # block itself
+                if is_in(self.name, dif_drop_blocks):
+                    drops.append(Drop(dif_drop.blocks[non_bg(self.name)]["block"], drop_pos, self.name))
+                else:
+                    drops.append(Drop(non_bg(self.name), drop_pos))
+                g.player.tool_healths[g.player.tooli] -= (11 - oinfo[tore(g.player.tool)]["moh"]) / 8
+
+        elif type_ == "freestyle":
+            self.set("air")
+            update_block_states()
+
         if self.broken >= 5:
             # extra drops
             if bpure(self.name) == "leaf" and chance(1 / 20):
-                dropilize(self, name="apple")
+                drops.append(Drop("apple", drop_pos))
             elif bpure(self.name) == "chest":
-                dropilize_map(self, g.w.metadata[g.w.screen][self.abs_index]["chest"])
-            else:
-                dropilize(self)
-
-            # extra loot from the block (metadata; non-attributal)
-            dropilize_map(self, g.w.metadata[g.w.screen][self.abs_index].get("loot", False))
-
+                for name, amount in g.w.metadata[g.w.screen][self.abs_index]["chest"]:
+                    if name is not None:
+                        drops.append(Drop(name, drop_pos, amount))
+                        drop_pos = eval(eval_drop_pos)
+            # tiring
+            g.player.energy -= tool_tiringnesses.get(tool_type(g.player.tool), 0)
             # final
-            g.player.broken_blocks[non_e(self.name)] += 1
+            g.player.broken_blocks[non_bg(self.name)] += 1
             data = g.w.get_data[g.w.screen]
             self.name = "air"
             self.image = g.w.blocks[self.name].copy()
@@ -1787,34 +1803,55 @@ class Block:
             for drop in drops:
                 group(drop, all_drops)
 
-    def utilize(self, name=None):
-        self.name = g.w.get_data[g.w.screen][self.abs_index] if name is None else name
-        self.image = g.w.blocks[non_e(self.name)].copy()
+        if self.name != last_name:
+            externally_update_entities()
+
+    def bglized(self, name):
+        return img_mult(g.w.blocks[name], 0.7)
+
+    def bglize(self):
+        self.image = img_mult(self.image, 0.7)
+
+    def utilize(self):
+        self.name = g.w.get_data[g.w.screen][self.abs_index]
+        self.image = pygame.Surface((30, 30), pygame.SRCALPHA)
         if is_bg(self.name):
-            self.image = img_mult(self.image, 0.8)
+            self.image.blit(self.bglized(non_bg(self.name)), (0, 0))
+        else:
+            self.image.blit(g.w.blocks[non_bg(self.name)], (0, 0))
+        self.update_state()
         #self.image = scale2x(self.image)
         #self.image = rotate(self.image, rand(0, 360))
 
+    def update_state(self):
+        if non_bg(self.name) != "water":
+            moore = all_blocks.moore(self.layer_index, HL, (2, 4, 6, 8))
+            if is_in("water", [block.name for block in moore]):
+                for block in moore:
+                    if non_bg(block.name) == "water":
+                        block.name = "water"
+                        break
+
     def set(self, name):
-        g.w.data[g.w.screen][self.abs_index] = name
+        g.w.get_data[g.w.screen][self.abs_index] = name
         self.utilize()
 
     def function(self):
-        if non_e(self.name) in ("workbench", "furnace", "anvil", "gun-crafter", "magic-table"):
-            g.midblit = non_e(self.name)
+        if non_wt(self.name) in ("workbench", "furnace", "anvil", "gun-crafter", "magic-table"):
+            g.midblit = non_bg(self.name)
             g.player.main = "block"
 
-        elif non_e(self.name) == "water":
+        elif non_wt(self.name) == "water":
             if g.player.block == "bucket":
                 g.player.new_block("water", 1)
                 self.set("air")
 
-        elif non_e(self.name) == "portal-generator":
+        elif non_wt(self.name) == "portal-generator":
             pos = [roundn(p, 30) for p in g.player.rect.center]
-            g.w.entities.append(Entity("portal", pos, g.w.screen, 1))
+            g.w.entities.append(Entity("portal", pos, g.w.screen, 1, traits=["portal"]))
             self.set("air")
 
-        elif non_e(self.name) == "dynamite":
+        elif non_wt(self.name) == "dynamite":
             exploded_indexes = [
                                 self.layer_index - 28, self.layer_index - HL, self.layer_index - 26,
                                 self.layer_index - 1,  self.layer_index,      self.layer_index + 1,
@@ -1824,22 +1861,21 @@ class Block:
                 if block.layer_index != self.layer_index and block.layer_index in exploded_indexes and block.name == "dynamite":
                     block.function()
                 elif block.layer_index in exploded_indexes:
-                    block.name = "air"
-                    block.image = g.w.blocks["air"].copy()
+                    block.set("air")
                     update_block_states()
 
-        elif non_e(self.name) == "command-block":
+        elif non_wt(self.name) == "command-block":
             def set_command(cmd):
                 self.cmd = cmd
             Entry(Window.display, "Enter your command:", set_command, pos=DPP)
 
-        elif non_e(self.name) == "chest":
+        elif non_wt(self.name) == "chest":
             g.midblit = "chest"
             g.chest = g.w.metadata[g.w.screen][self.abs_index]["chest"]
 
         elif "pipe" in self.name:
             rp = int(self.name.split("_deg")[1])
-            if "curved" in non_e(self.name):
+            if "curved" in non_wt(self.name):
                 self.set(f"curved-pipe_deg{rotations4[rp]}")
             else:
                 self.set(f"pipe_deg{rotations2[rp]}")
@@ -1849,11 +1885,8 @@ class Projectile(pygame.sprite.Sprite):
     def __init__(self, pos, size, mouse, speed, pierce=False):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.Surface(size)
-        self.image.fill(BLACK)
         self.w, self.h = self.image.get_size()
         self.x, self.y = pos
-        #delta = [m - p for m, p in zip(mouse, pos)]
-        #vel = [d / 100 for d in delta]
         self.xvel, self.yvel = two_pos_to_vel(pos, mouse, 100)
         self.pierce = pierce
 
@@ -1886,10 +1919,15 @@ class Projectile(pygame.sprite.Sprite):
 
 
 class Drop(pygame.sprite.Sprite):
-    def __init__(self, name, drop_amount, pos):
+    def __init__(self, name, pos, extra=None):
         pygame.sprite.Sprite.__init__(self)
         self.name = name
-        self.drop_amount = drop_amount
+        if extra is None:
+            self.drop_amount = 1
+        elif isinstance(extra, str):
+            self.drop_amount = dif_drop_blocks[ipure(extra)]
+        elif isinstance(extra, int):
+            self.drop_amount = extra
         self.image = g.w.blocks[self.name].copy()
         self.width = self.image.get_width()
         self.height = self.image.get_height()
@@ -1899,14 +1937,12 @@ class Drop(pygame.sprite.Sprite):
         self.screen = g.w.screen
         self.layer = g.w.layer
 
-    def step_aside(self):
-        # TODO: step_aside
-        pass
-
     def update(self):
-        self.step_aside()
         if is_drawable(self):
             Window.display.blit(self.image, self.rect)
+
+    def kill(self):
+        all_drops.remove(self)
 
 
 class Hovering:
@@ -1920,27 +1956,28 @@ class Hovering:
         self.rect = self.image.get_rect()
 
     def function(self):
-        self.faulty = False
-        self.show = True
-        if g.player.main == "block":
-            for block in all_blocks:
-                if block.rect.collidepoint(g.mouse):
-                    if g.player.item not in unplacable_blocks and g.player.item not in finfo:
-                        if g.w.mode == "adventure":
-                            if abs(g.player.rect.x - block.rect.x) // 30 > 3 or abs(g.player.rect.y - block.rect.y) // 30 > 3:
-                                self.faulty = True
+        if not g.menu:
+            self.faulty = False
+            self.show = True
+            if g.player.main == "block":
+                for block in all_blocks:
+                    if block.rect.collidepoint(g.mouse):
+                        if g.player.item not in unplacable_blocks and g.player.item not in finfo:
+                            if g.w.mode == "adventure":
+                                if abs(g.player.rect.x - block.rect.x) // 30 > 3 or abs(g.player.rect.y - block.rect.y) // 30 > 3:
+                                    self.faulty = True
                             if block.rect.collidepoint(g.mouse):
                                 self.rect.center = block.rect.center
-                    else:
-                        self.show = False
-            if self.faulty:
-                self.image.fill(self.ARED)
+                        else:
+                            self.show = False
+                if self.faulty:
+                    self.image.fill(self.ARED)
+                else:
+                    self.image.fill(self.AWHITE)
             else:
-                self.image.fill(self.AWHITE)
-        else:
-            self.show = False
-        if self.show:
-            Window.display.blit(self.image, self.rect)
+                self.show = False
+            if self.show:
+                Window.display.blit(self.image, self.rect)
 
 
 class SlidePopup(pygame.sprite.Sprite):
@@ -1963,7 +2000,7 @@ class SlidePopup(pygame.sprite.Sprite):
 class BreakingBlockParticle(pygame.sprite.Sprite):
     def __init__(self, name, pos):
         pygame.sprite.Sprite.__init__(self)
-        self.image = g.w.blocks[non_e(name)]
+        self.image = g.w.blocks[non_bg(name)]
         self.width = self.image.get_width()
         self.height = self.image.get_height()
         self.image = scale(self.image, (self.width // 4, self.height // 4))
@@ -1999,81 +2036,26 @@ class SparkParticle:
 
     def function(self):
         #pygame.gfxdraw.filled_circle(Window.display, int(self.x), int(self.y), int(self.radius), WHITE)
-        Window.display.blit(self.image, (self.x, self.y))
         self.x += self.xvel
         self.y += self.yvel
         self.angle += self.direc
         self.radius -= 0.07
+        Window.display.blit(self.image, (self.x, self.y))
         if self.radius <= 0:
             all_other_particles.remove(self)
 
 
-class ProtoOtherParticle:
-    def draw(self):
-        Window.display.blit(self.image, (self.x, self.y))
-
-    def move(self):
-        self.x += self.xvel
-        self.y += self.yvel
-
-    def off_screen(self):
-        if self.rect.right <= 0 or self.rect.left >= Window.width:
-            self.kill()
-        if self.rect.top >= Window.height:
-            self.kill()
-
-    def kill(self):
-        with suppress(ValueError):
-            all_other_particles.remove(self)
-
-    @property
-    def rect(self):
-        return self.image.get_rect(topleft=(self.x, self.y))
-
-
-class SnowParticle(ProtoOtherParticle):
-    def __init__(self):
-        self.image = circle(3, WHITE)
-        self.x = rand(0, Window.width)
-        self.y = 0
-        self.xvel = rand(-2, 2)
-        self.yvel = 3
-
-    def function(self):
-        self.draw()
-        self.move()
-        self.off_screen()
-
-
-class RainParticle(ProtoOtherParticle):
-    def __init__(self):
-        self.image = pygame.Surface((1, 12))
-        self.image.fill(SMOKE_BLUE)
-        self.image = pygame.transform.rotozoom(self.image, -30, 1)
-        self.x = rand(0, Window.width)
-        self.y = 0
-        self.xvel = -2
-        self.yvel = 6
-
-    def function(self):
-        self.draw()
-        self.move()
-        self.off_screen()
-
-
 class WorldButton(pygame.sprite.Sprite):
-    def __init__(self, data, pos, text_color=BLAC, colorkey=None):
+    def __init__(self, data, pos, text_color=BLAC):
         pygame.sprite.Sprite.__init__(self)
         self.data = data.copy()
-        w, h = orbit_fonts[20].size(str(data["world"]))
-        self.image = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA)
-        self.image.set_colorkey(BLACK)
         self.text_color = text_color
+        w, h = orbit_fonts[20].size(str(data["world"]))
+        self.image = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA).convert_alpha()
         #self.image.fill(LIGHT_BROWN)
         pygame.draw.rect(self.image, LIGHT_BROWN, (0, 0, *self.image.get_size()), 0, 10, 10, 10, 10)
         pygame.draw.rect(self.image, DARK_BROWN, (0, 0, *self.image.get_size()), 2, 10, 10, 10, 10)
-        if colorkey is not None:
-            self.image.set_colorkey(colorkey)
+        self.image.set_colorkey(BLACK)
         write(self.image, "center", data["world"], orbit_fonts[20], self.text_color, *[s / 2 for s in self.image.get_size()])
         #pxlfont.render(self.image, data["world"], [s / 2 for s in self.image.get_size()])
         self.rect = self.image.get_rect(topleft=pos)
@@ -2085,7 +2067,7 @@ class WorldButton(pygame.sprite.Sprite):
             g.p.world_names.append(inputtext)
             self.data["world"] = inputtext
         w, h = orbit_fonts[20].size(str(inputtext))
-        self.image = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA)
+        self.image = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA).convert_alpha()
         pygame.draw.rect(self.image, LIGHT_BROWN, (0, 0, *self.image.get_size()), 0, 10, 10, 10, 10)
         pygame.draw.rect(self.image, DARK_BROWN, (0, 0, *self.image.get_size()), 2, 10, 10, 10, 10)
         write(self.image, "center", inputtext, orbit_fonts[20], self.text_color, *[s / 2 for s in self.image.get_size()])
@@ -2099,7 +2081,7 @@ class StaticWidget:
 
 
 class StaticButton(pygame.sprite.Sprite, StaticWidget):
-    def __init__(self, text, pos, group, bg_color=WHITE, text_color=BLAC, anchor="center", size="icon", icon=None, command=lambda: None, visible_when=None):
+    def __init__(self, text, pos, group, bg_color=WHITE, text_color=BLAC, anchor="center", size="icon", icon=None, command=None, visible_when=None):
         pygame.sprite.Sprite.__init__(self)
         StaticWidget.__init__(self, group, visible_when)
         if size == "world":
@@ -2131,14 +2113,13 @@ class StaticButton(pygame.sprite.Sprite, StaticWidget):
 
 
 class StaticToggleButton(pygame.sprite.Sprite, StaticWidget):
-    def __init__(self, cycles, pos, group, bg_color=WHITE, text_color=BLAC, anchor="center", command=lambda: None, visible_when=None):
+    def __init__(self, cycles, pos, group, bg_color=WHITE, text_color=BLACK, anchor="center", command=None, visible_when=None):
         pygame.sprite.Sprite.__init__(self)
         StaticWidget.__init__(self, group, visible_when)
         self.cycles = cycles
         self.cycle = 0
         w, h = [5 + size + 5 for size in orbit_fonts[20].size(str(self.cycles[self.cycle]))]
         self.image = pygame.Surface((w, h), pygame.SRCALPHA)
-        self.image.set_colorkey(BLACK)
         #self.image.fill(bg_color)
         pygame.draw.rect(self.image, LIGHT_BROWN, (0, 0, *self.image.get_size()), 0, 10, 10, 10, 10)
         pygame.draw.rect(self.image, DARK_BROWN, (0, 0, *self.image.get_size()), 2, 10, 10, 10, 10)
@@ -2148,23 +2129,11 @@ class StaticToggleButton(pygame.sprite.Sprite, StaticWidget):
         self.command = command
         setattr(self.rect, anchor, pos)
 
-    @property
-    def option(self):
-        return self.cycles[self.cycle]
-
     def process_event(self, event):
         if is_left_click(event):
             if is_drawable(self):
                 if self.rect.collidepoint(g.mouse):
                     self.command()
-                    self.cycle += 1
-                    try:
-                        self.cycles[self.cycle]
-                    except IndexError:
-                        self.cycle = 0
-                    finally:
-                        self.overwrite(self.cycles[self.cycle])
-
 
     def overwrite(self, text):
         w, h = [5 + size + 5 for size in orbit_fonts[20].size(str(self.cycles[self.cycle]))]
@@ -2243,7 +2212,7 @@ class MessageboxWorld(pygame.sprite.Sprite):
 
     @property
     def path(self):
-        return path("Worlds", self.data["world"] + ".dat")
+        return path(".worlds", self.data["world"] + ".dat")
 
     def get_box(self, text, pos, anchor):
         box = pygame.Surface(self.box_size).convert_alpha()
@@ -2281,7 +2250,6 @@ class MessageboxWorld(pygame.sprite.Sprite):
                     w = attr["world_obj"]
                     return w.info[key] if key is not None else w.info
 
-
     def set_info(self, key, value):
         with open("worldbuttons.dat", "rb") as f:
             button_attrs = pickle.load(f)
@@ -2293,8 +2261,6 @@ class MessageboxWorld(pygame.sprite.Sprite):
 
     def close(self, option):
         if option == "info":
-            # for k, v in self.get_info().items():
-            #     print(f"{k.title()}: {v}")
             MessageboxOk(Window.display, "\n", **g.def_widget_kwargs)
 
         elif option == "download":
@@ -2316,7 +2282,7 @@ class MessageboxWorld(pygame.sprite.Sprite):
                             except Exception:
                                 MessageboxError(Window.display, "World name is invalid.", **g.def_widget_kwargs)
                             else:
-                                os.rename(path("Worlds", self.data["world"] + ".dat"), path("Worlds", ans_rename + ".dat"))
+                                os.rename(path(".worlds", self.data["world"] + ".dat"), path(".worlds", ans_rename + ".dat"))
                                 for button in all_home_world_world_buttons:
                                     if button.data["world"] == self.data["world"]:
                                         button.overwrite(ans_rename, True)
@@ -2334,22 +2300,35 @@ class MessageboxWorld(pygame.sprite.Sprite):
                 # world assets
                 world_data = pickle.load(f)
                 g.w = self.data["world_obj"]
-                for atype, dict_ in g.w.assets.items():
-                    for name, string in dict_.items():
-                        g.w.assets[atype][name] = SmartSurface.from_string(string, g.w.asset_sizes[name], "RGBA")
+                with suppress(BreakAllLoops):
+                    for atype, dict_ in g.w.assets.items():
+                        for name, string in dict_.items():
+                            try:
+                                g.w.assets[atype][name] = SmartSurface.from_string(string, g.w.asset_sizes[name])
+                            except TypeError:
+                                raise BreakAllLoops
                 # world entities
                 for entity in g.w.entities:
-                    entity.images = [SmartSurface.from_string(image, entity.sizes[i], "RGBA") for i, image in enumerate(entity.images)]
-                    entity.image = SmartSurface.from_string(entity.image, entity.sizes[int(entity.anim)], "RGBA")
-                destroy_widgets()
-                g.menu = False
+                    entity.images = [SmartSurface.from_string(entity.image, entity.sizes[i]) for i, image in enumerate(entity.images)]
+                    entity.image = entity.images[int(entity.anim)]
+                    entity.init_mask()
                 # player
                 g.player = self.data["player_obj"]
+                g.player.left_images = [SmartSurface.from_string(img, g.player.size) for img in g.player.left_images]
+                g.player.right_images = [SmartSurface.from_string(img, g.player.size) for img in g.player.right_images]
+                with suppress(IndexError):
+                    mm1 = g.player.moving_mode[1]
+                    if isinstance(mm1, Entity):
+                        g.player.moving_mode[1] = SmartSurface.from_string(mm1)
+                # world
                 generate_world(world_data)
                 init_world("existing")
+                # general
+                destroy_widgets()
+                g.menu = False
 
         elif option == "delete":
-            delete_file(path("Worlds", self.data["world"] + ".dat"))
+            delete_file(path(".worlds", self.data["world"] + ".dat"))
             g.p.world_names.remove(self.data["world"])
             for button in all_home_world_world_buttons:
                 if button.rect.y > self.data["pos"][1]:
@@ -2373,8 +2352,8 @@ hov = Hovering()
 button_cnw = StaticButton("Create New World", (45, Window.height - 160), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", size="world", command=new_world, visible_when=pw.is_worlds_worlds)
 button_lw = StaticButton("Load World", (45, Window.height - 120), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", size="world", command=pw.button_lw_command, visible_when=pw.is_worlds_worlds)
 button_daw = StaticButton("Delete All Worlds", (45, Window.height - 80), all_home_world_static_buttons, LIGHT_BROWN, text_color=RED, anchor="topleft", size="world", command=pw.button_daw_command, visible_when=pw.is_worlds_worlds)
+toggle_sd = StaticToggleButton(("name", "data"), (175, 131), all_home_world_static_buttons, LIGHT_BROWN, anchor="topleft", command=pw.toggle_sd_command, visible_when=pw.is_worlds_worlds)
 button_c = StaticButton("Credits", (35, 130), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", command=pw.button_c_command, visible_when=pw.is_worlds_static)
-button_tod = StaticToggleButton(("Trash", "Delete"), (35, 170), all_home_settings_buttons, LIGHT_BROWN, anchor="topleft", visible_when=pw.is_worlds_static)
 button_s = StaticButton("Settings", (580, 150), all_home_sprites, GRAY, icon="settings", command=pw.set_home_stage_settings, visible_when=pw.is_home)
 button_w = StaticButton("Worlds", (580, 190), all_home_sprites, GRAY, command=pw.set_home_stage_worlds, visible_when=pw.is_home)
 
@@ -2382,23 +2361,25 @@ button_w = StaticButton("Worlds", (580, 190), all_home_sprites, GRAY, command=pw
 # load buttons
 if os.path.getsize("worldbuttons.dat") > 0:
     with open("worldbuttons.dat", "rb") as f:
-        button_attrs = pickle.load(f)
-        for attr in button_attrs:
+        attrs = pickle.load(f)
+        for attr in attrs:
             group(WorldButton(attr, attr["pos"]), all_home_world_world_buttons)
 
 
 # M A I N  L O O P ------------------------------------------------------------------------------------ #
 def main(debug):
-    g.debug = debug
-    with nullcontext() if g.debug else redirect_stdout(open(os.devnull, "w")):
+    with nullcontext() if debug else redirect_stdout(open(os.devnull, "w")):
+        # cursors
+        set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.crafting is not None)
+        set_cursor_when(pygame.SYSTEM_CURSOR_CROSSHAIR, lambda: g.stage == "play")
+        set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.stage != "play")
         # lasts
         last_rain_partice = ticks()
         last_snow_particle = ticks()
-        last_space = ticks()
-        # dynamic
-        first_music = False
+        last_s = ticks()
+        # dynamic stuff
         music_count = None
-        # static
+        # static stuff
         t = GoogletransTranslator()
         # counts
         g.stage = "home"
@@ -2406,22 +2387,31 @@ def main(debug):
         pass
         # loop
         running = True
-        print()
+        pritn()
         loading_time = round(time.perf_counter(), 2)
         g.p.loading_times.append(loading_time)
-        print(f"Loaded in: {loading_time}s")
-        print(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
-        print()
+        pritn(f"Loaded in: {loading_time}s")
+        pritn(f"Average loading time: {round(g.p.loading_times.mean, 2)}s")
+        pritn()
+        pygame.display.set_caption("\u15FF"   # because
+                                   "\u0234"   # because
+                                   "\u1F6E"   # because
+                                   "\u263E"   # because
+                                   "\u049C"   # because
+                                   "\u0390"   # because
+                                   "\u2135"   # because
+                                   "\u0193"   # because
+                                   "\u15EB"   # because
+                                   "\u03A6"   # because
+                                   "\u722A")  # because
+        # game loop
         while running:
-            # fps
-            dt = g.clock.tick(g.fps_cap) / 1000 * 120
-            g.fpss.insert(0, g.clock.get_fps())
-            if len(g.fpss) > 100:
-                del g.fpss[-1]
-
-            # global dynamic updates
-            g.p.anim_fps = pw.anim_fps.value / g.fps_cap
+            # fps cap
+            g.dt = g.clock.tick(g.fps_cap) / (1000 / 120)
             t.init(g.w.language)
+
+            # global dynamic variables
+            g.p.anim_fps = pw.anim_fps.value / g.fps_cap
 
             # music
             if g.stage == "play":
@@ -2431,22 +2421,12 @@ def main(debug):
             set_volume(volume)
             g.p.volume = volume
             if not pygame.mixer.music.get_busy():
-                if first_music:
-                    music_count = pygame.time.get_ticks()
-                else:
-                    music_count = float("-inf")
+                music_count = pygame.time.get_ticks()
                 if ticks() - music_count >= 5000:
-                    while (music_name := random.choice(os.listdir(path("Audio", "Music", "Background")))) == g.last_music:
-                        do_nothing()
-                    pygame.mixer.music.load(path("Audio", "Music", "Background", music_name))
-                    pygame.mixer.music.play()
-                    g.last_music = music_name
-                    if first_music:
-                        first_music = False
+                    pw.next_piece_command()
 
             # event loop
             for event in pygame.event.get():
-                # 'x' button
                 if event.type == pygame.QUIT:
                     running = False
 
@@ -2457,19 +2437,17 @@ def main(debug):
                     if event.type == KEYDOWN:
                         if g.stage == "play":
                             if no_widgets(Entry):
-                                if event.key == K_TAB:
+                                if event.key == pygame.K_TAB:
                                     toggle_main()
-                                else:
-                                    pass
 
                                 if g.midblit == "workbench":
                                     if event.key == K_SPACE:
-                                        if g.player.block is not None:
+                                        if g.player.block :
                                             if g.player.block in g.craftings:
-                                                g.craftings[g.player.block] += 1 if g.mod != K_CONTROL else g.player.amount - g.craftings[g.player.block]
+                                                g.craftings[g.player.block] += 1 if g.mod != K_OSC else g.player.amount - g.craftings[g.player.block]
                                                 g.crafting_log.append(g.player.block)
                                             else:
-                                                g.craftings[g.player.block] = 1 if g.mod != K_CONTROL else g.player.amount
+                                                g.craftings[g.player.block] = 1 if g.mod != K_OSC else g.player.amount
                                                 g.crafting_log.append(g.player.block)
                                             g.player.use_up_inv()
                                             show_added(g.crafting_log[-1])
@@ -2483,8 +2461,7 @@ def main(debug):
                                                         g.player.new_block(g.craftable, g.craft_by_what)
                                                     else:
                                                         g.player.new_tool(g.craftable)
-                                                    g.craftings = {}
-                                                    stop_midblit()
+                                                    stop_midblit(["craftings"])
 
                                     elif event.key == K_BACKSPACE:
                                         if g.crafting_log:
@@ -2497,21 +2474,21 @@ def main(debug):
 
                                 elif g.midblit == "furnace":
                                     if event.key == K_SPACE:
-                                        if g.player.block is not None:
+                                        if g.player.block:
                                             if g.player.block not in fuinfo:
                                                 if g.player.block in g.burnings:
                                                     if g.player.amount - g.burnings[g.player.block] > 0:
-                                                        g.burnings[g.player.block] += 1 if g.mod != K_CONTROL else g.player.amount - g.craftings[g.player.block]
+                                                        g.burnings[g.player.block] += 1 if g.mod != K_OSC else g.player.amount - g.craftings[g.player.block]
                                                 else:
-                                                    g.burnings[g.player.block] = 1 if g.mod != K_CONTROL else g.player.amount
+                                                    g.burnings[g.player.block] = 1 if g.mod != K_OSC else g.player.amount
                                                 g.furnace_log.append(g.player.block)
                                                 show_added(g.furnace_log[-1])
                                             else:
                                                 if g.player.block in g.fuels:
                                                     if g.player.amount - g.fuels[g.player.block] > 0:
-                                                        g.fuels[g.player.block] += 1 if g.mod != K_CONTROL else g.player.amount - g.craftings[g.player.block]
+                                                        g.fuels[g.player.block] += 1 if g.mod != K_OSC else g.player.amount - g.craftings[g.player.block]
                                                 else:
-                                                    g.fuels[g.player.block] = 1 if g.mod != K_CONTROL else g.player.amount
+                                                    g.fuels[g.player.block] = 1 if g.mod != K_OSC else g.player.amount
                                                 g.furnace_log.append(g.player.block)
                                             if not g.fuels:
                                                 g.fuel_health = 100
@@ -2539,7 +2516,7 @@ def main(debug):
                                                     g.smither = g.player.tool
                                                     g.anvil_log.append(g.player.tool)
                                         elif g.player.main == "block":
-                                            if g.player.block is not None:
+                                            if g.player.block:
                                                 if g.player.block not in g.smithings:
                                                     g.smithings[g.player.block] = 1
                                                 else:
@@ -2573,7 +2550,7 @@ def main(debug):
                                         if g.player.block in gun_blocks:
                                             g.gun_parts[g.player.block.split("_")[1]] = g.player.block
                                             g.gun_log.append(g.player.block.split("_")[1])
-                                            g.player.use_up_inv(g.player.inventory.index(g.player.block), 1)
+                                            g.player.use_up_inv(g.player.blocki, 1)
                                             show_added(g.gun_log[-1])
 
                                     elif event.key == K_ENTER:
@@ -2584,6 +2561,9 @@ def main(debug):
                                             g.gun_img = scalex(g.gun_img, 0.7)
                                             Entry(Window.display, "Custom gun name:", custom_gun, pos=DPP, input_required=True)
 
+                                    elif event.key == K_BACKSPACE:
+                                        pass
+
                                 elif g.midblit == "magic-table":
                                     if event.key == K_SPACE:
                                         if g.player.main == "tool":
@@ -2591,7 +2571,7 @@ def main(debug):
                                                 g.magic_tool = g.player.tool
                                             show_added(g.magic_tool)
                                         elif g.player.main == "block":
-                                            if g.player.block is not None:
+                                            if g.player.block:
                                                 if g.player.block.endswith("-orb"):
                                                     if g.player.block in g.magic_orbs:
                                                         g.magic_orbs[g.player.block] += 1
@@ -2604,14 +2584,11 @@ def main(debug):
                                         _r = []
                                         _g = []
                                         _b = []
-                                        names = []
                                         for name, amount in g.magic_orbs.items():
-                                            n = name.removesuffix("-orb")
-                                            color = eval(n.upper())
+                                            color = getattr(pyengine.pgbasics, name.removesuffix("-orb").upper())
                                             _r.append(color[0])
                                             _g.append(color[1])
                                             _b.append(color[2])
-                                            names.append(n)
                                         color = (sum(_r) / len(_r), sum(_g) / len(_g), sum(_b) / len(_b))
                                         filter = pygame.Surface((30, 30))
                                         filter.fill(color)
@@ -2619,10 +2596,9 @@ def main(debug):
                                         tool_name = f"enchanted_{g.player.tool}"
                                         g.w.tools[tool_name] = g.w.tools[g.player.tool].copy()
                                         g.w.tools[tool_name].blit(filter, (0, 0), special_flags=BLEND_RGB_MULT)
-                                        g.w.tool_metadata[tool_name] = ", ".join(names)
                                         g.player.tool = tool_name
                                         g.player.tool_health = 100
-                                        stop_midblit()
+                                        stop_midblit(["magic_orbs"], ["magic_tool", None])
                                         #g.w.tools[tool_name] = SmartSurface.from_surface(pil_to_pg(PIL.ImageEnhance.Contrast(pg_to_pil(g.w.tools[g.player.tool].copy())).enhance(1.2)))
 
                                 elif g.midblit == "chest":
@@ -2648,8 +2624,7 @@ def main(debug):
                                     toggle_main()
 
                                 if event.key == K_c:
-                                    if g.debug or g.w.mode == "freestyle":
-                                        Entry(Window.display, "Enter your command:", player_command, pos=DPP)
+                                    Entry(Window.display, "Enter your command:", player_command, pos=DPP)
 
                                 elif event.key == K_p:
                                     g.player.cust_username()
@@ -2659,11 +2634,12 @@ def main(debug):
 
                                 elif event.key == K_s:
                                     if g.w.mode == "freestyle":
-                                        if ticks() - last_space <= 200:
+                                        if ticks() - last_s <= 200:
                                             if g.player.moving_mode == ["freestyle"]:
                                                 g.player.set_moving_mode("adventure")
                                             elif g.player.moving_mode == ["adventure"]:
                                                 g.player.set_moving_mode("freestyle")
+                                            last_s = ticks()
                                         else:
                                             for block in all_blocks:
                                                 if is_in(block.name, functionable_blocks):
@@ -2671,13 +2647,13 @@ def main(debug):
                                                         if not hov.faulty:
                                                             block.function()
                                                             break
-                                        last_space = ticks()
+                                        last_s = ticks()
 
                                 elif event.key == K_ESCAPE:
                                     if not g.midblit:
                                         settings()
                                     else:
-                                        stop_midblit()
+                                        stop_midblit("all")
 
                                 elif event.key == K_ENTER:
                                     for messagebox in all_messageboxes:
@@ -2696,7 +2672,9 @@ def main(debug):
                     elif event.type == pygame.MOUSEBUTTONDOWN:
                         if event.button == 1:
                             g.clicked_when = g.stage
-
+                            if g.stage == "play" and g.player.tool.endswith("_sword") and visual.to_swing <= 0:
+                                visual.to_swing = 220
+                                visual.angle = -90 if g.mouse[0] < g.player.rect.centerx else 90
                             for widget in iter_widgets():
                                 if widget.visible_when is None:
                                     if widget.disable_type != "static":
@@ -2747,7 +2725,8 @@ def main(debug):
 
                                 if not g.skin_menu_rect.collidepoint(g.mouse):
                                     g.skin_menu = False
-                                    pw.skin_done.disable()
+                                    for button in pw.skin_buttons:
+                                        button.disable()
                                 else:
                                     for button in pw.change_skin_buttons:
                                         if point_in_mask(g.mouse, button["mask"], button["rect"]):
@@ -2762,6 +2741,11 @@ def main(debug):
 
                         elif event.button == 3:
                             if g.stage == "play":
+                                if g.player.main == "block" and g.player.block.endswith("-armor"):
+                                    g.player.armor[g.player.block] = 100
+                                    g.player.stats[g.player.block] = {"amount": 100, "icon": "armor"}
+                                    g.player.use_up_inv()
+
                                 for block in all_blocks:
                                     if block.rect.collidepoint(g.mouse):
                                         if not hov.faulty:
@@ -2772,7 +2756,8 @@ def main(debug):
                                         if entity.rect.collidepoint(g.mouse):
                                             if is_drawable(entity):
                                                 if "portal" in entity.traits and is_drawable(entity):
-                                                    MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", **g.def_widget_kwargs)
+                                                    if not g.w.linked:
+                                                        MessageboxOkCancel(Window.display, "Are you sure you want to link worlds?", g.player.link_worlds, ok="Yes", no_ok="No", **g.def_widget_kwargs)
                                                 elif "camel" in entity.traits:
                                                     if g.player.moving_mode[0] != "camel":
                                                         g.player.set_moving_mode("camel", entity)
@@ -2817,8 +2802,10 @@ def main(debug):
                             if hasattr(spr, "process_event") and callable(spr.process_event):
                                 spr.process_event(event)
 
-            # midi events
-            pass
+            # pending
+            for entry in g.pending_entries[:]:
+                entry.enable()
+                g.pending_entries.remove(entry)
 
             # play loop
             if g.stage == "play":
@@ -2828,20 +2815,21 @@ def main(debug):
                             if not g.menu:
                                 if g.player.main == "tool":
                                     if g.player.tool is not None:
-                                        if 90 > g.player.angle > -90:
-                                            visual.angle -= 3
-                                            if visual.angle < -90:
-                                                visual.angle = 90
-                                        else:
-                                            visual.angle += 3
-                                            if visual.angle > 90:
-                                                visual.angle = -90
+                                        if not g.player.tool.endswith("_sword"):
+                                            if 90 > g.player.angle > -90:
+                                                visual.angle -= 3
+                                                if visual.angle < -90:
+                                                    visual.angle = 90
+                                            else:
+                                                visual.angle += 3
+                                                if visual.angle > 90:
+                                                    visual.angle = -90
 
                                 for block in g.player.closest_tool_blocks:
                                     if g.player.main == "block":
                                         if hov.rect.topleft == block.rect.topleft:
                                             # check whether the block is a food
-                                            if g.player.block is not None and is_in(g.player.block, finfo):
+                                            if g.player.amount is not None and is_in(g.player.block, finfo):
                                                 if is_eatable(g.player.block):
                                                     if g.player.amount > 0:
                                                         g.player.eat()
@@ -2856,25 +2844,23 @@ def main(debug):
                                                         g.first_affection = "place"
                                                     if g.first_affection == "place":
                                                         if not (block.rect.colliderect(g.player.rect) if g.str_mod != "_bg" else False) and g.player.block not in unplacable_blocks:
-                                                            if g.player.block is not None:
-                                                                block.name = g.player.block + g.str_mod
+                                                            if g.player.block:
+                                                                block.set(g.player.block + g.str_mod)
                                                                 if g.w.mode == "adventure":
                                                                     g.player.use_up_inv(g.player.itemi)
-                                                                block.utilize(block.name)
                                                                 # metadata
-                                                                if non_e(block.name) == "chest":
+                                                                if non_bg(block.name) == "chest":
                                                                     g.w.metadata[g.w.screen][block.abs_index]["chest"] = {}
+                                                        externally_update_entities()
                                                 elif stmt:
                                                     if g.first_affection is None:
                                                         g.first_affection = "break"
                                                     if g.first_affection == "break":
                                                         if g.w.mode == "adventure":
-                                                            if non_e(block.name) not in unbreakable_blocks:
+                                                            if non_bg(block.name) not in unbreakable_blocks:
                                                                 block.try_breaking()
                                                         elif g.w.mode == "freestyle":
-                                                            block.name = "air"
-                                                            block.image = g.w.blocks["air"].copy()
-                                                            update_block_states()
+                                                            block.try_breaking("freestyle")
                                                 else:
                                                     block.broken = 0
 
@@ -2896,7 +2882,7 @@ def main(debug):
                     Window.display.blit(g.menu_surf, (0, 0))
 
                 # day-night cycle
-                g.w.dnc_index = g.w.dnc_direc(g.w.dnc_index, fromperc(dt * 100, g.w.dnc_vel))
+                g.w.dnc_index = g.w.dnc_direc(g.w.dnc_index, fromperc(g.dt * 100, g.w.dnc_vel))
                 if g.w.dnc_index >= len(g.w.dnc_colors) - 1:
                     g.w.dnc_index = len(g.w.dnc_colors) - 1
                     g.w.dnc_direc = op.sub
@@ -2907,40 +2893,37 @@ def main(debug):
                     if g.w.hound_round_chance > 1:
                         g.w.hound_round_chance -= 1
 
-                # blocks
+                # right bar surf
+                if any([widget.checked for widget in pw.right_bar_widgets if isinstance(widget, Checkbox)]):
+                    pass
+                    #Window.display.blit(right_bar_surf, (Window.width - right_bar_surf.get_width(), 0))
+
+                # block stuff
                 for block in all_blocks:
                     if block.name != "air":
                         block.update()
                         if g.w.show_hitboxes:
                             pygame.draw.rect(Window.display, GREEN, block.rect, 1)
                             pygame.draw.rect(Window.display, GREEN, g.player.rect, 1)
+                    if block.name == "sv_soil":
+                        _h = round(sin(ticks() / 150) * 10)
+                        _yo = round(sin(ticks() / 280) * 5)
+                        _m15 = block.rect.y - 20
+                        _color = g.flame_rgb[_h * 5 - 1]
+                        pygame.gfxdraw.aaellipse(Window.display, block.rect.x + block.rect.width // 2, _m15 + _yo, 10, abs(_h), _color)
+                        pygame.gfxdraw.aaellipse(Window.display, block.rect.x + block.rect.width // 2, _m15 + _yo, abs(_h), 10, _color)
 
-                # death sreen
+                # death screen
                 if g.player.dead:
                     Window.display.blit(death_screen, (0, 0))
 
                 # projectiles
-                all_projectiles.draw(Window.display)
-                all_projectiles.update()
+                all_projectiles.function()
 
                 # foregorund sprites (also the player)
                 g.player.function()
                 all_foreground_sprites.draw(Window.display)
                 all_foreground_sprites.update()
-
-                # # snow
-                # if g.w.biome in ("snow", "mountain"):
-                #     if g.w.layer < 2:
-                #         if chance(1 / 1000):
-                #             g.w.naturals["snow"] = True
-                #         elif g.w.naturals["snow"] and chance(1 / 5000):
-                #             g.w.naturals["snow"] = False
-                # if g.w.layer < 2:
-                #     if g.w.naturals["snow"]:
-                #         if chance(1 / 1):
-                #             group(SnowParticle(), all_other_particles)
-                # else:
-                #     g.w.naturals["snow"] = False
 
                 # drops
                 for drop in all_drops:
@@ -2956,15 +2939,17 @@ def main(debug):
                         entity.update()
                     update_entity(entity)
 
-                # visual tool and block
-                visual.function()
-
                 # mobs
                 all_mobs.function()
 
+                # visual block and tool
+                visual.function()
+
                 # hovering
-                if not g.menu:
-                    hov.function()
+                hov.function()
+
+                if g.w.show_hitboxes:
+                    pygame.draw.rect(Window.display, GREEN, visual.rect, 1)
 
                 for block in all_blocks:
                     if int(block.broken) > 0:
@@ -3171,24 +3156,21 @@ def main(debug):
                     for rect in chest_rects:
                         if rect.collidepoint(g.mouse):
                             with suppress(IndexError, AttributeError):
-                                write(Window.display, "center", ishow(g.chest[chest_indexes[rect.topleft]][0]).lower(), orbit_fonts[15], BLACK, crafting_rect.centerx, 150)
+                                write(Window.display, "center", ishow(g.chest[chest_indexes[rect.topleft]][0]), orbit_fonts[15], BLACK, crafting_rect.centerx, 150)
 
-                if g.player.main == "block" and g.player.block is not None:
-                    block = ishow(g.player.block)
+                if g.player.main == "block" and g.player.block:
+                    if g.player.block in gun_blocks:
+                        block = gpure(g.player.block).upper()
+                    else:
+                        block = ishow(g.player.block).upper()
                     write(Window.display, "center", block, orbit_fonts[15], g.w.text_color, Window.width / 2 + 20, 90)
                 elif g.player.main == "tool" and g.player.tool is not None:
-                    tool = ishow(g.player.tool)
+                    tool = g.player.tool.replace("_", " ").upper()
                     write(Window.display, "center", tool, orbit_fonts[15], g.w.text_color, Window.width / 2 - 96 - 35, 90)
-                if no_widgets(Entry):
-                    if g.player.main == "block" and g.player.block:
-                        if g.mod == 1:
-                            block_mod = "background"
-                        elif g.mod == 64:
-                            block_mod = "jump-through"
-                        else:
-                            block_mod = ""
-                        if block_mod:
-                            write(Window.display, "center", f"[{block_mod.upper()}]", orbit_fonts[11], g.w.text_color, Window.width / 2 + 20, 110)
+                if g.mod == 1:
+                    if no_widgets(Entry):
+                        if g.player.main == "block" and g.player.block:
+                            write(Window.display, "center", "[BACKGROUND]", orbit_fonts[15], BLACK, Window.width / 2 + 30, 105)
                 write(Window.display, "center", f"| {g.w.screen + 1} |", orbit_fonts[20], g.w.text_color, Window.width - 25, 20)
 
                 # H O T B A R --------------------------------------------------------------------------------- #
@@ -3222,7 +3204,10 @@ def main(debug):
                 for index, block in enumerate(g.player.inventory):
                     if block is not None:
                         Window.display.cblit(g.w.blocks[block], (x, y))
-                        write(Window.display, "center", inf(g.player.inventory_amounts[index]), orbit_fonts[15], g.w.text_color, x, y + 24)
+                        if g.player.inventory_amounts[index] != float("inf"):
+                            write(Window.display, "center", g.player.inventory_amounts[index], orbit_fonts[15], g.w.text_color, x, y + 24)
+                        else:
+                            write(Window.display, "center", INF, arial_fonts[18], g.w.text_color, x, y + 27)
                     # border if selected
                     if g.player.main == "block":
                         if index == g.player.blocki:
@@ -3242,10 +3227,12 @@ def main(debug):
                             g.player.stats["lives"]["regen_time"] -= 0.5
                             g.player.stats["lives"]["last_regen"] = ticks()
 
-                    # g.player food chart
+                    # player food chart
                     if "image" in g.player.food_pie and "rect" in g.player.food_pie:
                         g.player.food_pie["rect"].midbottom = (g.player.rect.centerx, g.player.rect.top - 25)
                         Window.display.blit(g.player.food_pie["image"], g.player.food_pie["rect"])
+                        if g.w.show_hitboxes:
+                            pygame.draw.rect(Window.display, GREEN, g.player.food_pie["rect"], 1)
 
             # home loop
             elif g.stage == "home":
@@ -3281,20 +3268,20 @@ def main(debug):
             if g.skin_menu:
                 # background (filling)
                 Window.display.cblit(g.skin_menu_surf, (Window.width / 2, Window.height / 2))
-                Window.display.cblit(g.player_model, (Window.width / 2, Window.height / 2))
+                Window.display.cblit(g.w.player_model, (Window.width / 2, Window.height / 2))
                 # skins (showcase)
                 for bt in g.skins:
                     if g.skin_data(bt)["sprs"]:
                         try:
                             g.skin_anims[bt] += g.skin_anim_speed
                             skin_img = g.skin_data(bt)["sprs"][int(g.skin_anims[bt])]
-                            skin_pos = g.skin_data(bt)["pos"]
+                            skin_pos = g.skin_data(bt)["offset"]
                             Window.display.blit(skin_img, (g.player_model_pos[0] + skin_pos[0] * g.skin_fppp, g.player_model_pos[1] + skin_pos[1] * g.skin_fppp))
                         except IndexError:
                             g.skin_anims[bt] = 0
                             g.skin_anims[bt] += g.skin_anim_speed
                             skin_img = g.skin_data(bt)["sprs"][int(g.skin_anims[bt])]
-                            skin_pos = g.skin_data(bt)["pos"]
+                            skin_pos = g.skin_data(bt)["offset"]
                             Window.display.blit(skin_img, (g.player_model_pos[0] + skin_pos[0] * g.skin_fppp, g.player_model_pos[1] + skin_pos[1] * g.skin_fppp))
 
                 # buttons (arrows)
@@ -3310,8 +3297,8 @@ def main(debug):
             draw_and_update_widgets()
 
             # screen shake (offsetting the render)
-            if g.screenshake > 0:
-                g.screenshake -= 1
+            if g.screen_shake > 0:
+                g.screen_shake -= 1
                 g.render_offset = (rand(-g.s_render_offset, g.s_render_offset), rand(-g.s_render_offset, g.s_render_offset))
             else:
                 g.render_offset = (0, 0)

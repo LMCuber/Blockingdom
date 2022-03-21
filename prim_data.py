@@ -20,6 +20,8 @@ class Entity:
     entity_imgs["portal"] = cimgload("Images", "Spritesheets", "portal.png", frames=7)
     entity_imgs["camel"] = img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2))
     entity_imgs["fluff_camel"] = cimgload("Images", "Mobs", "fluff_camel.png", frames=4)
+    entity_imgs["penguin"] = cimgload("Images", "Mobs", "penguin.png", frames=4)
+    entity_imgs["penguin_sliding"] = cimgload("Images", "Mobs", "penguin.png", frames=4, rotation=-90)
     #entity_imgs["penguin"] = cimgload("Images", "Mobs", "penguin.png", frames=TODO)
 
     def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", traits=None, smart_vector=False, **kwargs):
@@ -27,6 +29,7 @@ class Entity:
         self.init_images(img_data, "images")
         self.smart_vector = smart_vector
         self.traits = traits if traits is not None else []
+        self.species = self.traits[0]
         if not smart_vector:
             self._rect = self.image.get_rect(topleft=(x, y))
             setattr(self.rect, anchor, pos)
@@ -41,7 +44,24 @@ class Entity:
         for k, v in kwargs.items():
             setattr(self, k, v)
         if "camel" in self.traits:
-            self.init_images(img_data, "h_images")
+            self.init_images("camel", "h_images")
+            self.xvel = 0.2
+        if "penguin" in self.traits:
+            self.init_images("penguin", "h_images")
+            self.init_images("penguin", "images")
+            self.init_images("penguin_sliding", "h_sliding_images")
+            self.init_images("penguin_sliding", "sliding_images")
+            self.penguin_spinning = False
+            self.xvel = 0.2
+            self.penguin_sliding = False
+        self.taking_damage = False
+        self.last_took_damage = ticks()
+        self.health = 100
+        self.dying = False
+
+    @property
+    def mask(self):
+        return pygame.mask.from_surface(self.image)
 
     def init_images(self, img_data, name):
         if isinstance(img_data, list):
@@ -61,8 +81,10 @@ class Entity:
         self.image = self.images[int(self.anim)]
 
     def update(self):
-        self.animate()
-        self.logic()
+        if not self.dying:
+            getattr(self, f"{self.species}_animate", self.animate)()
+            getattr(self, f"{self.species}_function", lambda: None)()
+            self.regenerate()
         self.draw()
 
     @property
@@ -97,20 +119,29 @@ class Entity:
         self.x = value - self.image.get_width() / 2
 
     @property
-    def bottom(self):
-        return self.y + self.image.get_height()
-
-    @bottom.setter
-    def bottom(self, value):
-        self.y = value - self.image.get_height()
-
-    @property
     def centery(self):
         return self.y + self.image.get_height() / 2
 
     @centery.setter
     def centery(self, value):
         self.y = value - self.image.get_height() / 2
+
+    @property
+    def center(self):
+        return (self.centerx, self.centery)
+
+    @center.setter
+    def center(self, value):
+        self.centerx = value[0]
+        self.centery = value[1]
+
+    @property
+    def bottom(self):
+        return self.y + self.image.get_height()
+
+    @bottom.setter
+    def bottom(self, value):
+        self.y = value - self.image.get_height()
 
     @property
     def width(self):
@@ -121,33 +152,70 @@ class Entity:
         return self.image.get_height()
 
     def movex(self, amount):
-        self.x += amount
-        self.dx += amount
-        if self.dx >= 30:
-            self.dx = 0
-            self.index += 1
+        if not self.dying:
+            self.x += amount
+            self.dx += amount
+            if self.dx >= 30:
+                self.dx = 0
+                self.index += 1
 
     def draw(self):
+        image = self.image.copy()
+        if self.taking_damage:
+            #image.fill((255, 0, 0, 125), special_flags=BLEND_RGB_ADD)
+            image = color_filter(image)
         if not self.smart_vector:
-            Window.display.blit(self.image, self.rect)
+            Window.display.blit(image, self.rect)
         else:
-            Window.display.blit(self.image, (self.x, self.y))
+            Window.display.blit(image, (self.x, self.y))
 
     def animate(self):
         self.anim += g.p.anim_fps
         try:
-           self.images[int(self.anim)]
+            self.images[int(self.anim)]
         except IndexError:
             self.anim = 0
         finally:
             self.image = (self.images if self.xvel >= 0 else self.h_images)[int(self.anim)]
 
-    def logic(self):
-        pass
+    def penguin_animate(self):
+        self.anim += g.p.anim_fps if self.penguin_spinning else 0
+        try:
+            self.images[int(self.anim)]
+        except IndexError:
+            self.anim = 0
+            self.penguin_spinning = False
+        finally:
+            if self.penguin_sliding:
+                self.image = (self.sliding_images if self.xvel >= 0 else self.h_sliding_images)[int(self.anim)]
+            else:
+                self.image = (self.images if self.xvel >= 0 else self.h_images)[int(self.anim)]
+        if not self.penguin_spinning and not self.penguin_sliding and chance(1 / 500):
+            self.penguin_spinning = True
+        elif not self.penguin_sliding and not self.penguin_spinning and chance(1 / 1000):
+            self.penguin_sliding = True
+        elif self.penguin_sliding and chance(1 / 500):
+            self.penguin_sliding = False
+
+    def regenerate(self):
+        if self.taking_damage and ticks() - self.last_took_damage >= 300:
+            self.taking_damage = False
+
+    def die(self):
+        self.dying = True
+        def t():
+            og_img = self.image.copy()
+            for i in range(90):
+                self.image = SmartSurface.from_surface(pygame.transform.rotozoom(og_img, -i, 1))
+                time.sleep(0.0005)
+            time.sleep(0.7)
+            if self in g.w.entities:
+                g.w.entities.remove(self)
+        Thread(target=t).start()
 
 
 # F U N C T I O N S ------------------------------------------------------------------------------------ #
-def color_base(block_type, colors, unplacable=False):
+def color_base(block_type, colors, unplacable=False, sep="-"):
     base_block = a.blocks[f"base-{block_type}"]
     w, h = base_block.get_size()
     for name, color in colors.items():
@@ -161,7 +229,7 @@ def color_base(block_type, colors, unplacable=False):
                         colored_block.set_at((x, y), rgb_mult(color, rgb[0] / 255))
                     else:
                         colored_block.set_at((x, y), BLACK)
-        block_name = f"{name}-{block_type}"
+        block_name = f"{name}{sep}{block_type}"
         a.blocks[block_name] = colored_block
         if unplacable:
             unplacable_blocks.append(block_name)
@@ -223,6 +291,27 @@ def get_avatar():
     return img
 
 
+def get_robot():
+    half = pygame.Surface((5, 10))
+    color = [rand(0, 255) for _ in range(3)]
+    for y in range(half.get_height()):
+        for x in range(half.get_width()):
+            if chance(1 / 2.7):
+                half.set_at((x, y), color)
+    ret = pygame.Surface((half.get_width() * 2, half.get_height()))
+    ret.blit(half, (0, 0))
+    ret.blit(pygame.transform.flip(half, True, False), (ret.get_width() / 2, 0))
+    ret = pygame.transform.scale(ret, (30, 30))
+    return ret
+
+
+def get_name():
+    ret = ""
+    for _ in range(rand(4, 8)):
+        if not ret:
+            pass
+
+
 def norm_ore(ore):
     return ore.removesuffix("en")
 
@@ -281,7 +370,7 @@ def load_blocks():
     block_list = [
         ["air",        "bucket",           "apple",     "bamboo",        "cactus",        "watermelon",       "rock"      ],
         ["chest",      "snow",             "coconut",   "coconut-piece", "command-block", "wood",             "bush"      ],
-        ["base-pipe",  "dirt",             "dynamite",  "fire",           None,           "watermelon-piece", "grass1"    ],
+        ["base-pipe",  "dirt",             "dynamite",  "fire",          "magic-brick",   "watermelon-piece", "grass1"    ],
         ["hay",        "base-curved-pipe", "leaf",      "grave",         "sand",          "workbench",        "grass2"    ],
         ["snow-stone", "soil",             "stone",     "vine",          "wooden-planks", "a_wooden-planks",  "stick"     ],
         ["anvil",      "furnace",          "p_soil",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore"  ],
@@ -372,6 +461,7 @@ def load_icons():
     for y, layer in enumerate(icon_list):
         for x, tool in enumerate(layer):
             a.icons[tool] = icon_sprs.subsurface(x * 15, y * 15, 15, 15)
+    a.icons["armor"] = a.blocks["base-armor"].subsurface((0, 15, 30, 15))
     a.og_icons = {k: v.copy() for k, v in a.icons.items()}
 
 
@@ -381,6 +471,7 @@ def load_sizes():
             a.sizes[name] = img.get_size()
 
 
+tool_tiringnesses = {"sickle": 1}
 tool_rarity_colors = {"wood": DARK_WOOD_BROWN, "stone": STONE_GRAY, "iron": LIGHT_GRAY, "gold": GOLD_YELLOW, "emerald": LIGHT_GREEN}
 tool_rarity_mults = {}
 mult = 1
@@ -443,11 +534,13 @@ burnable_blocks = []
 
 finfo = {
     "apple":
-        {"amounts": {"thirst": 3, "hunger": 7}, "speed": 2},
+        {"amounts": {"thirst": 3, "hunger": 3}, "speed": 2},
     "coconut-piece":
-        {"amounts": {"thirst": 4, "hunger": 4}, "speed": 1},
+        {"amounts": {"thirst": 4, "hunger": 2}, "speed": 1},
     "watermelon":
-        {"amounts": {"thirst": 6, "hunger": 5}, "speed": 0.8}
+        {"amounts": {"thirst": 6, "hunger": 4}, "speed": 0.8},
+    "chicken":
+        {"amounts": {"hunger": 6}, "speed": 1.2}
 }
 
 fuinfo = {
@@ -461,6 +554,12 @@ cinfo = {
     "anvil": {"recipe": {"stone": 1}, "energy": 10},
     "portal-generator": {"recipe": {"water": 1}}
 }
+
+# mob info
+minfo = {
+    "penguin": {True: "", False: {"chicken": 3}}
+}
+
 
 c = 2
 for ore in oinfo:
@@ -490,9 +589,19 @@ for tool in a.tools:
         o = norm_ore(o) + ("-ingot" if o != "wood" else "")
         ainfo[tool] = {"recipe": {o: 2, "stick": 1}, "energy": 8}
 
+# transparent blocks
+transparent_blocks = []
+for name, img in a.blocks.items():
+    with suppress(BreakAllLoops):
+        for y in range(img.get_height()):
+            for x in range(img.get_width()):
+                if img.get_at((x, y)) == (0, 0, 0, 0):
+                    transparent_blocks.append(name)
+                    raise BreakAllLoops
+
 # colored blocks
-color_base("orb", orb_colors, True)
-color_base("armor", ore_colors, True)
+color_base("orb", orb_colors, unplacable=True)
+color_base("armor", ore_colors, unplacable=True)
 
 # rotations
 rotate_base("pipe", 2)
