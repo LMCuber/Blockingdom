@@ -31,25 +31,59 @@ VL = 20
 L = VL * HL
 BS = 30
 R = 3
+CS = 8
 MHL = HL * BS / R
 MVL = VL * BS / R
 wb_icon_size = 132, 90
 
 
 class Window:
-    width = HL * BS
-    height = VL * BS
-    size = (width, height)
-    center = tuple(s / 2 for s in size)
-    pygame.display.set_caption(f"Blockingdom {System.version}")
-    window = pygame.display.set_mode((width, height))
-    # window = pygame.display.set_mode((pygame.display.Info().current_w, pygame.display.Info().current_h))
-    display = SmartSurface(size)
-    center_window()
+    @classmethod
+    def init(cls, size, debug=False, *args, **kwargs):
+        cls.center = tuple(s // 2 for s in size)
+        cls.update_caption()
+        # window
+        cls.window = pygame.display.set_mode(size, *args, **kwargs)
+        # cls.window = pygame.display.set_mode(size, pygame.FULLSCREEN)
+        # cls.window = pygame.display.set_mode((pygame.display.Info().current_w, pygame.display.Info().current_h))
+        # display
+        cls.display = pygame.Surface(size)
+        cls.center = tuple(s // 2 for s in cls.display.get_size())
+        cls.size = (cls.width, cls.height) = cls.display.get_size()
+        cls.diagonal = hypot(cls.width, cls.width)
+        if debug:
+            pos = (pygame.display.Info().current_w / 2 - cls.width / 2, 0)
+            os.environ["SDL_VIDEO_WINDOW_POS"] = ",".join(str(int(c)) for c in pos)
+        center_window()
+
+    @classmethod
+    def update_caption(cls):
+        """pygame.display.set_caption("\u15FF"   # because
+                                   "\u0234"      # because
+                                   "\u1F6E"      # because
+                                   "\u263E"      # because
+                                   "\u049C"      # because
+                                   "\u0390"      # because
+                                   "\u2135"      # because
+                                   "\u0193"      # because
+                                   "\u15EB"      # because
+                                   "\u03A6"      # because
+                                   "\u722A"
+                                   "")  # because"""
+        pygame.display.set_caption(f"Blockingdom {System.version}")
+
+
+R = 3
+BS = 10 * R
+BP = 10
+HL = 27
+VL = 20
+L = VL * HL
+Window.init((BP * HL * R, BP * VL * R), debug=False)
 
 
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
-cimgload = partial(imgload, scale=3)
+cimgload = partial(imgload, scale=R)
 # backgrounds
 inventory_img = cimgload("Images", "Background", "inventory.png")
 inventory_width = inventory_img.get_width()
@@ -330,6 +364,7 @@ class Game:
         self.loading_world_text = None
         # dynamic other
         self.cannot_place_block = False
+        self.process_messageboxworld = True
         # rendering
         self.screen_shake = 0
         self.render_offset = (0, 0)
