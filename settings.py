@@ -25,32 +25,36 @@ class System:
         maj, min, pat = version.split(".")
 
 
+class DictWithoutException(dict):
+    def __getitem__(self, item):
+        try:
+            return super().__getitem__(item)
+        except KeyError:
+            return DictWithoutException()
+
+    def __repr__(self):
+        return f"DWI({dict(self)})"
+
+
 # W I N D O W ------------------------------------------------------------------------------------------ #
-HL = 27
-VL = 20
-L = VL * HL
-BS = 30
-R = 3
-CS = 8
-MHL = HL * BS / R
-MVL = VL * BS / R
-wb_icon_size = 132, 90
-
-
 class Window:
     @classmethod
     def init(cls, size, debug=False, *args, **kwargs):
         cls.center = tuple(s // 2 for s in size)
         cls.update_caption()
         # window
-        cls.window = pygame.display.set_mode(size, *args, **kwargs)
-        # cls.window = pygame.display.set_mode(size, pygame.FULLSCREEN)
-        # cls.window = pygame.display.set_mode((pygame.display.Info().current_w, pygame.display.Info().current_h))
+        cls.window_size = [s * S for s in size]
+        cls.window_width, cls.window_height = cls.window_size
+        cls.window = pygame.display.set_mode(cls.window_size, *args, **kwargs)
         # display
         cls.display = pygame.Surface(size)
+        cls.scaled = pygame.Surface([s * S for s in cls.display.get_size()])
         cls.center = tuple(s // 2 for s in cls.display.get_size())
         cls.size = (cls.width, cls.height) = cls.display.get_size()
         cls.diagonal = hypot(cls.width, cls.width)
+        # pymunk space
+        cls.space = pymunk.Space()
+        cls.space.gravity = (0, -3_000)
         if debug:
             pos = (pygame.display.Info().current_w / 2 - cls.width / 2, 0)
             os.environ["SDL_VIDEO_WINDOW_POS"] = ",".join(str(int(c)) for c in pos)
@@ -73,14 +77,22 @@ class Window:
         pygame.display.set_caption(f"Blockingdom {System.version}")
 
 
-R = 3
+R = 1
+S = 3
 BS = 10 * R
 BP = 10
-HL = 27
-VL = 20
+HL = 35
+VL = 25
 L = VL * HL
+CW, CH = 8, 16
+MHL = HL * BS / R
+MVL = VL * BS / R
+wb_icon_size = 132, 90
 Window.init((BP * HL * R, BP * VL * R), debug=False)
-
+# Window.init((300, 200), debug=False)
+# Window.init((BP * HL * R, BP * VL * R), flags=pygame.SCALED, vsync=1, debug=True)
+H_CHUNKS = ceil(Window.width / (CW * BS)) + 2 - 1
+V_CHUNKS = ceil(Window.height / (CH * BS)) + 2 - 1
 
 # V I S U A L  &  B G  I M A G E S --------------------------------------------------------------------- #
 cimgload = partial(imgload, scale=R)
@@ -91,7 +103,6 @@ extended_inventory_img = cimgload("Images", "Background", "extended_inventory.pn
 extended_inventory_rect = extended_inventory_img.get_rect(topleft=(0, 138))
 tool_holders_img = cimgload("Images", "Background", "tool_holders.png")
 tool_holders_width = tool_holders_img.get_width()
-square_border_img = cimgload("Images", "Background", "square_border.png")
 pouch_img = cimgload("Images", "Background", "pouch.png")
 pouch_icon = cimgload("Images", "Background", "pouch_icon.png")
 pouch_width = pouch_img.get_width()
@@ -100,19 +111,24 @@ lock = cimgload("Images", "Player_Skins", "lock.png")
 frame_img = scale3x(cimgload("Images", "Background", "frame.png"))
 armor_indicator = cimgload("Images", "Background", "armor_indicator.png")
 bag_img = cimgload("Images", "Background", "bag.png")
+logo_img = cimgload("Images", "Background", "logo.png", scale=3)
+
+# surfaces
 bag_rect = bag_img.get_rect(topleft=(24, 157))
 bag_mask = pygame.mask.from_surface(bag_img)
-clouds1_img = cimgload("Images", "Background", "clouds1.png")
+clouds = {i + 1: cimgload("Images", "Background", f"cloud{i + 1}.png") for i in range(1)}
 cursor_img = pygame.Surface((10, 10), pygame.SRCALPHA)
 cursor_img.fill(WHITE, (4, 0, 2, 10))
 cursor_img.fill(WHITE, (0, 4, 10, 2))
-parallaxes = {"clouds1": clouds1_img}
+black_square = pygame.Surface((BS, BS), pygame.SRCALPHA).convert_alpha()
 
 # visuals
+square_border_img = cimgload("Images", "Visuals", "square_border.png")
 arrow_sprs = cimgload("Images", "Spritesheets", "arrow.png", frames=11)
 shower_sprs = cimgload("Images", "Spritesheets", "shower.png", frames=9)
 chest_template = cimgload("Images", "Visuals", "chest_template.png")
 leaf_img = cimgload("Images", "Visuals", "leaf.png")
+breaking_sprs = cimgload("Images", "Visuals", "breaking.png", frames=4)
 right_bar_surf = pygame.Surface((50, 200)); right_bar_surf.fill(LIGHT_GRAY)
 death_screen = pygame.Surface(Window.size); death_screen.fill(RED); death_screen.set_alpha(150)
 cartridge_img = pygame.Surface((10, 3))
@@ -188,6 +204,7 @@ all_blocks =                    SmartList()
 all_drops =                     SmartGroup()
 all_particles =                 SmartGroup()
 all_other_particles =           SmartList()
+all_background_sprites =        SmartList()
 all_projectiles =               SmartGroup()
 all_foreground_sprites =        pygame.sprite.Group()
 all_home_sprites =              pygame.sprite.Group()
@@ -228,11 +245,10 @@ class Game:
         self.fps_cap = 120
         self.dt = None
         self.events_locked = False
-        self.wg = random.Random()
-        self.noise = Noise(self.wg)
+        self.debug = True
         # constants
         self.fppp = 3
-        self.player_size = (27, 27)
+        self.player_size = [9 * R, 9 * R]
         self.skin_scale_mult = 5
         self.skin_fppp = 15
         self.player_model_pos = (338, 233)
@@ -324,6 +340,9 @@ class Game:
         # rendering
         self.fake_scroll = [0, 0]
         self.scroll = [0, 0]
+        self.extra_scroll = [0, 0]
+        self.saving_structure = False
+        self.structure = {}
         self.screenshake = 0
         self.s_render_offset = None
         self.render_offset = [0, 0]
@@ -351,10 +370,10 @@ class Game:
         self.random_word_url = r"http://api.wordnik.com/v4/words.json/randomWords?hasDictionaryDef=true&minCorpusCount=0&minLength=5&maxLength=15&limit=1&api_key=a2a73e7b926c924fad7001ca3111acd55af2ffabf50eb4ae5"
         self.achievements = {}
         # dynamic surfaces
-        if isfile(path("Images", "Background", "home_bg.png")):
+        try:
             self.home_bg_img = imgload("Images", "Background", "home_bg.png")
             self.home_bg_img.set_alpha(100)
-        else:
+        except Exception:
             self.home_bg_img = self.bglize(cimgload("Images", "Background", "def_home_bg.png"))
         self.home_bg_size = self.home_bg_img.get_size()
         self.fog_img = SmartSurface(Window.size)
@@ -423,6 +442,13 @@ g = Game()
 
 
 # F U N C T I O N S ----------------------------------------------------------------------------------- #
+def darken(pg_img, factor):
+    alpha = 255 - (factor * 255)
+    black_square.fill((0, 0, 0, alpha))
+    pg_img.blit(black_square, (0, 0))
+    return pg_img
+
+
 def is_in(elm, seq):
     if isinstance(seq, dict):
         itr = iter(seq.keys())
@@ -479,7 +505,4 @@ def gpure(str_):
 
 
 # L A M B D A S ---------------------------------------------------------------------------------------- #
-...
-
-# icons
-breaking_sprs = cimgload("Images", "Visuals", "breaking.png", frames=4)
+pass

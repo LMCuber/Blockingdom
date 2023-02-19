@@ -3107,10 +3107,10 @@ last_qwe = perf_counter()
 # M A I N  L O O P ------------------------------------------------------------------------------------ #
 def main(debug):
     with nullcontext() if debug else redirect_stdout(open(os.devnull, "w")):
-        # cursors
-        set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.mb.crafting is not None)
-        set_cursor_when(pygame.SYSTEM_CURSOR_CROSSHAIR, lambda: g.stage == "play")
-        set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.stage != "play")
+        # # cursors
+        # set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.mb.crafting is not None)
+        # set_cursor_when(pygame.SYSTEM_CURSOR_CROSSHAIR, lambda: g.stage == "play")
+        # set_cursor_when(pygame.SYSTEM_CURSOR_ARROW, lambda: g.stage != "play")
         # lasts
         last_rain_partice = ticks()
         last_snow_particle = ticks()

@@ -64,19 +64,19 @@ def rand_block(*args):
 
 class Biome:
     def __init__(self):
-        self.heights = {"forest": 5, "desert": 5, "beach": 3, "mountain": 10, "industry": 2, "wasteland": 3}
-        self.blocks = {"forest":   ("soil_f", "dirt"),           "desert":    ("sand", "sand"),
+        self.heights = {"forest": 4, "desert": 4, "beach": 2, "mountain": 9, "industry": 2, "wasteland": 2}
+        self.blocks = {"forest":   ("soil_f", "dirt_f"),         "desert":    ("sand", "sand"),
                        "beach":    ("sand", "sand"),             "mountain":  ("snow-stone", "stone"),
-                       "swamp":    ("soil_sw", "dirt"),          "prairie":   ("hay", "dirt"),
-                       "jungle":   ("soil_f", "dirt"),           "savanna":   ("soil_sv", "dirt"),
-                       "industry": ("soil_p", "dirt"),           "wasteland": ("dirt", "dirt"),
+                       "swamp":    ("soil_sw", "dirt_f"),         "prairie":   ("hay", "dirt_f"),
+                       "jungle":   ("soil_f", "dirt_f"),          "savanna":   ("soil_sv", "dirt_f"),
+                       "industry": ("soil_p", "dirt_f"),          "wasteland": ("dirt_f", "dirt_f"),
                        "volcano":  ("blackstone", "blackstone"), "arctic":    ("snow", "snow")}
         self.tree_heights = {"swamp": 4, "jungle": 8, "savanna": 10, "beach": 6}
         self.tree_chances = {"forest": 8, "beach": 16, "swamp": 7, "jungle": 6, "savanna": 20}
         self.wood_types = {"savanna": "wood_sv"}
         self.fill_chances = {"forest": ("water", 3), "beach": ("water", 3), "swamp": ("water", 5), "jungle": ("water", 4),
                              "savanna": ("water", 100), "volcano": ("lava", 3)}
-        self.flatnesses = {"forest": 1, "industry": 10, "beach": 10}
+        self.flatnesses = {"forest": 7, "industry": 10, "beach": 10}
         self.biomes = list(self.blocks.keys())
 
 
@@ -332,3 +332,132 @@ def world_modifications(data, metadata, screen, layer, biome, blockindex, blockn
             while len(md["chest"]) < 25:
                 md["chest"].append((None, None))
     return entities
+
+
+def world_modifications(chunk: (int, int), metadata: DictWithoutException, biome: str, chunk_pos: (int, int), r) -> list:
+    def set(pos, name):
+        chunk[pos] = Block(name)
+        metadata[pos] = {"light": 1}
+
+    # init
+    prim, sec = bio.blocks[biome]
+    entities = []
+    rel_x = rel_y = xo = yo = 0
+    rel_xy = (rel_x, rel_y)
+    abs_x, abs_y = chunk_pos[0] * BS, chunk_pos[1] * BS
+    min_x = min_y = float("inf")
+    # chunk chances
+    keno_avail = True
+    # dynamic chances
+    for pos, block in chunk.copy().items():
+        # init
+        x, y = pos
+        name = block.name
+        x, y = pos
+        if x < min_x:
+            min_x = x
+        if y < min_y:
+            min_y = y
+        rel_x, rel_y = x % CW, y % CH
+        rel_xy = (rel_x, rel_y)
+        rel_x_blocks = rel_x * BS
+        rel_y_blocks = rel_y * BS
+        rel_pos = (rel_x_blocks, rel_y_blocks)
+        abs_pos = abs_x_blocks, abs_y_blocks = chunk_pos[0] * BS + rel_x_blocks, chunk_pos[1] * BS + rel_y_blocks
+
+        if biome == "forest":
+            if name == prim:
+                # serial
+                if chance(1 / 3):  # grass
+                    # chunk[(pos[0], pos[1] - 1)] = f"grass{rand(1, 2)}_bg"
+                    grass_x, grass_y = pos[0], pos[1] - 1
+                    set((grass_x, grass_y), "grass_f")
+                elif chance(1 / 25):  # watermelon
+                    set((pos[0], pos[1] - 1), "watermelon_bg")
+                # parallel
+                if chance(1 / 10):  # tree
+                    if 0 < rel_x < CW:
+                        tree_height = nordis(10, 4)
+                        wood_x = pos[0]
+                        for tree_yo in range(tree_height):
+                            wood_y = pos[1] - (tree_yo + 1)
+                            wood_pos = (wood_x, wood_y)
+                            left_leaf_pos = (wood_x - 1, wood_y)
+                            right_leaf_pos = (wood_x + 1, wood_y)
+                            leaf_chance = 1 / (tree_height - tree_yo)
+                            suffix = ""
+                            if chance(leaf_chance):
+                                set(left_leaf_pos, "leaf_f_bg")
+                                suffix += "L"
+                            if chance(leaf_chance):
+                                set(right_leaf_pos, "leaf_f_bg")
+                                suffix += "R"
+                            suffix = suffix if suffix else "N"
+                            set(wood_pos, f"wood_f_vr{suffix}_bg")
+                            if tree_yo == tree_height - 1:
+                                set((wood_x, wood_y - 1), "leaf_f_bg")
+                                set(wood_pos, "wood_f_vrLTR_bg")
+
+                if chance(1 / Entity.attrs["chicken"]["chance"]):
+                    e = Entity("chicken", ["chicken", "mob", "moving"], metadata["index"], rel_xy)
+                    # metadata["entities"].append(e)
+                    entities.append(e)
+
+        elif biome == "savanna":
+            if name == "prim":
+                pass
+
+        elif biome == "swamp":
+            if name == prim:
+                if chance(1 / 20):  # daivinus
+                    set((pos[0], pos[1] - 1), "daivinus_bg")
+
+        elif biome == "arctic":
+            if name == prim and chunk[(x, y - 1)] == "air":
+                if chance(1 / 20):  # penguin
+                    e = Entity("penguin", ["penguin", "moving", "mob", "passive"], abs_pos, chunk_pos, rel_pos)
+                    metadata["entities"].append(e)
+
+    max_x, max_y = min_x + CW, min_y + CH
+    for pos, name in chunk.copy().items():
+        x, y = pos
+        if min_x <= x < max_x and min_y <= y < max_y:
+            continue
+        # del chunk[pos]
+        # del metadata[pos]
+
+    return entities
+
+
+def world_modifications(data, width, height):
+    def set(name, xpos, ypos):
+        with suppress(IndexError):
+            data[xpos][ypos] = Block(name)
+
+    def get(xpos, ypos):
+        try:
+            return data[xpos][ypos].name
+        except IndexError:
+            return None
+
+    for x in range(width):
+        for y in range(height):
+            block = data[x][y]
+            name = block.name
+            if name == "sand":
+                if get(x, y - 1) == "air":
+                    if chance(1 / 10):
+                        for (xo, yo), setto in structures["pyramid"].items():
+                            set(setto, x + xo, y + yo)
+
+pyramid = dict.fromkeys([(-2, 0), (-1, -1), (0, -2), (1, -1), (2, 0), (1, 0), (0, 0), (-1, 0)], "sand") \
+        | dict.fromkeys([(-1, 0), (0, -1), (1, 0)], "sand_bg") \
+        | {(0, 0): "chest"}
+
+with open("structures.json", "r") as f:
+    try:
+        structures = json.load(f)
+    except json.decoder.JSONDecodeError:
+        structures = {}
+    else:
+        structures = {k: {tuple(int(x) for x in pos.split(",")): block for pos, block in v.items()} for k, v in structures.items()}

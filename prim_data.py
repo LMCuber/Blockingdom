@@ -25,13 +25,23 @@ orb_names_r = {v: k for k, v in orb_names.items()}
 rotations2 = {0: 90, 90: 0}
 rotations4 = {90: 0, 0: 270, 270: 180, 180: 90}
 rotations4_stairs_tup = (0, "270_0_hor", "180_0_hor_ver", "90_0_ver")
-unplacable_blocks = []
+unplaceable_blocks = []
 
 # additional constants
 vel_mult = 1
 
 
 # C L A S S E S ---------------------------------------------------------------------------------------- #
+class Block:
+    def __init__(self, name):
+        self.name = name
+        self.angle = 0
+        self.sin = rand(0, 500)
+        self.waters = []
+        self.collided = False
+        self.broken = 0
+
+
 class Vel:
     def __init__(self, val):
         self.val = val
@@ -40,95 +50,157 @@ class Vel:
         return str(self.val)
 
 
-class Entity:
-    entity_imgs = {
+class Scrollable:
+    @property
+    def rect(self):
+        return pygame.Rect(self._rect.x - g.scroll[0], self._rect.y - g.scroll[1], *self._rect.size)
+
+    @property
+    def rrect(self):
+        return pygame.Rect([r * 3 for r in self.rect])
+
+
+class Entity(Scrollable, SmartVector):
+    imgs = {
         "portal": cimgload("Images", "Spritesheets", "portal.png", frames=7),
         "camel": img_mult(cimgload("Images", "Mobs", "camel.png"), randf(0.8, 1.2)),
         "fluff_camel": cimgload("Images", "Mobs", "fluff_camel.png", frames=4),
         "penguin": cimgload("Images", "Mobs", "penguin.png", frames=4),
         "penguin_sliding": cimgload("Images", "Mobs", "penguin.png", frames=4, rotation=-90),
+        "snowman": cimgload("Images", "Mobs", "snowman.png", frames=4),
         "hallowskull": cimgload("Images", "Mobs", "hallowskull.png", frames=4),
-        "snowman": cimgload("Images", "Mobs", "snowman.png", frames=4)
+        "keno": cimgload("Images", "Mobs", "bushes.png", frames=3, end_frame=1),
+        "bok-bok": cimgload("Images", "Mobs", "bok-bok.png", frames=4),
+        "chicken": cimgload("Images", "Mobs", "chicken.png", frames=2),
     }
-    entity_imgs["idle_hallowskull"] = entity_imgs["hallowskull"][0:4]
-    entity_xvels = {
-        "camel": 0.2,
-        "penguin": 0.2,
+    imgs["idle_hallowskull"] = imgs["hallowskull"][0:4]
+    attrs = {"penguin":     {"hp": 100},
+             "fluff-camel": {"hp": 110},
+             "camel":       {"hp":  80},
+             "keno":        {"hp": 250},
+             "bok-bok":     {"hp":  60, "xvel": 2.2},
+             "chicken":     {"hp":  40, "xvel": 0.3, "gravity": 0.1, "chance": 100, "drops": {"chicken": 1}}
     }
-    def __init__(self, img_data, pos, screen, layer, anchor="bottomleft", traits=None, smart_vector=True, **kwargs):
+    def __init__(self, img_data, traits, chunk_index, rel_pos, anchor="bottomleft", smart_vector=True, **kwargs):
         # init
         self.anim = 0
         self.init_images(img_data, "images")
+        self.og_chunk_index = chunk_index
+        self.chunk_index = list(chunk_index)
+        self.x = chunk_index[0] * CW * BS + rel_pos[0] * BS
+        self.y = chunk_index[1] * CH * BS + rel_pos[1] * BS
+        self.pos = self.x, self.y
         self.smart_vector = smart_vector
-        self.traits = traits if traits is not None else []
+        self.traits = traits
         self.species = self.traits[0]
+        self.attrs = Entity.attrs[self.species]
         if smart_vector:
             if anchor == "bottomleft":
-                self.left, self.bottom = pos
-            else:
-                self.x, self.y = pos
-                self.dx = 0
+                self.left, self.bottom = self.pos
         else:
-            self._rect = self.image.get_rect()
-            setattr(self.rect, anchor, pos)
-        self.screen = screen
-        self.layer = layer
+            self.og_rect = self.image.get_rect()
+            setattr(self.og_rect, anchor, self.pos)
+        self.og_pos = self._rect.topleft
+        self.dx = 0
         self.sizes = [image.get_size() for image in self.images]
         self.xvel = 0
         self.yvel = 0
-        self.gravity = 0.25
-        for k, v in kwargs.items():
+        self.gravity = self.attrs.get("gravity", 0.2)
+        self.paused = False
+        for k, v in (Entity.attrs.get(self.species, {}) | kwargs).items():
             setattr(self, k, v)
+
         # species
         if self.species == "camel":
             self.init_images("camel", "h_images")
-            self.xvel = 0.2
         if self.species == "penguin":
             self.init_images("penguin", "h_images")
             self.init_images("penguin", "images")
             self.init_images("penguin_sliding", "h_sliding_images")
             self.init_images("penguin_sliding", "sliding_images")
             self.penguin_spinning = False
-            self.xvel = 0.2
             self.penguin_sliding = False
+        self.init_images(self.species, "h_images")
+
+        # extra traits
         if "mob" in self.traits:
-            self.max_hp = self.hp = (minfo if self.species in minfo else dinfo)[self.species]["hp"]
+            self.max_hp = self.hp = self.attrs["hp"]
         if "demon" in self.traits:
-            self.bar_rgb = lerp(RED, PURPLE, 101)
+            self.bar_rgb = lerp(RED, PURPLE, 50) + lerp(PURPLE, RED, 51)
         else:
             self.bar_rgb = bar_rgb
-        # other attrs
+
+        # lasts
         self.taking_damage = False
         self.last_took_damage = ticks()
+        self.glitching = False
+        self.last_glitched = ticks()
+        self.last_pause = ticks()
+
+        # other attrs
         self.ray_cooldown = False
         self.dying = False
-        self.taking_damage = True
+        self.initted_images = False
 
     @property
-    def real_col_rects(self):
-        return [rect for rect in self.screen_rects if self.rect.colliderect(rect) and is_hard([block for block in all_blocks if block.rect == rect][0].name)]
+    def _rect(self):
+        if self.smart_vector:
+            return self.image.get_rect(topleft=(self.x, self.y))
+        else:
+            return self.og_rect
 
-    def update(self, dt):
-        if "moving" in self.traits:
-            # x-collision
-            self.x += self.xvel * dt
-            if self.real_col_rects:
+    @property
+    def sign(self):
+        return sign(self.xvel)
+
+    def update(self, dt):  # entity update
+        if "moving" in self.traits and not self.paused:
+            self.x += self.xvel
+            cols = self.get_cols()
+            for col in cols:
                 if self.xvel > 0:
-                    self.right = self.real_col_rects[0].left
-                else:
-                    self.left = self.real_col_rects[0].right
-                self.yvel = -4
-                self.stop_taking_damage()
+                    self.right = col.left
+                if self.xvel < 0:
+                    self.left = col.right
 
-            # y-collision
-            if not self.dying:
-                self.yvel += self.gravity
-                self.y += self.yvel
-            if self.real_col_rects:
+            # y-col
+            self.yvel += self.gravity
+            # self.yvel = min(self.yvel, 8)
+            self.bottom += self.yvel
+            cols = self.get_cols()
+            for col in cols:
                 if self.yvel > 0:
-                    self.bottom = self.real_col_rects[0].top
-                    self.yvel = 0
-                    self.stop_taking_damage()
+                    self.bottom = col.top
+                elif self.yvel < 0:
+                    self.top = col.bottom
+                self.yvel = 0
+
+            # moved out of the chunk?
+            self.chunk_index[0] = self.og_chunk_index[0] + self.x_taken / BS // CW
+            self.chunk_index[1] = self.og_chunk_index[1] + self.y_taken / BS // CH
+
+        # bok-bok
+        if self.species == "bok-bok":
+            # direction change
+            if (g.player._rect.centerx > self._rect.centerx and self.xvel < 0) \
+                    or (self._rect.centerx > g.player._rect.centerx and self.xvel > 0):
+                delay(self.set_xvel, 0.6, -self.xvel)
+            self.jump_over_obstacles()
+
+            # colliding with the player
+            if self._rect.colliderect(g.player._rect):
+                g.player.flinch(self.sign * 1, -2)
+
+        if self.species == "chicken":
+            self.jump_over_obstacles()
+            if self.paused:
+                if chance(1 / 10_000):
+                    self.paused = False
+                    if chance(1 / 2):
+                        self.xvel *= -1
+            else:
+                if chance(1 / 40_000):
+                    self.paused = True
 
         # rest
         if not self.dying:
@@ -136,18 +208,47 @@ class Entity:
             getattr(self, f"{self.species}_function", lambda_none)(dt)
             self.regenerate()
 
-        if is_drawable(self):
-            self.draw()
+        self.draw()
+
+    def jump_over_obstacles(self, yvel=-2):
+        s = 1 if self.xvel >= 0 else -1
+        ahead = pygame.Rect(self._rect.x + 10 * s, self._rect.y, *self.rect.size)
+        if self.get_cols(ahead):
+            self.yvel = yvel
+
+    def set_xvel(self, value):
+        self.xvel = value
+
+    def get_cols(self, call=None):
+        return [rect for rect in self.get_rects() if (call if call is not None else self._rect).colliderect(rect)]
+
+    def get_rects(self):
+        return [data[1] for data in self.block_data]
 
     def flinch(self, height):
-        self.taking_damage = True
-        self.yvel = height
-        fv = 0.6
-        self.xvel = fv if g.player.direc == "right" else -fv
+        def inner():
+            self.yvel = height
+            fv = 0.6
+            og_xvel = self.xvel
+            self.xvel = fv if g.player.direc == "right" else -fv
+            sleep(0.4)
+            self.xvel = og_xvel
+        DThread(target=inner).start()
+
+    def glitch(self):
+        mask = pygame.mask.from_surface(self.image)
+        self.mask_surf_red = SmartSurface.from_surface(mask.to_surface(setcolor=(255, 40, 40, 127)))
+        self.mask_surf_red.set_colorkey(BLACK)
+        self.mask_surf_green = SmartSurface.from_surface(mask.to_surface(setcolor=(0, 255, 0, 127)))
+        self.mask_surf_green.set_colorkey(BLACK)
+        self.mask_surf_blue = SmartSurface.from_surface(mask.to_surface(setcolor=(0, 0, 255, 127)))
+        self.mask_surf_blue.set_colorkey(BLACK)
+        self.last_glitched = ticks()
+        self.glitching = True
 
     def stop_taking_damage(self):
         if self.taking_damage:
-            self.xvel = Entity.entity_xvels[self.species]
+            self.xvel = self.attrs["xvel"]
             self.taking_damage = False
 
     @property
@@ -157,70 +258,6 @@ class Entity:
     @property
     def ybound(self):
         return 1 if self.yvel >= 0 else -1
-
-    @property
-    def rect(self):
-        if self.smart_vector:
-            return self.image.get_rect(topleft=(self.x, self.y))
-        else:
-            return self._rect
-
-    @property
-    def left(self):
-        return self.x
-
-    @left.setter
-    def left(self, value):
-        self.x = value
-
-    @property
-    def right(self):
-        return self.x + self.image.get_width()
-
-    @right.setter
-    def right(self, value):
-        self.x = value - self.image.get_width()
-
-    @property
-    def centerx(self):
-        return self.x + self.image.get_width() / 2
-
-    @centerx.setter
-    def centerx(self, value):
-        self.x = value - self.image.get_width() / 2
-
-    @property
-    def centery(self):
-        return self.y + self.image.get_height() / 2
-
-    @centery.setter
-    def centery(self, value):
-        self.y = value - self.image.get_height() / 2
-
-    @property
-    def center(self):
-        return (self.centerx, self.centery)
-
-    @center.setter
-    def center(self, value):
-        self.centerx = value[0]
-        self.centery = value[1]
-
-    @property
-    def top(self):
-        return self.y
-
-    @top.setter
-    def top(self, value):
-        self.y = value
-
-    @property
-    def bottom(self):
-        return self.y + self.image.get_height()
-
-    @bottom.setter
-    def bottom(self, value):
-        self.y = value - self.image.get_height()
 
     @property
     def width(self):
@@ -234,8 +271,16 @@ class Entity:
     def mask(self):
         return pygame.mask.from_surface(self.image)
 
+    @property
+    def x_taken(self):
+        return self._rect.x - self.og_pos[0]
+
+    @property
+    def y_taken(self):
+        return self._rect.y - self.og_pos[1]
+
     def get_rect(self):
-        return self.rect
+        return self._rect
 
     def init_images(self, img_data, name):
         if isinstance(img_data, list):
@@ -243,8 +288,8 @@ class Entity:
         elif isinstance(img_data, pygame.Surface):
             iter_ = [img_data]
         elif isinstance(img_data, str):
-            if img_data in Entity.entity_imgs:
-                imgs = Entity.entity_imgs[img_data]
+            if img_data in Entity.imgs:
+                imgs = Entity.imgs[img_data]
                 if isinstance(imgs, list):
                     iter_ = imgs
                 elif isinstance(imgs, pygame.Surface):
@@ -262,15 +307,17 @@ class Entity:
                 self.dx = 0
                 self.index += 1
 
-    def draw(self):
+    def draw(self):  # entity draw
         image = self.image.copy()
         if self.taking_damage:
             #image.fill((255, 0, 0, 125), special_flags=BLEND_RGB_ADD)
             image = red_filter(image)
-        if self.smart_vector:
-            Window.display.blit(self.image, (self.x, self.y))
-        else:
-            Window.display.blit(self.image, self.rect)
+        if self.glitching:
+            o = R * 1
+            Window.display.blit(self.mask_surf_red, (self.rect.x - o, self.rect.y))
+            Window.display.blit(self.mask_surf_green, (self.rect.x, self.rect.y + o))
+            Window.display.blit(self.mask_surf_blue, (self.rect.x + o, self.rect.y))
+        Window.display.blit(self.image, self.rect)
 
     def animate(self, dt):
         self.anim += g.p.anim_fps * dt
@@ -305,19 +352,8 @@ class Entity:
     def regenerate(self):
         if self.taking_damage and ticks() - self.last_took_damage >= 300:
             self.taking_damage = False
-
-    def die(self):
-        self.dying = True
-        def t():
-            og_img = self.image.copy()
-            for i in range(90):
-                self.image = SmartSurface.from_surface(pygame.transform.rotozoom(og_img, -i, 1))
-                time.sleep(0.0005)
-            time.sleep(0.7)
-            #self.main_update(self)
-            if self in g.w.entities:
-                g.w.entities.remove(self)
-        Thread(target=t).start()
+        if self.glitching and ticks() - self.last_glitched >= 300:
+            self.glitching = False
 
     def take_damage(self, amount):
         self.taking_damage = True
@@ -326,31 +362,42 @@ class Entity:
 
 
 # F U N C T I O N S ------------------------------------------------------------------------------------ #
+def group(spr, grp):
+    try:
+        grp.add(spr)
+    except AttributeError:
+        grp.append(spr)
+    if grp in (all_particles,):
+        all_foreground_sprites.add(spr)
+
+
 def bshow(str_):
     ret = str_
     if ret is None:
         return ""
-    ret = ret.replace("gold_", "golden_").replace("wood_", "wooden_")
-    if "_en" in str_:
+    # ret = ret.replace("gold_", "golden_").replace("wood_", "wooden_")  # lexicon
+    if "_en" in str_:  # enchanted block
         ret = ret.removesuffix("_en")
-    if "_deg" in str_:
+    if "_deg" in str_:  # rotated by n degrees
         spl = str_.split("_")
         deg = int(spl[1].removeprefix("deg"))
-        ret = f"{deg}{DEG} {ishow(spl[0])}"
-    if "-st" in str_:
-        spl = str_.split("-")
+        ret = f"{deg}{DEG} {bshow(spl[0])}"
+    if "_st" in str_:  # stage of block
+        spl = str_.split("_st")
         stage = spl[-1].removeprefix("st")
         ret = f"{spl[0]} [stage {stage}]"
-    if "_f" in str_:
+    if "_f" in str_:  # forest
         ret = f"forest {ret.replace('_f', '')}"
-    if "_sv" in str_:
+    if "_sv" in str_:  # savanna
         ret = f"savanna {ret.replace('_sv', '')}"
-    if "_sw" in str_:
+    if "_sw" in str_:  # swamp
         ret = f"swamp {ret.replace('_sw', '')}"
-    if "_ck" in str_:
-        ret = f"cooked {ret.replace('_ck', '')}"
-    if "_a" in str_:
+    if "_a" in str_:  # acacia
         ret = f"acacia {ret.replace('_a', '')}"
+    if "_ck" in str_:  # cooked
+        ret = f"cooked {ret.replace('_ck', '')}"
+    if "_vr" in str_:  # variation of block:
+        ret = ret.split("_vr")[0]
     ret = ret.replace("_", " ").replace("-", " ")
     return ret
 
@@ -370,12 +417,13 @@ def tshow(str_):
 
 
 def is_hard(blockname):
+    return True
     return blockname not in walk_through_blocks and not is_bg(blockname)
 
 
 def is_drawable(obj):
     try:
-        return g.w.screen == obj.screen and g.w.layer == obj.layer and g.w.dimension == getattr(obj, "dimension", "data")
+        return g.w.dimension == getattr(obj, "dimension", "data")
     except AttributeError:
         return not hasattr(obj, "visible_when") or obj.visible_when is None or (callable(obj.visible_when) and obj.visible_when())
 
@@ -384,7 +432,7 @@ def is_bg(name):
     return "_bg" in name
 
 
-def color_base(block_type, colors, unplacable=False, sep="-"):
+def color_base(block_type, colors, unplaceable=False, sep="-"):
     base_block = a.blocks[f"base-{block_type}"]
     w, h = base_block.get_size()
     for name, color in colors.items():
@@ -400,11 +448,11 @@ def color_base(block_type, colors, unplacable=False, sep="-"):
                         colored_block.set_at((x, y), BLACK)
         block_name = f"{name}{sep}{block_type}"
         a.blocks[block_name] = colored_block
-        if unplacable:
-            unplacable_blocks.append(block_name)
+        if unplaceable:
+            unplaceable_blocks.append(block_name)
 
 
-def rotate_base(block_type, rotations, prefix="base-", func=None, colorkey=None):
+def rotate_base(block_type, rotations, prefix="base-", func=None, colorkey=None, ramp=False):
     if func is None:
         func = lambda x: block_type
     block_type = func(block_type)
@@ -421,6 +469,9 @@ def rotate_base(block_type, rotations, prefix="base-", func=None, colorkey=None)
             a.blocks[name] = rotate(base_block, r)
         if colorkey is not None:
             a.blocks[name].set_colorkey(colorkey)
+        if ramp and r in (0, 90):
+                ramp_blocks.append(name)
+    rinfo[block_type] = rotations
     a.aliases["blocks"][block_type] = f"{block_type}_deg0"
 
 
@@ -584,23 +635,25 @@ a = _Assets()
 
 
 # images
+rinfo = {}
+dirt_img = cimgload("Images", "Spritesheets", "dirt.png")
 def load_blocks():
     # general
     _bsprs = cimgload("Images", "Spritesheets", "blocks.png")
     block_list = [
-        ["air",         "bucket",           "apple",     "bamboo",        "cactus",        "watermelon",       "rock"      , "chicken"],
-        ["chest",       "snow",             "coconut",   "coconut-piece", "command-block", "wood",             "bed",      "right-bed"],
-        ["base-pipe",   "dirt",             "dynamite",  "fire",          "magic-brick",   "watermelon-piece", "grass1",        "bush"],
-        ["hay",         "base-curved-pipe", "leaf",      "grave",         "sand",          "workbench",        "grass2"               ],
-        ["snow-stone",  "soil",             "stone",     "vine",          "wooden-planks", "wooden-planks_a",  "stick"                ],
-        ["anvil",       "furnace",          "soil_p",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore",     "bread"],
-        ["blackstone",  "closed-core",      "base-core", "lava",          "base-orb",      "magic-table",      "base-armor",   "altar"],
-        ["closed-door", "wheat-st1",        "wheat-st2", "wheat-st3",     "wheat-st4",     "stone-bricks"                             ],
-        ["open-door"                                                                                                                  ],
+        ["air",         "bucket",           "apple",     "bamboo",        "cactus",        "watermelon",       "rock",       "chicken",   "leaf_f"                   ],
+        ["chest",       "snow",             "coconut",   "coconut-piece", "command-block", "wood",             "bed",        "right-bed", "wood_f_vrLTR"             ],
+        ["base-pipe",   "",                 "dynamite",  "fire",          "magic-brick",   "watermelon-piece", "grass1",     "bush",      "wood_f_vrLR"              ],
+        ["hay",         "base-curved-pipe", "",          "grave",         "sand",          "workbench",        "grass2",     "",          "wood_f_vrR"               ],
+        ["snow-stone",  "soil",             "stone",     "vine",          "wooden-planks", "wooden-planks_a",  "stick",      "stone",     "wood_f_vrL",              ],
+        ["anvil",       "furnace",          "soil_p",    "blue_barrel",   "red_barrel",    "gun-crafter",      "base-ore",   "bread",     "wood_f_vrN", "wood_sv_vrN"],
+        ["blackstone",  "closed-core",      "base-core", "lava",          "base-orb",      "magic-table",      "base-armor", "altar",     "grass_f",                 ],
+        ["closed-door", "wheat_st1",        "wheat_st2", "wheat_st3",     "wheat_st4",     "stone-bricks",     "",           "arrow",     "soil_f",     "soil_t"     ],
+        ["open-door",   "",                 "daivinus",  "",              "grass3",        "dirt_f_depr",      "",           "",          "dirt_f",     "dirt_t"     ],
     ]
     for y, layer in enumerate(block_list):
         for x, block in enumerate(layer):
-            a.blocks[block] = _bsprs.subsurface(x * 30, y * 30, 30, 30)
+            a.blocks[block] = _bsprs.subsurface(x * 10 * R, y * 10 * R, 10 * R, 10 * R)
     placeholder_blocks = {"broken-penguin-beak", "jump-pad", "fall-pad"}
     for block in placeholder_blocks:
         surf = pygame.Surface((30, 30), pygame.SRCALPHA)
@@ -608,15 +661,14 @@ def load_blocks():
         write(surf, "center", block, orbit_fonts[10], BLACK, *[s / 2 for s in surf.get_size()])
         a.blocks[block] = surf
     # special one-line blocks
-    a.blocks["soil_f"] = a.blocks["soil"].copy()
+    # a.blocks["soil_f"] = a.blocks["soil"].copy()
     a.blocks["soil_sw"] = cfilter(a.blocks["soil"].copy(), 150, (30, 4))
     a.blocks["soil_sv"] = cfilter(a.blocks["soil"].copy(), 150, (30, 4), (68, 95, 35))
     a.blocks["wood_sv"] = img_mult(a.blocks["wood"].copy(), 1.2)
-    a.blocks["leaf_f"] = a.blocks["leaf"].copy()
-    a.blocks["leaf_sw"] = cfilter(a.blocks["leaf"].copy(), 150, (30, 30))
-    a.blocks["leaf_sk"] = cfilter(a.blocks["leaf"].copy(), 150, (30, 30), PINK)
-    a.blocks["water"] = pygame.Surface((30, 30), pygame.SRCALPHA); a.blocks["water"].fill((17, 130, 177)); a.blocks["water"].set_alpha(180)
-    a.blocks["glass"] = pygame.Surface((30, 30), pygame.SRCALPHA); pygame.draw.rect(a.blocks["glass"], WHITE, (0, 0, 30, 30), 2)
+    a.blocks["leaf_sw"] = cfilter(a.blocks["leaf_f"].copy(), 150, (30, 30))
+    a.blocks["leaf_sk"] = cfilter(a.blocks["leaf_f"].copy(), 150, (30, 30), PINK)
+    a.blocks["water"] = pygame.Surface((10, 10), pygame.SRCALPHA); a.blocks["water"].fill((17, 130, 177)); a.blocks["water"].set_alpha(180)
+    a.blocks["glass"] = pygame.Surface((10, 10), pygame.SRCALPHA); pygame.draw.rect(a.blocks["glass"], WHITE, (0, 0, 10, 10), 2)
     # spike plant
     a.blocks["spike-plant"] = pygame.Surface((30, 30), pygame.SRCALPHA)
     for i in range(3):
@@ -645,8 +697,18 @@ def load_blocks():
         for x in range(10):
             b.set_at((x, y), rgb_mult(BLACK, 5))
     b = pygame.transform.scale(b, [s * 3 for s in b.get_size()])
+    # ramp
+    a.blocks["base-ramp"] = pygame.Surface((BS, BS), pygame.SRCALPHA)
+    pygame.gfxdraw.aapolygon(a.blocks["base-ramp"], [(0, 0), (0, BS - 1), (BS, BS - 1)], GRAY)
+    # stone
+    a.blocks["stone"] = grayscale(a.blocks["dirt_f_depr"])
     # jetpack
-    #a.blocks["jetpack"] = jetpack_img
+    pass
+    # grass3
+    g = a.blocks["grass3"].copy()
+    a.blocks["grass3"] = pygame.Surface((g.get_width(), g.get_height() * 2), pygame.SRCALPHA)
+    a.blocks["grass3"].blit(g, (0, 0))
+    # ------------------------------------------------------
     # ores
     for name, color in [(oi, oinfo[oi]["color"]) for oi in oinfo]:
         a.blocks[name] = swap_palette(a.blocks["base-ore"], BLACK, color)
@@ -657,7 +719,7 @@ def load_blocks():
         pygame.draw.polygon(ingot_img, rgb_mult(color, 0.9), ((0, 11), (8, 19), (8, 27), (0, 19)))
         pygame.draw.polygon(ingot_img, rgb_mult(color, 0.8), ((8, 19), (30, 11), (30, 19), (8, 27)))
         a.assets[ingot_keys[0]][ingot_keys[1]] = pil_to_pg(pil_pixelate(pg_to_pil(ndget(a.assets, ingot_keys)), (10, 10)))
-        unplacable_blocks.append(ingot_keys[-1])
+        unplaceable_blocks.append(ingot_keys[-1])
     a.blocks["bedrock"] = b
     for name, img in a.blocks.copy().items():
         if name.endswith("-planks"):
@@ -667,14 +729,13 @@ def load_blocks():
             stairs.set_colorkey(BLACK)
             stairs_name = f"{name.removesuffix('-planks')}-stairs"
             a.blocks[stairs_name] = stairs
-            rotate_base(name, rotations4_stairs_tup, prefix="", func=lambda x: x.removesuffix("-planks") + "-stairs", colorkey=BLACK)
+            rotate_base(name, rotations4_stairs_tup, prefix="", func=lambda x: x.removesuffix("-planks") + "-stairs", colorkey=BLACK, ramp=True)
             slabs = img.subsurface(0, 0, img.get_width(), img.get_height() / 2)
             slabs_name = f"{name.removesuffix('-planks')}-slabs"
             a.blocks[slabs_name] = pygame.Surface((BS, BS), pygame.SRCALPHA)
             a.blocks[slabs_name].blit(slabs, (0, BS / 2))
     # deleting unneceserry blocks that have been modified anyway
     del a.blocks["soil"]
-    del a.blocks["leaf"]
 
 
 def load_tools():
@@ -686,9 +747,9 @@ def load_tools():
     # lists
     _tsprs = cimgload("Images", "Spritesheets", "tools.png")
     tool_list = [
-        ["pickaxe", "axe",    "sickle"],
+        ["pickaxe", "axe",    "sickle",  "monocular"],
         ["shovel",  "rake",   "scissors"],
-        ["kunai",   "hammer", "sword", "grappling-hook"]
+        ["kunai",   "hammer", "sword",   "grappling-hook"]
     ]
     tools = {}
     whole_tools = {"stick"}
@@ -703,7 +764,7 @@ def load_tools():
     for y, layer in enumerate(tool_list + plus):
         for x, tool in enumerate(layer):
             if isinstance(tool, str):
-                tool_img = _tsprs.subsurface(x * 30, y * 30, 30, 30)
+                tool_img = _tsprs.subsurface(x * 10 * R, y * 10 * R, 10 * R, 10 * R)
                 tool_name = tool
             elif isinstance(tool, dict):
                 tool_img = tool["img"]
@@ -736,8 +797,8 @@ def load_icons():
     ]
     for y, layer in enumerate(icon_list):
         for x, tool in enumerate(layer):
-            a.icons[tool] = icon_sprs.subsurface(x * 0.5 * 30, y * 0.5 * 30, 0.5 * 30, 0.5 * 30)
-    a.icons["armor"] = a.blocks["base-armor"].subsurface((0, 30 * 0.5, 30, 0.5 * 30))
+            a.icons[tool] = icon_sprs.subsurface(x * 0.5 * 10 * R, y * 0.5 * 10 * R, 0.5 * 10 * R, 0.5 * 10 * R)
+    a.icons["armor"] = a.blocks["base-armor"].subsurface((0, 10 * R * 0.5, 10 * R, 0.5 * 10 * R))
     a.og_icons = {k: v.copy() for k, v in a.icons.items()}
 
 
@@ -785,9 +846,9 @@ tool_rarity_colors = {k: v["color"] for k, v in oinfo.items()}
 
 base_armor = cimgload("Images", "Visuals", "base_armor.png")
 bases = {
-    "helmet": base_armor.subsurface(3, 0, 27, 9),
-    "chestplate": base_armor.subsurface(0, 9, 33, 12),
-    "leggings": base_armor.subsurface(3, 21, 27, 6)
+    "helmet": base_armor.subsurface(R, 0, 9 * R, 3 * R),
+    "chestplate": base_armor.subsurface(0, 3 * R, 11 * R, 4 * R),
+    "leggings": base_armor.subsurface(R, 7 * R, 9 * R, 2 * R)
 }
 a.blocks |= {f"base-{k}": v for k, v in bases.items()}
 
@@ -801,9 +862,9 @@ for base_name, base_img in bases.items():
         # bg_img = pygame.transform.scale(bg_img, (30, 30))
         # a.blocks[name] = bg_img
         a.blocks[name] = blit_img
-        unplacable_blocks.append(name)
+        unplaceable_blocks.append(name)
 
-wheats = [f"wheat-st{i}" for i in range(1, 5)]
+wheats = [f"wheat_st{i}" for i in range(1, 5)]
 block_breaking_times = {"stone": 1000, "sand": 200, "hay": 150, "soil": 200, "dirt": 200, "watermelon": 500}
 block_breaking_amounts = {"stone": 0.01, "sand": 0.01, "hay": 0.07, "soil": 0.05, "dirt": 0.05, "watermelon": 0.01}
 tinfo = {
@@ -838,10 +899,19 @@ tinfo = {
         {"blocks": {}},
 }
 tinfo["sickle"]["blocks"] |= {wheat: 0.12 for wheat in wheats}
+
+sinfo = {
+    "iron": {
+        "damage": 10,
+        "knockback": 10,
+        "cooldown": 1000
+    }
+}
+
 health_tools = [tool for tool in tinfo if tool not in {}]
 unrotatable_tools = {"sword", "bow", "grappling-hook", "bat"}
 unflipping_tools = {"grappling-hook"}
-non_ored_tools = {"bat"}
+non_ored_tools = {"bat", "monocular"}
 fin_mult = 1 / 0.015873
 for mult, ore in enumerate(oinfo, 50):
     tinfo["pickaxe"]["blocks"][ore] = (11 - oinfo[ore]["mohs"]) * 0.003 * (1 - (1 / mult * fin_mult - 1) * 2.3)
@@ -858,7 +928,9 @@ fueinfo = {
 }
 
 # B L O C K  C L A S S I F I C A T I O N S ------------------------------------------------------------- #
-walk_through_blocks = {"air", "fire", "lava", "water", "vine", "spike-plant", "grass1", "grass2", "open-door",
+walk_through_blocks = {"air", "fire", "lava", "water", "spike-plant", "grass1", "grass2", "grass_f",
+                       "workbench", "anvil", "furnace", "gun-crafter", "altar", "magic-table", "vine",
+                       "open-door", "arrow", "grass3", "chest",
                        *wheats}
 unbreakable_blocks = {"air", "fire", "water"}
 item_blocks = {"dynamite"}
@@ -874,21 +946,48 @@ furnaceable_blocks = {"chicken"} | set(x for x in fuinfo if x not in fueinfo)
 block_breaking_effects = {
     "glass": {"damage": (0, 4)}
 }
+ramp_blocks = []
 
 
 # food info
 finfo = {
     # energy is in kcal
-    "apple":
-        {"amounts": {"hunger": 3, "thirst": 3,  "energy": 104},  "speed": 2},
-    "coconut-piece":
-        {"amounts": {"hunger": 2, "thirst": 4,  "energy": 1204}, "speed": 1.25},
+    # thirst is in ml water (or grams for that matter)
+    # vitamins is in μg
+    # iron and potassium is in mg
+    # * x is relative to 100g of that particular food (e.g. 1 apple is 200g on average)
+    "apple": {
+        "amounts": {
+            "thirst": 85.6 * 2,
+            "energy": 52 * 2,
+            "vitamin A": 3 * 2,
+            "vitamin B": 0.041 * 2,
+            "vitamin C": 4.6 * 2,
+            "Fe": 0.12 * 2,
+            "K": 107
+        },
+        "speed": 2
+    },
+
+    "coconut-piece": {
+        "amounts": {
+            "thirst": 95 * 6.8,
+            "energy": 19 * 6.8,
+            "vitamin A": 0,
+            "vitamin B": 0.032,
+            "vitamin C": 2.4
+        },
+        "speed": 1.25
+    },
+
     "watermelon-piece":
-        {"amounts": {"hunger": 4, "thirst": 10, "energy": 2700}, "speed": 2.5},
+        {"amounts": {"thirst": 8255, "energy": 1361}, "speed": 2.5},
     "chicken":
-        {"amounts": {"hunger": 6,               "energy": 5258}, "speed": 1.25},
+        {"amounts": {                "energy": 1784}, "speed": 1.25},
+    "chicken_ck":
+        {"amounts": {                "energy": 2358}, "speed": 1.5},
     "bread":
-        {"amounts": {"hunger": 6, "thirst": -3, "energy": 1060}, "speed": 4}
+        {"amounts": {"thirst": -3,   "energy": 1060}, "speed": 4}
 }
 for food in finfo:
     finfo[food]["amounts"]["energy"] /= 100
@@ -906,8 +1005,8 @@ cinfo = {
     "portal-generator": {"recipe": {"water": 1}, "energy": 20},
     "furnace": {"recipe": {"stone": 9}, "energy": 12},
     # food
-    "bread": {"recipe": {"wheat-st4": 3}, "energy": 2},
-    "wheat-st4": {"recipe": {"hay": 1}, "amount": 2, "energy": 1, "reverse": True}
+    "bread": {"recipe": {"wheat_st4": 3}, "energy": 2},
+    "wheat_st4": {"recipe": {"hay": 1}, "amount": 2, "energy": 1, "reverse": True}
 }
 for k, v in cinfo.copy().items():
     if v.get("reverse", False):
@@ -919,6 +1018,8 @@ minfo = dd(lambda: {True: {}, False: {}}, {
     "penguin": {"hp": 100, "demon": "hallowskull", True: {}, False: {"chicken": 3}, },
     "fluff-camel": {"hp": 110, True: {}, False: {}},
     "camel": {"hp": 80, True: {}, False: {}},
+    "keno": {"hp": 250},
+    "bok-bok": {"hp": 60},
 })
 dinfo = {
     "hallowskull": {"summon": {"broken-penguin-beak": 7},
@@ -962,7 +1063,7 @@ tool_info = {
     "majestic"
 }
 
-unplacable_blocks.extend([*gun_blocks, "bucket", "broken-penguin-beak", "jetpack"])
+unplaceable_blocks.extend([*gun_blocks, "bucket", "broken-penguin-beak", "jetpack"])
 
 # loading assets
 load_blocks()
@@ -1007,10 +1108,11 @@ for name, img in a.blocks.items():
                     transparent_blocks.append(name)
                     raise BreakAllLoops
 
-# rotations
-color_base("orb", orb_colors, unplacable=True)
+# block mods
+color_base("orb", orb_colors, unplaceable=True)
 rotate_base("pipe", rotations2)
 rotate_base("curved-pipe", rotations4)
+rotate_base("ramp", rotations4, ramp=True)
 
 # visual orbs
 visual_orbs_sprs = cimgload("Images", "Spritesheets", "visual_orbs.png")
@@ -1044,7 +1146,6 @@ for block in a.blocks.copy():
 oinfo["stone"] = {"mohs": 3}
 a.blocks |= {f"{k}_cn": pil_to_pg(pil_contrast(pg_to_pil(v))) for k, v in a.blocks.items() if k in furnaceable_blocks}
 #a.assets = {ak: {name: pygame.transform.scale(img, [s * 3 for s in img.get_size()]) for name, img in av.items()} for ak, av in a.assets.items()}
-
 # resizing
 # a.assets = {k: {name: scale(img, [s * (30 / 10 / 3) for s in img.get_size()]) for name, img in v.items()} if isinstance(v, dict) else [scale(x, [_s * (30 / 10 / 3) for _s in x.get_size()]) for x in v] for k, v in a.assets.items()}
 
@@ -1057,6 +1158,11 @@ a.blocks |= {f"{k}_cn": pil_to_pg(pil_contrast(pg_to_pil(v))) for k, v in a.bloc
 #     surf = pil_to_pg(surf)
 #     a.blocks[name] = surf
 # 30 = 16
+
+stone_bg = pygame.Surface((CW * BS, CH * BS))
+for y in range(CH):
+    for x in range(CW):
+        stone_bg.blit(a.blocks["stone"], (x * BS, y * BS))
 
 # important: load all blocks and modifications before loading sizes
 load_sizes()
